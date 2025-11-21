@@ -1,0 +1,30 @@
+{
+  "name": "git-statistics-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.8.0",
+    "@hono/zod-validator": "^0.2.0",
+    "@prisma/client": "^5.22.0",
+    "hono": "^4.0.0",
+    "node-cron": "^3.0.0",
+    "pino": "^8.16.0",
+    "pino-pretty": "^10.2.0",
+    "ramda": "^0.29.0",
+    "simple-git": "^3.20.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/node-cron": "^3.0.0",
+    "@types/ramda": "^0.29.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0"
+  }
+}

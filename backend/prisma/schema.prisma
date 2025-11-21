@@ -1,0 +1,47 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../database/git-statistics.db"
+}
+
+model Repository {
+  id            String   @id
+  name          String
+  path          String
+  lastScanTime  BigInt?  @map("last_scan_time")
+  totalCommits  Int      @default(0) @map("total_commits")
+  createdAt     BigInt   @map("created_at")
+  updatedAt     BigInt   @map("updated_at")
+  
+  commits       Commit[]
+
+  @@map("repositories")
+}
+
+model Commit {
+  id            Int      @id @default(autoincrement())
+  repoId        String   @map("repo_id")
+  commitHash    String   @map("commit_hash")
+  authorName    String   @map("author_name")
+  authorEmail   String   @map("author_email")
+  commitDate    BigInt   @map("commit_date")
+  message       String
+  filesChanged  Int      @default(0) @map("files_changed")
+  insertions    Int      @default(0)
+  deletions     Int      @default(0)
+  createdAt     BigInt   @map("created_at")
+  
+  repository    Repository @relation(fields: [repoId], references: [id])
+
+  @@unique([repoId, commitHash])
+  @@index([repoId, commitDate], name: "idx_commits_repo_date")
+  @@index([authorEmail, commitDate], name: "idx_commits_author")
+  @@index([commitDate], name: "idx_commits_date")
+  @@map("commits")
+}

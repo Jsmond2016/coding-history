@@ -1,0 +1,138 @@
+#!/bin/bash
+
+# killport - 关闭占用指定端口的进程
+# 使用方法: killport <端口号> [选项]
+# 选项: -f 或 --force 强制关闭 (使用 kill -9)
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# 默认使用优雅关闭
+FORCE=false
+SIGNAL="-15"
+
+# 解析参数
+PORT=""
+for arg in "$@"; do
+    case $arg in
+        -f|--force)
+            FORCE=true
+            SIGNAL="-9"
+            shift
+            ;;
+        *)
+            if [ -z "$PORT" ]; then
+                PORT=$arg
+            fi
+            ;;
+    esac
+done
+
+# 检查参数
+if [ -z "$PORT" ]; then
+    echo -e "${RED}错误: 请提供端口号${NC}"
+    echo -e "${YELLOW}使用方法: killport <端口号> [选项]${NC}"
+    echo -e "${YELLOW}选项:${NC}"
+    echo -e "${YELLOW}  -f, --force    强制关闭进程 (使用 kill -9)${NC}"
+    echo -e "${YELLOW}示例:${NC}"
+    echo -e "${YELLOW}  killport 3000${NC}"
+    echo -e "${YELLOW}  killport 3000 -f${NC}"
+    exit 1
+fi
+
+# 验证端口号是否为数字
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}错误: 端口号必须是数字${NC}"
+    exit 1
+fi
+
+# 验证端口号范围
+if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+    echo -e "${RED}错误: 端口号必须在 1-65535 之间${NC}"
+    exit 1
+fi
+
+if [ "$FORCE" = true ]; then
+    echo -e "${BLUE}正在强制关闭占用端口 ${GREEN}${PORT}${BLUE} 的进程...${NC}"
+else
+    echo -e "${BLUE}正在关闭占用端口 ${GREEN}${PORT}${BLUE} 的进程...${NC}"
+fi
+echo ""
+
+# 查找占用端口的进程
+PIDS=$(lsof -ti :$PORT 2>/dev/null)
+
+if [ -z "$PIDS" ]; then
+    echo -e "${YELLOW}未找到占用端口 ${PORT} 的进程${NC}"
+    exit 0
+fi
+
+# 显示将要关闭的进程信息
+echo -e "${YELLOW}找到以下进程:${NC}"
+lsof -i :$PORT -P -n 2>/dev/null | head -1
+lsof -i :$PORT -P -n 2>/dev/null | tail -n +2
+echo ""
+
+# 统计进程数量
+COUNT=$(echo "$PIDS" | wc -l | tr -d ' ')
+
+# 询问确认
+if [ "$FORCE" = true ]; then
+    echo -e "${RED}警告: 即将强制关闭 ${COUNT} 个进程 (kill -9)${NC}"
+else
+    echo -e "${YELLOW}即将关闭 ${COUNT} 个进程${NC}"
+fi
+
+read -p "确认关闭? (y/N): " -n 1 -r
+echo ""
+
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}操作已取消${NC}"
+    exit 0
+fi
+
+# 关闭进程
+SUCCESS_COUNT=0
+FAIL_COUNT=0
+
+for PID in $PIDS; do
+    # 获取进程名称
+    PROCESS_NAME=$(ps -p $PID -o comm= 2>/dev/null)
+    
+    if kill $SIGNAL $PID 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} 成功关闭进程 PID: ${GREEN}${PID}${NC} (${PROCESS_NAME})"
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    else
+        echo -e "${RED}✗${NC} 关闭进程失败 PID: ${RED}${PID}${NC} (${PROCESS_NAME})"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+done
+
+echo ""
+
+# 显示结果统计
+if [ $FAIL_COUNT -eq 0 ]; then
+    echo -e "${GREEN}成功关闭所有进程 (${SUCCESS_COUNT}/${COUNT})${NC}"
+else
+    echo -e "${YELLOW}部分进程关闭失败${NC}"
+    echo -e "${GREEN}成功: ${SUCCESS_COUNT}${NC} | ${RED}失败: ${FAIL_COUNT}${NC}"
+    
+    if [ "$FORCE" = false ]; then
+        echo ""
+        echo -e "${YELLOW}提示: 如果进程无法关闭，可以尝试使用 'killport ${PORT} -f' 强制关闭${NC}"
+    fi
+fi
+
+# 验证端口是否已释放
+sleep 0.5
+REMAINING=$(lsof -ti :$PORT 2>/dev/null)
+if [ -z "$REMAINING" ]; then
+    echo -e "${GREEN}端口 ${PORT} 已成功释放${NC}"
+else
+    echo -e "${RED}警告: 端口 ${PORT} 仍被占用${NC}"
+fi
+

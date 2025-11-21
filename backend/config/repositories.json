@@ -1,0 +1,28 @@
+{
+  "repositories": [
+    {
+      "id": "monkey-saas-web",
+      "name": "Monkey SaaS Web",
+      "path": "/Users/huangjing/Desktop/Code/monkey-saas-enterprise-web",
+      "enabled": true
+    },
+    {
+      "id": "monkey-saas-web",
+      "name": "Monkey SaaS Web",
+      "path": "/Users/huangjing/Desktop/Code/monkey-saas-web",
+      "enabled": true
+    },
+    {
+      "id": "monkey-reservation2.0",
+      "name": "Monkey Reservation 2.0",
+      "path": "/Users/huangjing/Desktop/Code/monkey-reservation2.0",
+      "enabled": true
+    }
+  ],
+  "author": {
+    "name": "huangjin",
+    "email": "huangjin@supermonkey.com.cn"
+  },
+  "scanInterval": "0 2 * * *"
+}
+

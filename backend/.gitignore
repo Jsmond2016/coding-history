@@ -1,0 +1,11 @@
+node_modules/
+dist/
+database/*.db
+database/*.db-shm
+database/*.db-wal
+logs/*.log
+.env
+*.log
+
+
+/src/generated/prisma
