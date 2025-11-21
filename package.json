@@ -7,7 +7,8 @@
     "dev:backend": "pnpm --filter git-statistics-backend dev",
     "dev:frontend": "pnpm --filter git-statistics-frontend dev",
     "build:backend": "pnpm --filter git-statistics-backend build",
-    "build:frontend": "pnpm --filter git-statistics-frontend build"
+    "build:frontend": "pnpm --filter git-statistics-frontend build",
+    "init-scan": "pnpm --filter git-statistics-backend init-scan"
   }
 }
 

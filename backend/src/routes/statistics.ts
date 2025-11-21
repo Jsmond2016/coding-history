@@ -10,10 +10,20 @@ const commitService = new CommitService();
 app.get('/', zValidator('query', StatisticsQuerySchema), async (c) => {
   const query = c.req.valid('query');
   
+  console.log('[Statistics API] Query params:', {
+    startDate: query.startDate,
+    endDate: query.endDate,
+    repositoryIds: query.repositoryIds
+  });
+  
   const statistics = await commitService.getStatistics({
     startDate: query.startDate,
     endDate: query.endDate,
     repositoryIds: query.repositoryIds
+  });
+
+  console.log('[Statistics API] Result:', {
+    totalCommits: statistics.totalCommits
   });
 
   return c.json(statistics);

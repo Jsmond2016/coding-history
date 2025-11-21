@@ -1,6 +1,6 @@
 import React from 'react';
 import { Space, DatePicker, Select, Button, message } from 'antd';
-import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { SearchOutlined, ReloadOutlined, UndoOutlined } from '@ant-design/icons';
 import { useAtom } from 'jotai';
 import dayjs, { type Dayjs } from 'dayjs';
 import { filterAtom, repositoriesAtom } from '../../../../biz/atoms/gitStatistics.atom';
@@ -20,8 +20,8 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
   const [scanning, setScanning] = React.useState(false);
   const [lastScanTime, setLastScanTime] = React.useState<number>(0);
 
-  const handleDateChange = (dates: [Dayjs, Dayjs] | null) => {
-    if (!dates) return;
+  const handleDateChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
+    if (!dates || !dates[0] || !dates[1]) return;
     
     const diffYears = dates[1].diff(dates[0], 'year', true);
     if (diffYears > 2) {
@@ -31,7 +31,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
     
     setFilter({
       ...filter,
-      dateRange: dates
+      dateRange: [dates[0], dates[1]]
     });
   };
 
@@ -61,6 +61,19 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
     } finally {
       setScanning(false);
     }
+  };
+
+  // 重置筛选条件
+  const handleReset = () => {
+    setFilter({
+      dateRange: [dayjs().subtract(7, 'day'), dayjs()],
+      repositoryIds: []
+    });
+    // 重置后自动搜索
+    setTimeout(() => {
+      onSearch();
+    }, 0);
+    message.success('已重置筛选条件');
   };
 
   // DatePicker 预设范围
@@ -105,6 +118,13 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         onClick={onSearch}
       >
         搜索
+      </Button>
+
+      <Button 
+        icon={<UndoOutlined />}
+        onClick={handleReset}
+      >
+        重置
       </Button>
       
       <Button 

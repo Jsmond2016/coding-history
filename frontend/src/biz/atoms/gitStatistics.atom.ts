@@ -6,10 +6,13 @@ export interface FilterState {
   repositoryIds: string[];
 }
 
-export const filterAtom = atom<FilterState>({
-  dateRange: [dayjs().subtract(1, 'month'), dayjs()],
+// 默认筛选条件：最近一周
+export const defaultFilterState: FilterState = {
+  dateRange: [dayjs().subtract(7, 'day'), dayjs()],
   repositoryIds: []
-});
+};
+
+export const filterAtom = atom<FilterState>(defaultFilterState);
 
 export interface CommitsTableState {
   data: any[];

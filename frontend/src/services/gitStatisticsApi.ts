@@ -3,7 +3,25 @@ import type { CommitsQuery, CommitsResponse, StatisticsResponse, Repository } fr
 
 const api = axios.create({
   baseURL: '/api/v1',
-  timeout: 30000
+  timeout: 30000,
+  paramsSerializer: {
+    serialize: (params) => {
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (Array.isArray(value)) {
+            // 将数组序列化为逗号分隔的字符串
+            if (value.length > 0) {
+              searchParams.append(key, value.join(','));
+            }
+          } else {
+            searchParams.append(key, String(value));
+          }
+        }
+      });
+      return searchParams.toString();
+    }
+  }
 });
 
 export const gitStatisticsApi = {

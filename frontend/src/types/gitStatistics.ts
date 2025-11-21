@@ -2,10 +2,11 @@ export interface Repository {
   id: string;
   name: string;
   path: string;
-  last_scan_time: number | null;
-  total_commits: number;
-  created_at: number;
-  updated_at: number;
+  lastScanTime: number | null;
+  totalCommits: number;
+  initialScanToDate?: number | null;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface Commit {
@@ -20,7 +21,7 @@ export interface Commit {
   filesChanged: number;
   insertions: number;
   deletions: number;
-  created_at: number;
+  createdAt: number;
 }
 
 export interface CommitsQuery {

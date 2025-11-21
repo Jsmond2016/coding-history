@@ -10,12 +10,25 @@ const commitService = new CommitService();
 app.get('/', zValidator('query', CommitsQuerySchema), async (c) => {
   const query = c.req.valid('query');
   
+  console.log('[Commits API] Query params:', {
+    startDate: query.startDate,
+    endDate: query.endDate,
+    repositoryIds: query.repositoryIds,
+    page: query.page,
+    pageSize: query.pageSize
+  });
+  
   const result = await commitService.getCommits({
     startDate: query.startDate,
     endDate: query.endDate,
     repositoryIds: query.repositoryIds,
     page: query.page,
     pageSize: query.pageSize
+  });
+
+  console.log('[Commits API] Result:', {
+    total: result.total,
+    dataCount: result.data.length
   });
 
   return c.json({

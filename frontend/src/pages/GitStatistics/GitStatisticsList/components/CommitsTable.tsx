@@ -17,7 +17,7 @@ const columns: ColumnsType<Commit> = [
     title: '提交Hash',
     dataIndex: 'commitHash',
     width: 100,
-    render: (hash: string) => hash.substring(0, 7)
+    render: (hash: string) => hash?.substring(0, 7) || '-'
   },
   {
     title: '提交时间',

@@ -22,18 +22,6 @@ const GitStatisticsList: React.FC = () => {
   const setRepositories = useSetAtom(repositoriesAtom);
   const [hasSearched, setHasSearched] = React.useState(false);
 
-  // 加载仓库列表
-  useMount(async () => {
-    try {
-      const repos = await gitStatisticsApi.getRepositories();
-      setRepositories(repos);
-      // 自动执行一次搜索
-      handleSearch();
-    } catch (error) {
-      message.error('加载仓库列表失败');
-    }
-  });
-
   // 加载数据
   const handleSearch = React.useCallback(async () => {
     const startDate = filter.dateRange[0].valueOf();
@@ -41,6 +29,18 @@ const GitStatisticsList: React.FC = () => {
     const repositoryIds = filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined;
     const page = 1; // 搜索时重置到第一页
     const pageSize = tableState.pagination.pageSize;
+
+    console.log('[Frontend] Search params:', {
+      startDate,
+      endDate,
+      repositoryIds,
+      page,
+      pageSize,
+      dateRange: [
+        filter.dateRange[0].format('YYYY-MM-DD'),
+        filter.dateRange[1].format('YYYY-MM-DD')
+      ]
+    });
 
     const query: CommitsQuery = {
       startDate,
@@ -64,6 +64,12 @@ const GitStatisticsList: React.FC = () => {
         })
       ]);
 
+      console.log('[Frontend] Search results:', {
+        total: commitsResult.total,
+        dataCount: commitsResult.data.length,
+        totalCommits: statisticsResult.totalCommits
+      });
+
       setTableState({
         data: commitsResult.data,
         pagination: {
@@ -76,16 +82,28 @@ const GitStatisticsList: React.FC = () => {
 
       setStatistics(statisticsResult);
     } catch (error) {
+      console.error('[Frontend] Search error:', error);
       message.error('加载数据失败');
       setTableState(prev => ({ ...prev, loading: false }));
     }
   }, [
-    filter.dateRange,
-    filter.repositoryIds,
+    filter,
     tableState.pagination.pageSize,
     setTableState,
     setStatistics
   ]);
+
+  // 加载仓库列表
+  useMount(async () => {
+    try {
+      const repos = await gitStatisticsApi.getRepositories();
+      setRepositories(repos);
+      // 自动执行一次搜索
+      await handleSearch();
+    } catch (error) {
+      message.error('加载仓库列表失败');
+    }
+  });
 
   // 翻页时加载数据
   const handlePageChange = React.useCallback(async (page: number, pageSize: number) => {

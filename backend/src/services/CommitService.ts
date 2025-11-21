@@ -49,8 +49,7 @@ export class CommitService {
         insertions: commit.insertions,
         deletions: commit.deletions,
         createdAt: now
-      })),
-      skipDuplicates: true
+      }))
     });
 
     return {
@@ -98,16 +97,16 @@ export class CommitService {
 
     const data = commits.map(commit => ({
       id: commit.id,
-      repo_id: commit.repoId,
-      commit_hash: commit.commitHash,
-      author_name: commit.authorName,
-      author_email: commit.authorEmail,
-      commit_date: Number(commit.commitDate),
+      repoId: commit.repoId,
+      commitHash: commit.commitHash,
+      authorName: commit.authorName,
+      authorEmail: commit.authorEmail,
+      commitDate: Number(commit.commitDate),
       message: commit.message,
-      files_changed: commit.filesChanged,
+      filesChanged: commit.filesChanged,
       insertions: commit.insertions,
       deletions: commit.deletions,
-      created_at: Number(commit.createdAt),
+      createdAt: Number(commit.createdAt),
       repoName: commit.repository.name
     }));
 
