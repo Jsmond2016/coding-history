@@ -23,9 +23,10 @@ export class GitScanService {
   /**
    * 扫描仓库提交记录
    * @param fromDate 起始日期，用于增量扫描
+   * @param toDate 结束日期，可选
    * @param authorEmail 作者邮箱，用于过滤
    */
-  async scanRepository(fromDate?: Date, authorEmail?: string): Promise<ScannedCommit[]> {
+  async scanRepository(fromDate?: Date, toDate?: Date, authorEmail?: string): Promise<ScannedCommit[]> {
     try {
       // 检查是否为有效的 Git 仓库
       const isRepo = await this.git.checkIsRepo();
@@ -34,12 +35,16 @@ export class GitScanService {
       }
 
       // 构建 log 选项
-      const logOptions: any = {
-        to: 'HEAD'
-      };
+      const logOptions: any = {};
 
       if (fromDate) {
-        logOptions.from = fromDate.toISOString();
+        // 使用 --since 参数指定起始日期
+        logOptions['--since'] = fromDate.toISOString();
+      }
+
+      if (toDate) {
+        // 使用 --until 参数指定结束日期
+        logOptions['--until'] = toDate.toISOString();
       }
 
       if (authorEmail) {
@@ -101,10 +106,13 @@ export class GitScanService {
 
   /**
    * 增量扫描：只扫描指定日期之后的提交
+   * @param lastScanDate 起始日期
+   * @param authorEmail 作者邮箱，可选
+   * @param toDate 结束日期，可选
    */
-  async incrementalScan(lastScanDate: Date, authorEmail?: string): Promise<ScannedCommit[]> {
-    logger.info(`Incremental scan from ${lastScanDate.toISOString()}`);
-    return this.scanRepository(lastScanDate, authorEmail);
+  async incrementalScan(lastScanDate: Date, authorEmail?: string, toDate?: Date): Promise<ScannedCommit[]> {
+    logger.info(`Incremental scan from ${lastScanDate.toISOString()}${toDate ? ` to ${toDate.toISOString()}` : ''}`);
+    return this.scanRepository(lastScanDate, toDate, authorEmail);
   }
 }
 

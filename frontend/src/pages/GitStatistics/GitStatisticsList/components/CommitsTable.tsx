@@ -54,19 +54,17 @@ const columns: ColumnsType<Commit> = [
   }
 ];
 
-export const CommitsTable: React.FC = () => {
-  const [tableState, setTableState] = useAtom(commitsTableAtom);
-  const filter = useAtomValue(filterAtom);
+interface CommitsTableProps {
+  onPageChange?: (page: number, pageSize: number) => void;
+}
+
+export const CommitsTable: React.FC<CommitsTableProps> = ({ onPageChange }) => {
+  const [tableState] = useAtom(commitsTableAtom);
 
   const handleTableChange = (pagination: any) => {
-    setTableState({
-      ...tableState,
-      pagination: {
-        ...tableState.pagination,
-        current: pagination.current || 1,
-        pageSize: pagination.pageSize || 20
-      }
-    });
+    const page = pagination.current || 1;
+    const pageSize = pagination.pageSize || 20;
+    onPageChange?.(page, pageSize);
   };
 
   return (

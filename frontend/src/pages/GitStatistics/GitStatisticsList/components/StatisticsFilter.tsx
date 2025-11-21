@@ -1,33 +1,26 @@
 import React from 'react';
 import { Space, DatePicker, Select, Button, message } from 'antd';
+import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useAtom } from 'jotai';
 import dayjs, { type Dayjs } from 'dayjs';
-import { filterAtom, repositoriesAtom, type QuickSelectType } from '../../../../biz/atoms/gitStatistics.atom';
+import { filterAtom, repositoriesAtom } from '../../../../biz/atoms/gitStatistics.atom';
 import { gitStatisticsApi } from '../../../../services/gitStatisticsApi';
 import type { Repository } from '../../../../types/gitStatistics';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-export const StatisticsFilter: React.FC = () => {
+interface StatisticsFilterProps {
+  onSearch: () => void;
+}
+
+export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) => {
   const [filter, setFilter] = useAtom(filterAtom);
   const [repositories] = useAtom(repositoriesAtom);
   const [scanning, setScanning] = React.useState(false);
+  const [lastScanTime, setLastScanTime] = React.useState<number>(0);
 
-  const handleQuickSelect = (type: QuickSelectType) => {
-    const end = dayjs();
-    const start = type === 'week' 
-      ? end.subtract(7, 'day')
-      : end.subtract(1, 'month');
-    
-    setFilter({
-      ...filter,
-      dateRange: [start, end],
-      quickSelect: type
-    });
-  };
-
-  const handleCustomRange = (dates: [Dayjs, Dayjs] | null) => {
+  const handleDateChange = (dates: [Dayjs, Dayjs] | null) => {
     if (!dates) return;
     
     const diffYears = dates[1].diff(dates[0], 'year', true);
@@ -38,17 +31,28 @@ export const StatisticsFilter: React.FC = () => {
     
     setFilter({
       ...filter,
-      dateRange: dates,
-      quickSelect: 'custom'
+      dateRange: dates
     });
   };
 
   const handleScan = async () => {
+    // 防抖：30秒内只能扫描一次
+    const now = Date.now();
+    if (now - lastScanTime < 30000) {
+      const remainingSeconds = Math.ceil((30000 - (now - lastScanTime)) / 1000);
+      message.warning(`请等待 ${remainingSeconds} 秒后再次扫描`);
+      return;
+    }
+
     setScanning(true);
+    setLastScanTime(now);
+    
     try {
       const result = await gitStatisticsApi.triggerScan();
       if (result.success) {
         message.success(`成功扫描 ${result.scannedCount} 个仓库`);
+        // 扫描成功后自动刷新数据
+        onSearch();
       } else {
         message.error('扫描失败');
       }
@@ -59,38 +63,34 @@ export const StatisticsFilter: React.FC = () => {
     }
   };
 
+  // DatePicker 预设范围
+  const rangePresets = [
+    { label: '最近一周', value: [dayjs().subtract(7, 'day'), dayjs()] as [Dayjs, Dayjs] },
+    { label: '最近一个月', value: [dayjs().subtract(1, 'month'), dayjs()] as [Dayjs, Dayjs] },
+    { label: '最近三个月', value: [dayjs().subtract(3, 'month'), dayjs()] as [Dayjs, Dayjs] },
+    { label: '最近半年', value: [dayjs().subtract(6, 'month'), dayjs()] as [Dayjs, Dayjs] },
+    { label: '最近一年', value: [dayjs().subtract(1, 'year'), dayjs()] as [Dayjs, Dayjs] },
+  ];
+
   return (
     <Space wrap size="middle">
-      <Space>
-        <span>快捷选择：</span>
-        <Button 
-          type={filter.quickSelect === 'week' ? 'primary' : 'default'}
-          onClick={() => handleQuickSelect('week')}
-        >
-          最近一周
-        </Button>
-        <Button 
-          type={filter.quickSelect === 'month' ? 'primary' : 'default'}
-          onClick={() => handleQuickSelect('month')}
-        >
-          最近一个月
-        </Button>
-      </Space>
-      
       <RangePicker
         value={filter.dateRange}
-        onChange={handleCustomRange}
+        onChange={handleDateChange}
         format="YYYY-MM-DD"
         allowClear={false}
+        presets={rangePresets}
+        style={{ width: 280 }}
       />
       
       <Select
         mode="multiple"
-        placeholder="选择仓库"
+        placeholder="选择仓库（默认全部）"
         value={filter.repositoryIds}
         onChange={(ids) => setFilter({ ...filter, repositoryIds: ids })}
-        style={{ minWidth: 200 }}
+        style={{ minWidth: 240 }}
         allowClear
+        maxTagCount="responsive"
       >
         {repositories.map((repo: Repository) => (
           <Option key={repo.id} value={repo.id}>
@@ -101,8 +101,17 @@ export const StatisticsFilter: React.FC = () => {
       
       <Button 
         type="primary" 
+        icon={<SearchOutlined />}
+        onClick={onSearch}
+      >
+        搜索
+      </Button>
+      
+      <Button 
+        icon={<ReloadOutlined />}
         onClick={handleScan}
         loading={scanning}
+        disabled={scanning}
       >
         手动扫描
       </Button>

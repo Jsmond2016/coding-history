@@ -8,16 +8,37 @@ export interface CommitWithRepoName extends Commit {
 
 export class CommitService {
   /**
-   * 批量插入提交记录
+   * 批量插入提交记录（带去重）
    */
-  async batchInsertCommits(repoId: string, commits: ScannedCommit[]): Promise<void> {
-    if (commits.length === 0) return;
+  async batchInsertCommits(repoId: string, commits: ScannedCommit[]): Promise<{ inserted: number; skipped: number }> {
+    if (commits.length === 0) return { inserted: 0, skipped: 0 };
 
     const now = BigInt(Date.now());
     
-    // 使用 createMany 批量插入，跳过重复项
+    // 查询已存在的 commit hash（跨仓库去重）
+    const existingHashes = await prisma.commit.findMany({
+      where: {
+        commitHash: {
+          in: commits.map(c => c.hash)
+        }
+      },
+      select: {
+        commitHash: true
+      }
+    });
+
+    const existingHashSet = new Set(existingHashes.map(c => c.commitHash));
+    
+    // 过滤出新的提交
+    const newCommits = commits.filter(commit => !existingHashSet.has(commit.hash));
+    
+    if (newCommits.length === 0) {
+      return { inserted: 0, skipped: commits.length };
+    }
+
+    // 批量插入新提交
     await prisma.commit.createMany({
-      data: commits.map(commit => ({
+      data: newCommits.map(commit => ({
         repoId,
         commitHash: commit.hash,
         authorName: commit.authorName,
@@ -31,6 +52,11 @@ export class CommitService {
       })),
       skipDuplicates: true
     });
+
+    return {
+      inserted: newCommits.length,
+      skipped: commits.length - newCommits.length
+    };
   }
 
   /**

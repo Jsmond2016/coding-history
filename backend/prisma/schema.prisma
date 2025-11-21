@@ -11,15 +11,16 @@ datasource db {
 }
 
 model Repository {
-  id            String   @id
-  name          String
-  path          String
-  lastScanTime  BigInt?  @map("last_scan_time")
-  totalCommits  Int      @default(0) @map("total_commits")
-  createdAt     BigInt   @map("created_at")
-  updatedAt     BigInt   @map("updated_at")
+  id                  String   @id
+  name                String
+  path                String
+  lastScanTime        BigInt?  @map("last_scan_time")
+  totalCommits        Int      @default(0) @map("total_commits")
+  initialScanToDate   BigInt?  @map("initial_scan_to_date")
+  createdAt           BigInt   @map("created_at")
+  updatedAt           BigInt   @map("updated_at")
   
-  commits       Commit[]
+  commits             Commit[]
 
   @@map("repositories")
 }

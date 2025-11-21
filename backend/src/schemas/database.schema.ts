@@ -6,6 +6,7 @@ export const RepositorySchema = z.object({
   path: z.string(),
   last_scan_time: z.number().nullable(),
   total_commits: z.number(),
+  initial_scan_to_date: z.number().nullable(),
   created_at: z.number(),
   updated_at: z.number()
 });

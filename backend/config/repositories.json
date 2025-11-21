@@ -1,8 +1,8 @@
 {
   "repositories": [
     {
-      "id": "monkey-saas-web",
-      "name": "Monkey SaaS Web",
+      "id": "monkey-saas-enterprise-web",
+      "name": "Monkey SaaS Enterprise Web",
       "path": "/Users/huangjing/Desktop/Code/monkey-saas-enterprise-web",
       "enabled": true
     },

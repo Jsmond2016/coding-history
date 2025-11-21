@@ -1,18 +1,14 @@
 import { atom } from 'jotai';
 import dayjs, { type Dayjs } from 'dayjs';
 
-export type QuickSelectType = 'week' | 'month' | 'custom';
-
 export interface FilterState {
   dateRange: [Dayjs, Dayjs];
   repositoryIds: string[];
-  quickSelect: QuickSelectType;
 }
 
 export const filterAtom = atom<FilterState>({
-  dateRange: [dayjs().subtract(7, 'day'), dayjs()],
-  repositoryIds: [],
-  quickSelect: 'week'
+  dateRange: [dayjs().subtract(1, 'month'), dayjs()],
+  repositoryIds: []
 });
 
 export interface CommitsTableState {

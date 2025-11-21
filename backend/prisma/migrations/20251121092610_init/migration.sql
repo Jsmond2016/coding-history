@@ -5,6 +5,7 @@ CREATE TABLE "repositories" (
     "path" TEXT NOT NULL,
     "last_scan_time" BIGINT,
     "total_commits" INTEGER NOT NULL DEFAULT 0,
+    "initial_scan_to_date" BIGINT,
     "created_at" BIGINT NOT NULL,
     "updated_at" BIGINT NOT NULL
 );

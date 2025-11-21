@@ -35,19 +35,27 @@ async function executeScan() {
       if (!repo.enabled) continue;
 
       try {
+        logger.info(`[定时扫描] 仓库: ${repo.name}`);
+        
         // 获取上次扫描时间
         const lastScanTime = await repositoryService.getLastScanTime(repo.id);
         const fromDate = lastScanTime 
           ? new Date(lastScanTime)
           : new Date('2000-01-01');
 
+        logger.info(`[增量扫描] 从 ${fromDate.toISOString()} 开始扫描`);
+
         // 执行增量扫描
         const scanner = new GitScanService(repo.path);
         const commits = await scanner.incrementalScan(fromDate, config.author.email);
 
+        logger.info(`[扫描完成] 发现 ${commits.length} 个提交记录`);
+
         if (commits.length > 0) {
-          // 保存到数据库
-          await commitService.batchInsertCommits(repo.id, commits);
+          // 保存到数据库（带去重）
+          const insertResult = await commitService.batchInsertCommits(repo.id, commits);
+          
+          logger.info(`[数据入库] 新增: ${insertResult.inserted} 条, 跳过重复: ${insertResult.skipped} 条`);
 
           // 更新仓库信息
           const result = await commitService.getCommits({
@@ -65,9 +73,9 @@ async function executeScan() {
             totalCommits
           );
 
-          logger.info(`Scanned ${commits.length} new commits from ${repo.name}`);
+          logger.info(`[仓库更新] ${repo.name} 总计 ${totalCommits} 条提交记录`);
         } else {
-          logger.info(`No new commits found in ${repo.name}`);
+          logger.info(`[无新数据] ${repo.name} 没有新的提交记录`);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
