@@ -66,7 +66,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
   // 重置筛选条件
   const handleReset = () => {
     setFilter({
-      dateRange: [dayjs().subtract(7, 'day'), dayjs()],
+      dateRange: [dayjs().subtract(1, 'month'), dayjs()],
       repositoryIds: [],
       isOvertime: undefined
     });

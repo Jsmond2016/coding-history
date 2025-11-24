@@ -7,9 +7,9 @@ export interface FilterState {
   isOvertime?: boolean; // 筛选是否加班：undefined=全部，true=仅加班，false=非加班
 }
 
-// 默认筛选条件：最近一周
+// 默认筛选条件：最近一个月
 export const defaultFilterState: FilterState = {
-  dateRange: [dayjs().subtract(7, 'day'), dayjs()],
+  dateRange: [dayjs().subtract(1, 'month'), dayjs()],
   repositoryIds: [],
   isOvertime: undefined
 };
