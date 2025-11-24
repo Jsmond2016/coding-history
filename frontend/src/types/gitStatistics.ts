@@ -31,6 +31,7 @@ export interface CommitsByDate {
   commits: Commit[];
   totalCommits: number;
   overtimeCount: number; // 当天加班提交数量
+  latestOvertimeCommits: string[]; // 最晚的5个加班提交时间点
 }
 
 export interface CommitsQuery {

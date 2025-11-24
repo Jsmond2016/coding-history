@@ -16,6 +16,7 @@ export interface CommitsByDate {
   commits: CommitWithOvertime[];
   totalCommits: number;
   overtimeCount: number; // 当天加班提交数量
+  latestOvertimeCommits: string[]; // 最晚的5个加班提交时间点
 }
 
 export class CommitService {
@@ -160,17 +161,26 @@ export class CommitService {
     // 转换为数组并计算每天的加班情况
     const data: CommitsByDate[] = Array.from(commitsByDateMap.entries())
       .map(([date, commits]) => {
-        // 获取当天所有加班提交的时间点（最多5个）
+        // 获取当天所有加班提交的时间点（最多5个，按时间降序）
         const overtimeCommits = commits.filter(c => c.isOvertime);
         const overtimeTimes = overtimeCommits
-          .map(c => this.formatTime(c.commitDate))
-          .slice(0, 5);
+          .map(c => ({
+            time: this.formatTime(c.commitDate),
+            timestamp: c.commitDate
+          }))
+          .sort((a, b) => b.timestamp - a.timestamp) // 按时间降序
+          .slice(0, 5)
+          .map(item => item.time);
+
+        // 对每天的提交按时间降序排序
+        const sortedCommits = [...commits].sort((a, b) => b.commitDate - a.commitDate);
 
         return {
           date,
-          commits,
+          commits: sortedCommits, // 返回排序后的提交列表
           totalCommits: commits.length,
-          overtimeCount: overtimeCommits.length
+          overtimeCount: overtimeCommits.length,
+          latestOvertimeCommits: overtimeTimes
         };
       })
       .sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序
