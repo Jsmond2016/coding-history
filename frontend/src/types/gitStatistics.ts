@@ -22,6 +22,15 @@ export interface Commit {
   insertions: number;
   deletions: number;
   createdAt: number;
+  isOvertime?: boolean; // 是否加班
+  overtimeCommitTimes?: string[]; // 加班提交时间点
+}
+
+export interface CommitsByDate {
+  date: string; // YYYY-MM-DD
+  commits: Commit[];
+  totalCommits: number;
+  overtimeCount: number; // 当天加班提交数量
 }
 
 export interface CommitsQuery {
@@ -32,11 +41,23 @@ export interface CommitsQuery {
   pageSize: number;
 }
 
+export interface CommitsByDateQuery {
+  startDate: number;
+  endDate: number;
+  repositoryIds?: string[];
+  isOvertime?: boolean; // 筛选是否加班
+}
+
 export interface CommitsResponse {
   data: Commit[];
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface CommitsByDateResponse {
+  data: CommitsByDate[];
+  total: number;
 }
 
 export interface StatisticsByRepository {

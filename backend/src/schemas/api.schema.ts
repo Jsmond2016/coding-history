@@ -9,6 +9,17 @@ export const CommitsQuerySchema = z.object({
   pageSize: z.string().default('20').transform(val => parseInt(val))
 });
 
+// 按日期分组查询参数
+export const CommitsByDateQuerySchema = z.object({
+  startDate: z.string().transform(val => parseInt(val)),
+  endDate: z.string().transform(val => parseInt(val)),
+  repositoryIds: z.string().optional().transform(val => val?.split(',')),
+  isOvertime: z.string().optional().transform(val => {
+    if (val === undefined || val === '') return undefined;
+    return val === 'true';
+  })
+});
+
 // 扫描请求验证
 export const ScanRequestSchema = z.object({
   repositoryIds: z.array(z.string()).optional()
@@ -18,6 +29,7 @@ export const ScanRequestSchema = z.object({
 export const StatisticsQuerySchema = CommitsQuerySchema;
 
 export type CommitsQuery = z.infer<typeof CommitsQuerySchema>;
+export type CommitsByDateQuery = z.infer<typeof CommitsByDateQuerySchema>;
 export type ScanRequest = z.infer<typeof ScanRequestSchema>;
 export type StatisticsQuery = z.infer<typeof StatisticsQuerySchema>;
 

@@ -1,62 +1,57 @@
 import React from 'react';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { useMount } from 'ahooks';
-import { message, Empty } from 'antd';
+import { message, Empty, Spin } from 'antd';
 import { Card } from 'antd';
 import { StatisticsFilter } from './components/StatisticsFilter';
 import { StatisticsCards } from './components/StatisticsCards';
-import { CommitsTable } from './components/CommitsTable';
+import { CommitsByDateList } from './components/CommitsByDateList';
 import { 
   filterAtom, 
-  commitsTableAtom, 
   statisticsAtom,
   repositoriesAtom 
 } from '../../../biz/atoms/gitStatistics.atom';
 import { gitStatisticsApi } from '../../../services/gitStatisticsApi';
-import type { CommitsQuery } from '../../../types/gitStatistics';
+import type { CommitsByDate } from '../../../types/gitStatistics';
 
 const GitStatisticsList: React.FC = () => {
   const filter = useAtomValue(filterAtom);
-  const [tableState, setTableState] = useAtom(commitsTableAtom);
   const setStatistics = useSetAtom(statisticsAtom);
   const setRepositories = useSetAtom(repositoriesAtom);
   const [hasSearched, setHasSearched] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([]);
 
   // 加载数据
   const handleSearch = React.useCallback(async () => {
     const startDate = filter.dateRange[0].valueOf();
     const endDate = filter.dateRange[1].valueOf();
     const repositoryIds = filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined;
-    const page = 1; // 搜索时重置到第一页
-    const pageSize = tableState.pagination.pageSize;
+    const isOvertime = filter.isOvertime;
 
     console.log('[Frontend] Search params:', {
       startDate,
       endDate,
       repositoryIds,
-      page,
-      pageSize,
+      isOvertime,
       dateRange: [
         filter.dateRange[0].format('YYYY-MM-DD'),
         filter.dateRange[1].format('YYYY-MM-DD')
       ]
     });
 
-    const query: CommitsQuery = {
-      startDate,
-      endDate,
-      repositoryIds,
-      page,
-      pageSize
-    };
-
-    setTableState(prev => ({ ...prev, loading: true }));
+    setLoading(true);
     setHasSearched(true);
 
     try {
       // 并行加载提交记录和统计数据
-      const [commitsResult, statisticsResult] = await Promise.all([
-        gitStatisticsApi.getCommits(query),
+      const [commitsByDateResult, statisticsResult] = await Promise.all([
+        gitStatisticsApi.getCommitsByDate({
+          startDate,
+          endDate,
+          repositoryIds,
+          isOvertime
+        }),
         gitStatisticsApi.getStatistics({
           startDate,
           endDate,
@@ -65,31 +60,21 @@ const GitStatisticsList: React.FC = () => {
       ]);
 
       console.log('[Frontend] Search results:', {
-        total: commitsResult.total,
-        dataCount: commitsResult.data.length,
+        total: commitsByDateResult.total,
+        dateCount: commitsByDateResult.data.length,
         totalCommits: statisticsResult.totalCommits
       });
 
-      setTableState({
-        data: commitsResult.data,
-        pagination: {
-          current: page,
-          pageSize,
-          total: commitsResult.total
-        },
-        loading: false
-      });
-
+      setCommitsByDate(commitsByDateResult.data);
       setStatistics(statisticsResult);
     } catch (error) {
       console.error('[Frontend] Search error:', error);
       message.error('加载数据失败');
-      setTableState(prev => ({ ...prev, loading: false }));
+    } finally {
+      setLoading(false);
     }
   }, [
     filter,
-    tableState.pagination.pageSize,
-    setTableState,
     setStatistics
   ]);
 
@@ -105,38 +90,6 @@ const GitStatisticsList: React.FC = () => {
     }
   });
 
-  // 翻页时加载数据
-  const handlePageChange = React.useCallback(async (page: number, pageSize: number) => {
-    const startDate = filter.dateRange[0].valueOf();
-    const endDate = filter.dateRange[1].valueOf();
-    const repositoryIds = filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined;
-
-    const query: CommitsQuery = {
-      startDate,
-      endDate,
-      repositoryIds,
-      page,
-      pageSize
-    };
-
-    setTableState(prev => ({ ...prev, loading: true }));
-
-    try {
-      const commitsResult = await gitStatisticsApi.getCommits(query);
-      setTableState({
-        data: commitsResult.data,
-        pagination: {
-          current: page,
-          pageSize,
-          total: commitsResult.total
-        },
-        loading: false
-      });
-    } catch (error) {
-      message.error('加载数据失败');
-      setTableState(prev => ({ ...prev, loading: false }));
-    }
-  }, [filter.dateRange, filter.repositoryIds, setTableState]);
 
   return (
     <div style={{ padding: 24 }}>
@@ -147,8 +100,10 @@ const GitStatisticsList: React.FC = () => {
       {hasSearched ? (
         <>
           <StatisticsCards />
-          <Card>
-            <CommitsTable onPageChange={handlePageChange} />
+          <Card title="提交记录（按日期分组）" style={{ marginTop: 24 }}>
+            <Spin spinning={loading}>
+              <CommitsByDateList data={commitsByDate} loading={loading} />
+            </Spin>
           </Card>
         </>
       ) : (

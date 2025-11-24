@@ -6,6 +6,18 @@ export interface CommitWithRepoName extends Commit {
   repoName: string;
 }
 
+export interface CommitWithOvertime extends CommitWithRepoName {
+  isOvertime: boolean; // 是否加班（提交时间 >= 19:00）
+  overtimeCommitTimes?: string[]; // 加班提交的时间点（最多5个）
+}
+
+export interface CommitsByDate {
+  date: string; // YYYY-MM-DD
+  commits: CommitWithOvertime[];
+  totalCommits: number;
+  overtimeCount: number; // 当天加班提交数量
+}
+
 export class CommitService {
   /**
    * 批量插入提交记录（带去重）
@@ -59,7 +71,115 @@ export class CommitService {
   }
 
   /**
-   * 查询提交记录
+   * 检查提交是否为加班（19:00之后）
+   */
+  private isOvertimeCommit(commitDate: number): boolean {
+    const date = new Date(commitDate);
+    const hour = date.getHours();
+    return hour >= 19;
+  }
+
+  /**
+   * 格式化时间为 HH:mm
+   */
+  private formatTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    return date.toTimeString().slice(0, 5); // HH:mm
+  }
+
+  /**
+   * 查询提交记录（按日期分组）
+   */
+  async getCommitsByDate(params: {
+    startDate: number;
+    endDate: number;
+    repositoryIds?: string[];
+    isOvertime?: boolean; // 筛选是否加班
+  }): Promise<{ data: CommitsByDate[]; total: number }> {
+    const { startDate, endDate, repositoryIds, isOvertime } = params;
+
+    const where: any = {
+      commitDate: {
+        gte: BigInt(startDate),
+        lte: BigInt(endDate)
+      },
+      ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {})
+    };
+
+    // 查询所有符合条件的提交
+    const commits = await prisma.commit.findMany({
+      where,
+      include: {
+        repository: {
+          select: { name: true }
+        }
+      },
+      orderBy: { commitDate: 'desc' }
+    });
+
+    // 转换为带加班信息的提交记录
+    const commitsWithOvertime: CommitWithOvertime[] = commits.map(commit => {
+      const commitDate = Number(commit.commitDate);
+      const isOvertimeCommit = this.isOvertimeCommit(commitDate);
+
+      return {
+        id: commit.id,
+        repoId: commit.repoId,
+        commitHash: commit.commitHash,
+        authorName: commit.authorName,
+        authorEmail: commit.authorEmail,
+        commitDate,
+        message: commit.message,
+        filesChanged: commit.filesChanged,
+        insertions: commit.insertions,
+        deletions: commit.deletions,
+        createdAt: Number(commit.createdAt),
+        repoName: commit.repository.name,
+        isOvertime: isOvertimeCommit,
+        overtimeCommitTimes: isOvertimeCommit ? [this.formatTime(commitDate)] : undefined
+      };
+    });
+
+    // 按是否加班筛选
+    const filteredCommits = isOvertime !== undefined
+      ? commitsWithOvertime.filter(c => c.isOvertime === isOvertime)
+      : commitsWithOvertime;
+
+    // 按日期分组
+    const commitsByDateMap = new Map<string, CommitWithOvertime[]>();
+    
+    filteredCommits.forEach(commit => {
+      const date = new Date(commit.commitDate).toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      if (!commitsByDateMap.has(date)) {
+        commitsByDateMap.set(date, []);
+      }
+      commitsByDateMap.get(date)!.push(commit);
+    });
+
+    // 转换为数组并计算每天的加班情况
+    const data: CommitsByDate[] = Array.from(commitsByDateMap.entries())
+      .map(([date, commits]) => {
+        // 获取当天所有加班提交的时间点（最多5个）
+        const overtimeCommits = commits.filter(c => c.isOvertime);
+        const overtimeTimes = overtimeCommits
+          .map(c => this.formatTime(c.commitDate))
+          .slice(0, 5);
+
+        return {
+          date,
+          commits,
+          totalCommits: commits.length,
+          overtimeCount: overtimeCommits.length
+        };
+      })
+      .sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序
+
+    return { data, total: filteredCommits.length };
+  }
+
+  /**
+   * 查询提交记录（旧接口，保持兼容）
    */
   async getCommits(params: {
     startDate: number;

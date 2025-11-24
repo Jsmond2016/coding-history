@@ -1,5 +1,12 @@
 import axios from 'axios';
-import type { CommitsQuery, CommitsResponse, StatisticsResponse, Repository } from '../types/gitStatistics';
+import type { 
+  CommitsQuery, 
+  CommitsResponse, 
+  CommitsByDateQuery,
+  CommitsByDateResponse,
+  StatisticsResponse, 
+  Repository 
+} from '../types/gitStatistics';
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -29,7 +36,11 @@ export const gitStatisticsApi = {
   getRepositories: (): Promise<Repository[]> =>
     api.get('/repositories').then(res => res.data),
 
-  // 获取提交记录
+  // 获取提交记录（按日期分组）
+  getCommitsByDate: (params: CommitsByDateQuery): Promise<CommitsByDateResponse> =>
+    api.get<CommitsByDateResponse>('/commits/by-date', { params }).then(res => res.data),
+
+  // 获取提交记录（旧接口）
   getCommits: (params: CommitsQuery): Promise<CommitsResponse> =>
     api.get<CommitsResponse>('/commits', { params }).then(res => res.data),
 

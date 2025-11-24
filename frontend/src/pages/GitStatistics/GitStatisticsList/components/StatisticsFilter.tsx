@@ -67,7 +67,8 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
   const handleReset = () => {
     setFilter({
       dateRange: [dayjs().subtract(7, 'day'), dayjs()],
-      repositoryIds: []
+      repositoryIds: [],
+      isOvertime: undefined
     });
     // 重置后自动搜索
     setTimeout(() => {
@@ -110,6 +111,18 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
             {repo.name}
           </Option>
         ))}
+      </Select>
+
+      <Select
+        placeholder="是否加班"
+        value={filter.isOvertime}
+        onChange={(value) => setFilter({ ...filter, isOvertime: value })}
+        style={{ width: 150 }}
+        allowClear
+      >
+        <Option value={undefined}>全部</Option>
+        <Option value={true}>仅加班</Option>
+        <Option value={false}>非加班</Option>
       </Select>
       
       <Button 

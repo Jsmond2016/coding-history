@@ -4,12 +4,14 @@ import dayjs, { type Dayjs } from 'dayjs';
 export interface FilterState {
   dateRange: [Dayjs, Dayjs];
   repositoryIds: string[];
+  isOvertime?: boolean; // 筛选是否加班：undefined=全部，true=仅加班，false=非加班
 }
 
 // 默认筛选条件：最近一周
 export const defaultFilterState: FilterState = {
   dateRange: [dayjs().subtract(7, 'day'), dayjs()],
-  repositoryIds: []
+  repositoryIds: [],
+  isOvertime: undefined
 };
 
 export const filterAtom = atom<FilterState>(defaultFilterState);

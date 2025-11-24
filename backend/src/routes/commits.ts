@@ -1,12 +1,41 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { CommitsQuerySchema } from '../schemas/api.schema.js';
+import { CommitsQuerySchema, CommitsByDateQuerySchema } from '../schemas/api.schema.js';
 import { CommitService } from '../services/CommitService.js';
 
 const app = new Hono();
 const commitService = new CommitService();
 
-// 获取提交记录列表
+// 获取提交记录列表（按日期分组）
+app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => {
+  const query = c.req.valid('query');
+  
+  console.log('[Commits By Date API] Query params:', {
+    startDate: query.startDate,
+    endDate: query.endDate,
+    repositoryIds: query.repositoryIds,
+    isOvertime: query.isOvertime
+  });
+  
+  const result = await commitService.getCommitsByDate({
+    startDate: query.startDate,
+    endDate: query.endDate,
+    repositoryIds: query.repositoryIds,
+    isOvertime: query.isOvertime
+  });
+
+  console.log('[Commits By Date API] Result:', {
+    total: result.total,
+    dateCount: result.data.length
+  });
+
+  return c.json({
+    data: result.data,
+    total: result.total
+  });
+});
+
+// 获取提交记录列表（旧接口，保持兼容）
 app.get('/', zValidator('query', CommitsQuerySchema), async (c) => {
   const query = c.req.valid('query');
   
