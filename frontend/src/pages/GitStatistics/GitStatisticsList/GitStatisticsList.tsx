@@ -5,6 +5,7 @@ import { message, Empty, Spin } from 'antd';
 import { Card } from 'antd';
 import { StatisticsFilter } from './components/StatisticsFilter';
 import { StatisticsCards } from './components/StatisticsCards';
+import { WorkStatusReport } from './components/WorkStatusReport';
 import { CommitsByDateList } from './components/CommitsByDateList';
 import { 
   filterAtom, 
@@ -100,6 +101,7 @@ const GitStatisticsList: React.FC = () => {
       {hasSearched ? (
         <>
           <StatisticsCards />
+          <WorkStatusReport data={commitsByDate} />
           <Card title="提交记录（按日期分组）" style={{ marginTop: 24 }}>
             <Spin spinning={loading}>
               <CommitsByDateList data={commitsByDate} loading={loading} />
