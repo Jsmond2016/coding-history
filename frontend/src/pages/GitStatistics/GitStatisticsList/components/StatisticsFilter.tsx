@@ -140,14 +140,14 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         重置
       </Button>
       
-      <Button 
+      {/* <Button 
         icon={<ReloadOutlined />}
         onClick={handleScan}
         loading={scanning}
         disabled={scanning}
       >
         手动扫描
-      </Button>
+      </Button> */}
     </Space>
   );
 };
