@@ -17,6 +17,12 @@
       "name": "Monkey Reservation 2.0",
       "path": "/Users/huangjing/Desktop/Code/monkey-reservation2.0",
       "enabled": true
+    },
+    {
+      "id": "monkey-cms-web-new",
+      "name": "Monkey CMS Web New",
+      "path": "/Users/huangjing/Desktop/Code/monkey-cms-web-new",
+      "enabled": true
     }
   ],
   "author": {
