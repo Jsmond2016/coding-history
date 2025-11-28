@@ -1,6 +1,7 @@
 import { prisma } from '../db/client.js';
 import type { Commit } from '../schemas/database.schema.js';
 import type { ScannedCommit } from './GitScanService.js';
+import { calculateWorkStatus, type WorkStatus } from '../config/workStatus.config.js';
 
 export interface CommitWithRepoName extends Commit {
   repoName: string;
@@ -17,6 +18,7 @@ export interface CommitsByDate {
   totalCommits: number;
   overtimeCount: number; // 当天加班提交数量
   latestOvertimeCommits: string[]; // 最晚的5个加班提交时间点
+  workStatus: WorkStatus; // 工作状态
 }
 
 export class CommitService {
@@ -158,7 +160,7 @@ export class CommitService {
       commitsByDateMap.get(date)!.push(commit);
     });
 
-    // 转换为数组并计算每天的加班情况
+    // 转换为数组并计算每天的加班情况和工作状态
     const data: CommitsByDate[] = Array.from(commitsByDateMap.entries())
       .map(([date, commits]) => {
         // 获取当天所有加班提交的时间点（最多5个，按时间降序）
@@ -175,12 +177,19 @@ export class CommitService {
         // 对每天的提交按时间降序排序
         const sortedCommits = [...commits].sort((a, b) => b.commitDate - a.commitDate);
 
+        // 计算工作状态：根据总提交次数和是否有加班记录
+        const workStatus = calculateWorkStatus(
+          commits.length,
+          overtimeCommits.length > 0
+        );
+
         return {
           date,
           commits: sortedCommits, // 返回排序后的提交列表
           totalCommits: commits.length,
           overtimeCount: overtimeCommits.length,
-          latestOvertimeCommits: overtimeTimes
+          latestOvertimeCommits: overtimeTimes,
+          workStatus
         };
       })
       .sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序

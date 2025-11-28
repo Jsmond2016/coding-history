@@ -26,12 +26,15 @@ export interface Commit {
   overtimeCommitTimes?: string[]; // 加班提交时间点
 }
 
+export type WorkStatus = 'relaxed' | 'normal' | 'busy' | 'crazy' | 'overtime' | 'superCrazyOvertime';
+
 export interface CommitsByDate {
   date: string; // YYYY-MM-DD
   commits: Commit[];
   totalCommits: number;
   overtimeCount: number; // 当天加班提交数量
   latestOvertimeCommits: string[]; // 最晚的5个加班提交时间点
+  workStatus: WorkStatus; // 工作状态
 }
 
 export interface CommitsQuery {
