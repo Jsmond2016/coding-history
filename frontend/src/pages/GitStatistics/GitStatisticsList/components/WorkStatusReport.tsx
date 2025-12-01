@@ -103,13 +103,19 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
       formatter: (datum: any) => {
         const dataItem = commitsChartData.find(d => d.dateLabel === datum.dateLabel);
         if (!dataItem) {
-          return { name: '', value: '' };
+          return [];
         }
         
-        return {
-          name: dayjs(dataItem.date).format('YYYY年MM月DD日'),
-          value: `提交次数：${dataItem.totalCommits} 次`
-        };
+        return [
+          {
+            name: '提交次数',
+            value: `${dataItem.totalCommits} 次`
+          }
+        ];
+      },
+      title: (datum: any) => {
+        const dataItem = commitsChartData.find(d => d.dateLabel === datum.dateLabel);
+        return dataItem ? dayjs(dataItem.date).format('YYYY年MM月DD日') : '';
       },
     },
     yAxis: {
