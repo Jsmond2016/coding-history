@@ -28,14 +28,16 @@ const GitStatisticsList: React.FC = () => {
   const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
 
   // 加载数据
-  const handleSearch = React.useCallback(async () => {
+  const handleSearch = React.useCallback(async (customFilter?: typeof filter) => {
+    // 使用传入的 filter 或当前的 filter
+    const currentFilter = customFilter || filter;
     // 开始时间设为当天的 0:00:00.000，结束时间设为当天的 23:59:59.999
     // dayjs 的 startOf/endOf 使用本地时间，valueOf() 返回 UTC 时间戳
-    const startDate = filter.dateRange[0].startOf("day").valueOf()
-    const endDate = filter.dateRange[1].endOf("day").valueOf()
+    const startDate = currentFilter.dateRange[0].startOf("day").valueOf()
+    const endDate = currentFilter.dateRange[1].endOf("day").valueOf()
     const repositoryIds =
-      filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined
-    const isOvertime = filter.isOvertime
+      currentFilter.repositoryIds.length > 0 ? currentFilter.repositoryIds : undefined
+    const isOvertime = currentFilter.isOvertime
 
     setLoading(true)
     setHasSearched(true)

@@ -48,8 +48,12 @@ export const gitStatisticsApi = {
   getStatistics: (params: Omit<CommitsQuery, 'page' | 'pageSize'>): Promise<StatisticsResponse> =>
     api.get<StatisticsResponse>('/statistics', { params }).then(res => res.data),
 
-  // 手动触发扫描
-  triggerScan: (repositoryIds?: string[]): Promise<{ success: boolean; scannedCount: number }> =>
-    api.post('/repositories/scan', { repositoryIds }).then(res => res.data)
+  // 手动触发扫描（异步）
+  triggerScan: (repositoryIds?: string[]): Promise<{ finished: 0 | 1 | 2; scannedCount: number }> =>
+    api.post('/repositories/scan', { repositoryIds }).then(res => res.data),
+
+  // 查询扫描状态
+  getScanStatus: (): Promise<{ finished: 0 | 1 | 2; scannedCount: number; error?: string }> =>
+    api.get('/repositories/scan/status').then(res => res.data)
 };
 

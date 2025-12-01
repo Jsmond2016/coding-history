@@ -9,6 +9,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import type { Config } from '../schemas/config.schema.js';
+import simpleGit, { SimpleGit } from 'simple-git';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +17,16 @@ const __dirname = path.dirname(__filename);
 const app = new Hono();
 const repositoryService = new RepositoryService();
 const commitService = new CommitService();
+
+// 扫描状态管理（内存存储）
+let scanStatus: {
+  finished: 0 | 1 | 2; // 0=未开始, 1=扫描中, 2=已完成
+  scannedCount: number;
+  error?: string;
+} = {
+  finished: 0,
+  scannedCount: 0
+};
 
 /**
  * 加载配置文件
@@ -27,11 +38,58 @@ function loadConfig(): Config {
 }
 
 /**
- * 扫描仓库
+ * 更新 Git 仓库代码（执行 git pull）
  */
-async function scanRepositories(repositoryIds?: string[]) {
+async function pullRepository(repoPath: string, repoName: string): Promise<boolean> {
+  try {
+    const git: SimpleGit = simpleGit(repoPath);
+    
+    // 检查是否为有效的 Git 仓库
+    const isRepo = await git.checkIsRepo();
+    if (!isRepo) {
+      logger.warn(`  [Git Pull] ${repoName} 不是有效的 Git 仓库，跳过更新`);
+      return false;
+    }
+
+    // 检查是否有远程仓库配置
+    const remotes = await git.getRemotes(true);
+    if (remotes.length === 0) {
+      logger.info(`  [Git Pull] ${repoName} 没有配置远程仓库，跳过更新`);
+      return false;
+    }
+
+    logger.info(`  [Git Pull] 正在更新 ${repoName}...`);
+    
+    // 执行 git pull
+    const pullResult = await git.pull();
+    
+    if (pullResult.summary.changes > 0 || pullResult.summary.insertions > 0 || pullResult.summary.deletions > 0) {
+      logger.info(`  [Git Pull] ✓ ${repoName} 更新成功: ${pullResult.summary.changes} 个文件变更, +${pullResult.summary.insertions}/-${pullResult.summary.deletions}`);
+    } else {
+      logger.info(`  [Git Pull] ✓ ${repoName} 已是最新版本`);
+    }
+    
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.warn(`  [Git Pull] ⚠ ${repoName} 更新失败: ${errorMessage}，将继续扫描`);
+    return false;
+  }
+}
+
+/**
+ * 异步扫描仓库（扫描最近2周的数据）
+ */
+async function scanRepositoriesAsync(repositoryIds?: string[]) {
   const config = loadConfig();
   let scannedCount = 0;
+
+  // 计算2周前的日期
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+  const fromDate = twoWeeksAgo;
+
+  logger.info(`[手动扫描] 开始扫描最近2周的提交数据（从 ${fromDate.toISOString()} 开始）`);
 
   for (const repoConfig of config.repositories) {
     if (!repoConfig.enabled) continue;
@@ -40,15 +98,12 @@ async function scanRepositories(repositoryIds?: string[]) {
     try {
       logger.info(`[扫描开始] 仓库: ${repoConfig.name}, 路径: ${repoConfig.path}`);
 
-      // 获取上次扫描时间
-      const lastScanTime = await repositoryService.getLastScanTime(repoConfig.id);
-      const fromDate = lastScanTime ? new Date(lastScanTime) : new Date('2000-01-01');
-      
-      logger.info(`[增量扫描] 从 ${fromDate.toISOString()} 开始扫描`);
+      // 先更新仓库代码到最新
+      await pullRepository(repoConfig.path, repoConfig.name);
 
-      // 执行扫描
+      // 执行扫描（最近2周）
       const scanner = new GitScanService(repoConfig.path);
-      const commits = await scanner.incrementalScan(fromDate, config.author.email);
+      const commits = await scanner.incrementalScan(fromDate, config.author.email, new Date());
 
       logger.info(`[扫描完成] 发现 ${commits.length} 个提交记录`);
 
@@ -113,17 +168,58 @@ app.get('/:id', async (c) => {
   return c.json(repository);
 });
 
-// 手动触发扫描
+// 手动触发扫描（异步）
 app.post('/scan', zValidator('json', ScanRequestSchema), async (c) => {
   const { repositoryIds } = c.req.valid('json');
   
-  try {
-    const scannedCount = await scanRepositories(repositoryIds);
-    return c.json({ success: true, scannedCount });
-  } catch (error) {
-    logger.error('Scan failed:', error);
-    return c.json({ success: false, error: 'Scan failed' }, 500);
+  // 如果已经在扫描中，返回当前状态
+  if (scanStatus.finished === 1) {
+    return c.json({ 
+      finished: scanStatus.finished, 
+      scannedCount: scanStatus.scannedCount 
+    });
   }
+
+  // 重置状态并开始扫描（允许重新开始）
+  scanStatus = {
+    finished: 1, // 扫描中
+    scannedCount: 0,
+    error: undefined
+  };
+
+  // 异步执行扫描
+  scanRepositoriesAsync(repositoryIds)
+    .then((scannedCount) => {
+      scanStatus = {
+        finished: 2, // 已完成
+        scannedCount
+      };
+      logger.info(`[手动扫描] 完成，共扫描 ${scannedCount} 个仓库`);
+    })
+    .catch((error) => {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      scanStatus = {
+        finished: 2, // 已完成（失败）
+        scannedCount: 0,
+        error: errorMessage
+      };
+      logger.error('[手动扫描] 失败:', error);
+    });
+
+  // 立即返回状态
+  return c.json({ 
+    finished: scanStatus.finished, 
+    scannedCount: scanStatus.scannedCount 
+  });
+});
+
+// 查询扫描状态
+app.get('/scan/status', async (c) => {
+  return c.json({
+    finished: scanStatus.finished,
+    scannedCount: scanStatus.scannedCount,
+    error: scanStatus.error
+  });
 });
 
 export default app;
