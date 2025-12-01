@@ -114,13 +114,17 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
       </Select>
 
       <Select
-        placeholder="是否加班"
-        value={filter.isOvertime}
-        onChange={(value) => setFilter({ ...filter, isOvertime: value })}
+        placeholder="是否加班（默认全部）"
+        value={filter.isOvertime === undefined ? null : filter.isOvertime}
+        onChange={(value) => {
+          setFilter({ 
+            ...filter, 
+            isOvertime: value === null || value === undefined ? undefined : value 
+          });
+        }}
         style={{ width: 150 }}
         allowClear
       >
-        <Option value={undefined}>全部</Option>
         <Option value={true}>仅加班</Option>
         <Option value={false}>非加班</Option>
       </Select>

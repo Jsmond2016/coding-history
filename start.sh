@@ -15,6 +15,15 @@ fi
 echo "正在安装依赖..."
 pnpm install
 
+# 同步最近3个月的代码记录
+echo "正在同步最近3个月的代码记录..."
+if pnpm init-scan -- --months 3; then
+    echo "✓ 代码记录同步完成"
+else
+    echo "⚠ 代码记录同步失败，将继续启动服务（可稍后手动执行: pnpm init-scan）"
+fi
+echo ""
+
 # 启动后端（后台运行）
 echo "正在启动后端服务..."
 cd backend

@@ -11,6 +11,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import simpleGit, { SimpleGit } from 'simple-git';
 import type { Config } from '../schemas/config.schema.js';
 import { RepositoryService } from '../services/RepositoryService.js';
 import { GitScanService } from '../services/GitScanService.js';
@@ -49,6 +50,47 @@ function parseArgs(): { months: number } {
   }
 
   return { months };
+}
+
+/**
+ * 更新 Git 仓库代码（执行 git pull）
+ */
+async function pullRepository(repoPath: string, repoName: string): Promise<boolean> {
+  try {
+    const git: SimpleGit = simpleGit(repoPath);
+    
+    // 检查是否为有效的 Git 仓库
+    const isRepo = await git.checkIsRepo();
+    if (!isRepo) {
+      logger.warn(`  [Git Pull] ${repoName} 不是有效的 Git 仓库，跳过更新`);
+      return false;
+    }
+
+    // 检查是否有远程仓库配置
+    const remotes = await git.getRemotes(true);
+    if (remotes.length === 0) {
+      logger.info(`  [Git Pull] ${repoName} 没有配置远程仓库，跳过更新`);
+      return false;
+    }
+
+    logger.info(`  [Git Pull] 正在更新 ${repoName}...`);
+    
+    // 执行 git pull
+    const pullResult = await git.pull();
+    
+    if (pullResult.summary.changes > 0 || pullResult.summary.insertions > 0 || pullResult.summary.deletions > 0) {
+      logger.info(`  [Git Pull] ✓ ${repoName} 更新成功: ${pullResult.summary.changes} 个文件变更, +${pullResult.summary.insertions}/-${pullResult.summary.deletions}`);
+    } else {
+      logger.info(`  [Git Pull] ✓ ${repoName} 已是最新版本`);
+    }
+    
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.warn(`  [Git Pull] ⚠ ${repoName} 更新失败: ${errorMessage}，将继续扫描`);
+    // 不抛出错误，允许继续扫描
+    return false;
+  }
 }
 
 /**
@@ -222,6 +264,9 @@ async function initScan() {
     try {
       logger.info(`\n[扫描仓库] ${repoConfig.name}`);
       logger.info(`  路径: ${repoConfig.path}`);
+      
+      // 先更新仓库代码到最新
+      await pullRepository(repoConfig.path, repoConfig.name);
       
       // 获取当前扫描进度
       const currentScanToDate = await repositoryService.getInitialScanToDate(repoConfig.id);

@@ -52,18 +52,6 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
     5: '疯狂'
   };
 
-  // 准备折线图数据：按日期排序（从左往右）
-  const chartData = data
-    .map(item => ({
-      date: item.date,
-      dateLabel: dayjs(item.date).format('MM-DD'),
-      workStatusValue: statusToYValue[item.workStatus] || 1,
-      workStatus: item.workStatus,
-      totalCommits: item.totalCommits,
-      overtimeCount: item.overtimeCount
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date)); // 按日期从左往右排序
-
   // 工作状态标签映射
   const statusLabels: Record<WorkStatus, string> = {
     relaxed: '悠闲',
@@ -73,6 +61,19 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
     overtime: '加班',
     superCrazyOvertime: '超级疯狂加班'
   };
+
+  // 准备折线图数据：按日期排序（从左往右）
+  const chartData = data
+    .map(item => ({
+      date: item.date,
+      dateLabel: dayjs(item.date).format('MM-DD'),
+      workStatusValue: statusToYValue[item.workStatus] || 1,
+      workStatus: item.workStatus,
+      workStatusLabel: statusLabels[item.workStatus],
+      totalCommits: item.totalCommits,
+      overtimeCount: item.overtimeCount
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date)); // 按日期从左往右排序
 
   // 折线图配置
   const lineConfig = {
@@ -86,19 +87,20 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
     smooth: true,
     color: '#1890ff',
     tooltip: {
-      customContent: (title: string, items: any[]) => {
-        if (!items || items.length === 0) return '';
-        const dataItem = chartData.find(d => d.dateLabel === title);
-        if (!dataItem) return '';
+      formatter: (datum: any) => {
+        const dataItem = chartData.find(d => d.dateLabel === datum.dateLabel);
+        if (!dataItem) {
+          return { name: '', value: '' };
+        }
         
-        return `
-          <div style="padding: 8px;">
-            <div style="margin-bottom: 4px; font-weight: bold;">${dayjs(dataItem.date).format('YYYY年MM月DD日')}</div>
-            <div style="margin-bottom: 4px;">工作状态: ${statusLabels[dataItem.workStatus]}</div>
-            <div style="margin-bottom: 4px;">提交次数: ${dataItem.totalCommits}</div>
-            ${dataItem.overtimeCount > 0 ? `<div>加班次数: ${dataItem.overtimeCount}</div>` : ''}
-          </div>
-        `;
+        const overtimeText = dataItem.overtimeCount > 0 
+          ? `，加班 ${dataItem.overtimeCount} 次` 
+          : '';
+        
+        return {
+          name: dayjs(dataItem.date).format('YYYY年MM月DD日'),
+          value: `工作状态：${dataItem.workStatusLabel}，总提交 ${dataItem.totalCommits} 次${overtimeText}`
+        };
       },
     },
     yAxis: {
