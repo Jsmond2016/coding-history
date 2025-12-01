@@ -25,21 +25,13 @@ const GitStatisticsList: React.FC = () => {
 
   // 加载数据
   const handleSearch = React.useCallback(async () => {
-    const startDate = filter.dateRange[0].valueOf();
-    const endDate = filter.dateRange[1].valueOf();
+    // 开始时间设为当天的 0:00:00.000，结束时间设为当天的 23:59:59.999
+    // dayjs 的 startOf/endOf 使用本地时间，valueOf() 返回 UTC 时间戳
+    const startDate = filter.dateRange[0].startOf('day').valueOf();
+    const endDate = filter.dateRange[1].endOf('day').valueOf();
     const repositoryIds = filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined;
     const isOvertime = filter.isOvertime;
 
-    console.log('[Frontend] Search params:', {
-      startDate,
-      endDate,
-      repositoryIds,
-      isOvertime,
-      dateRange: [
-        filter.dateRange[0].format('YYYY-MM-DD'),
-        filter.dateRange[1].format('YYYY-MM-DD')
-      ]
-    });
 
     setLoading(true);
     setHasSearched(true);
@@ -60,11 +52,6 @@ const GitStatisticsList: React.FC = () => {
         })
       ]);
 
-      console.log('[Frontend] Search results:', {
-        total: commitsByDateResult.total,
-        dateCount: commitsByDateResult.data.length,
-        totalCommits: statisticsResult.totalCommits
-      });
 
       setCommitsByDate(commitsByDateResult.data);
       setStatistics(statisticsResult);

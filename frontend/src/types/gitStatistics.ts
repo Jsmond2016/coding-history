@@ -35,6 +35,7 @@ export interface CommitsByDate {
   overtimeCount: number; // 当天加班提交数量
   latestOvertimeCommits: string[]; // 最晚的5个加班提交时间点
   workStatus: WorkStatus; // 工作状态
+  hasRelease: boolean; // 是否有发版提交（chore(release)）
 }
 
 export interface CommitsQuery {

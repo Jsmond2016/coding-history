@@ -10,12 +10,6 @@ const commitService = new CommitService();
 app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => {
   const query = c.req.valid('query');
   
-  console.log('[Commits By Date API] Query params:', {
-    startDate: query.startDate,
-    endDate: query.endDate,
-    repositoryIds: query.repositoryIds,
-    isOvertime: query.isOvertime
-  });
   
   const result = await commitService.getCommitsByDate({
     startDate: query.startDate,
@@ -24,10 +18,6 @@ app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => 
     isOvertime: query.isOvertime
   });
 
-  console.log('[Commits By Date API] Result:', {
-    total: result.total,
-    dateCount: result.data.length
-  });
 
   return c.json({
     data: result.data,

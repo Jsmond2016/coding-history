@@ -19,6 +19,7 @@ export interface CommitsByDate {
   overtimeCount: number; // 当天加班提交数量
   latestOvertimeCommits: string[]; // 最晚的5个加班提交时间点
   workStatus: WorkStatus; // 工作状态
+  hasRelease: boolean; // 是否有发版提交（chore(release)）
 }
 
 export class CommitService {
@@ -177,6 +178,12 @@ export class CommitService {
         // 对每天的提交按时间降序排序
         const sortedCommits = [...commits].sort((a, b) => b.commitDate - a.commitDate);
 
+        // 检测是否有发版提交（chore(release)）
+        const hasRelease = commits.some(commit => {
+          const message = commit.message.toLowerCase();
+          return message.includes('chore(release)') || message.includes('chore: release');
+        });
+
         // 计算工作状态：根据总提交次数和是否有加班记录
         const workStatus = calculateWorkStatus(
           commits.length,
@@ -189,7 +196,8 @@ export class CommitService {
           totalCommits: commits.length,
           overtimeCount: overtimeCommits.length,
           latestOvertimeCommits: overtimeTimes,
-          workStatus
+          workStatus,
+          hasRelease
         };
       })
       .sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序

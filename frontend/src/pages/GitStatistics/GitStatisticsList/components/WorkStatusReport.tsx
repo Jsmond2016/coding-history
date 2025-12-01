@@ -121,57 +121,99 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
     },
   };
 
-  return (
-    <Card title="工作状态统计报表" style={{ marginBottom: 24 }}>
-      <Row gutter={16}>
-        {/* 左侧：统计卡片 */}
-        <Col span={8}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <Card>
-              <Statistic
-                title="工作总天数"
-                value={totalDays}
-                valueStyle={{ color: '#1890ff' }}
-                suffix="天"
-              />
-            </Card>
-            <Card>
-              <Statistic
-                title="轻松天数"
-                value={relaxedDays}
-                valueStyle={{ color: '#52c41a' }}
-                suffix={`天 (${relaxedPercentage}%)`}
-              />
-            </Card>
-            <Card>
-              <Statistic
-                title="忙碌天数"
-                value={busyDays}
-                valueStyle={{ color: '#ff9800' }}
-                suffix={`天 (${busyPercentage}%)`}
-              />
-            </Card>
-            <Card>
-              <Statistic
-                title="加班天数"
-                value={overtimeDays}
-                valueStyle={{ color: '#ff4d4f' }}
-                suffix={`天 (${overtimePercentage}%)`}
-              />
-            </Card>
-          </div>
-        </Col>
+  // 准备提交次数折线图数据
+  const commitsChartData = data
+    .map(item => ({
+      date: item.date,
+      dateLabel: dayjs(item.date).format('MM-DD'),
+      totalCommits: item.totalCommits
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date)); // 按日期从左往右排序
+
+  // 提交次数折线图配置
+  const commitsLineConfig = {
+    data: commitsChartData,
+    xField: 'dateLabel',
+    yField: 'totalCommits',
+    point: {
+      size: 5,
+      shape: 'circle',
+    },
+    smooth: true,
+    color: '#1890ff',
+    tooltip: {
+      formatter: (datum: any) => {
+        const dataItem = commitsChartData.find(d => d.dateLabel === datum.dateLabel);
+        if (!dataItem) {
+          return { name: '', value: '' };
+        }
         
-        {/* 右侧：折线图 */}
-        <Col span={16}>
-          <Card>
-            <div style={{ height: 300 }}>
-              <Line {...lineConfig} />
-            </div>
-          </Card>
-        </Col>
-      </Row>
-    </Card>
+        return {
+          name: dayjs(dataItem.date).format('YYYY年MM月DD日'),
+          value: `提交次数：${dataItem.totalCommits} 次`
+        };
+      },
+    },
+    yAxis: {
+      title: {
+        text: '提交次数',
+      },
+    },
+    xAxis: {
+      label: {
+        autoRotate: false,
+        autoHide: true,
+      },
+    },
+  };
+
+  return (
+    <>
+      {/* 工作状态统计卡片 */}
+      <Card title="工作状态统计" style={{ marginBottom: 24 }}>
+        <Row gutter={16}>
+          <Col span={6}>
+            <Statistic
+              title="工作总天数"
+              value={totalDays}
+              valueStyle={{ color: '#1890ff' }}
+              suffix="天"
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="轻松天数"
+              value={relaxedDays}
+              valueStyle={{ color: '#52c41a' }}
+              suffix={`天 (${relaxedPercentage}%)`}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="忙碌天数"
+              value={busyDays}
+              valueStyle={{ color: '#ff9800' }}
+              suffix={`天 (${busyPercentage}%)`}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="加班天数"
+              value={overtimeDays}
+              valueStyle={{ color: '#ff4d4f' }}
+              suffix={`天 (${overtimePercentage}%)`}
+            />
+          </Col>
+        </Row>
+      </Card>
+
+      {/* 提交次数趋势图 */}
+      <Card title="提交次数趋势" style={{ marginBottom: 24 }}>
+        <div style={{ height: 300 }}>
+          <Line {...commitsLineConfig} />
+        </div>
+      </Card>
+    </>
   );
 };
 

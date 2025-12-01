@@ -48,7 +48,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
       style={{ background: '#fff' }}
     >
       {data.map((dateGroup) => {
-        const { date, commits, totalCommits, overtimeCount, latestOvertimeCommits, workStatus } = dateGroup;
+        const { date, commits, totalCommits, overtimeCount, latestOvertimeCommits, workStatus, hasRelease } = dateGroup;
         
         // 按仓库分组
         const commitsByRepo = commits.reduce((acc, commit) => {
@@ -83,6 +83,9 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                 <Tag color={workStatusColors[workStatus]}>
                   {workStatusLabels[workStatus]}
                 </Tag>
+                {hasRelease && (
+                  <Tag color="purple">发版</Tag>
+                )}
                 {overtimeCount > 0 && (
                   <Tooltip 
                     title={
