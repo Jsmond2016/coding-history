@@ -5,7 +5,7 @@
 export interface WorkStatusConfig {
   /** 提交次数阈值配置 */
   thresholds: {
-    /** 悠闲：小于此值 */
+    /** 轻松：小于此值 */
     relaxed: number;
     /** 正常：>= relaxed 且 < normal */
     normal: number;
@@ -29,7 +29,7 @@ export type WorkStatus = 'relaxed' | 'normal' | 'busy' | 'crazy' | 'overtime' | 
  */
 export const defaultWorkStatusConfig: WorkStatusConfig = {
   thresholds: {
-    relaxed: 6,      // < 6 次：悠闲
+    relaxed: 6,      // < 6 次：轻松
     normal: 10,      // 6-10 次：正常
     busy: 15,        // 10-15 次：忙碌
     superCrazy: 20   // 15-20 次：疯狂，>= 20 次：超级疯狂
@@ -73,7 +73,7 @@ export function calculateWorkStatus(
  * 工作状态显示文本（中文）
  */
 export const workStatusLabels: Record<WorkStatus, string> = {
-  relaxed: '悠闲',
+  relaxed: '轻松',
   normal: '正常',
   busy: '忙碌',
   crazy: '疯狂',

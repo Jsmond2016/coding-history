@@ -10,7 +10,7 @@ const { TabPane } = Tabs;
 
 // 工作状态显示文本（中文）
 const workStatusLabels: Record<WorkStatus, string> = {
-  relaxed: '悠闲',
+  relaxed: '轻松',
   normal: '正常',
   busy: '忙碌',
   crazy: '疯狂',

@@ -6,7 +6,7 @@ import type { WorkStatus } from '../../types/gitStatistics';
  */
 export function workStatusToValue(status: WorkStatus): number {
   const statusValues: Record<WorkStatus, number> = {
-    relaxed: 1,              // 悠闲：1
+    relaxed: 1,              // 轻松：1
     normal: 2,                // 正常：2
     busy: 3,                  // 忙碌：3
     crazy: 4,                 // 疯狂：4
