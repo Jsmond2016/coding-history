@@ -23,6 +23,12 @@
       "name": "Monkey CMS Web New",
       "path": "/Users/huangjing/Desktop/Code/monkey-cms-web-new",
       "enabled": true
+    },
+    {
+      "id": "sm-genPage",
+      "name": "sm-genPage",
+      "path": "/Users/huangjing/Desktop/Code/sm-genPage",
+      "enabled": true
     }
   ],
   "author": {
@@ -31,4 +37,3 @@
   },
   "scanInterval": "0 2 * * *"
 }
-

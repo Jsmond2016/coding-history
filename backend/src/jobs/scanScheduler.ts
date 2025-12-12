@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import type { ScheduledTask } from 'node-cron';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -10,6 +11,9 @@ import { logger } from '../config/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 保存当前运行的定时任务实例
+let currentScheduler: ScheduledTask | null = null;
 
 /**
  * 加载配置文件
@@ -102,9 +106,40 @@ async function executeScan() {
 export function startScheduler() {
   const config = loadConfig();
 
-  // 启动定时任务
-  cron.schedule(config.scanInterval, executeScan);
+  // 如果已有定时任务在运行，先停止
+  if (currentScheduler) {
+    currentScheduler.stop();
+  }
 
-  logger.info(`Scheduler started with cron: ${config.scanInterval}`);
+  // 启动定时任务
+  currentScheduler = cron.schedule(config.scanInterval, executeScan);
+
+  logger.info(`[定时任务] 调度器已启动，Cron 表达式: ${config.scanInterval}`);
+}
+
+/**
+ * 停止定时任务调度器
+ */
+export function stopScheduler() {
+  if (currentScheduler) {
+    currentScheduler.stop();
+    currentScheduler = null;
+    logger.info('[定时任务] 调度器已停止');
+  }
+}
+
+/**
+ * 重启定时任务调度器（用于配置热重载）
+ */
+export async function restartScheduler() {
+  logger.info('[定时任务] 正在重启调度器...');
+
+  // 停止当前定时任务
+  stopScheduler();
+
+  // 启动新的定时任务（会读取最新配置）
+  startScheduler();
+
+  logger.info('[定时任务] 调度器已使用新配置重启');
 }
 
