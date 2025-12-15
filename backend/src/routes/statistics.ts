@@ -9,17 +9,19 @@ const commitService = new CommitService();
 // 获取统计数据
 app.get('/', zValidator('query', StatisticsQuerySchema), async (c) => {
   const query = c.req.valid('query');
-  
+
   console.log('[Statistics API] Query params:', {
     startDate: query.startDate,
     endDate: query.endDate,
-    repositoryIds: query.repositoryIds
+    repositoryIds: query.repositoryIds,
+    authorEmails: query.authorEmails
   });
-  
+
   const statistics = await commitService.getStatistics({
     startDate: query.startDate,
     endDate: query.endDate,
-    repositoryIds: query.repositoryIds
+    repositoryIds: query.repositoryIds,
+    authorEmails: query.authorEmails
   });
 
   console.log('[Statistics API] Result:', {

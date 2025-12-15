@@ -129,18 +129,18 @@ async function scanRepositoryInPhases(
   repoConfig: { id: string; name: string; path: string },
   targetStartDate: Date, // 目标起始日期
   endDate: Date,
-  authorEmail: string,
+  authorEmails: string[],
   repositoryService: RepositoryService,
   commitService: CommitService
 ): Promise<{ scanned: number; inserted: number; skipped: number; completed: boolean }> {
   // 获取当前扫描进度
   const currentScanToDate = await repositoryService.getInitialScanToDate(repoConfig.id);
-  
+
   // 确定实际开始日期：如果有进度，从未完成的日期继续；否则从目标日期开始
-  const actualStartDate = currentScanToDate 
-    ? new Date(currentScanToDate) 
+  const actualStartDate = currentScanToDate
+    ? new Date(currentScanToDate)
     : targetStartDate;
-  
+
   if (actualStartDate >= endDate) {
     logger.info(`  [已完成] 已扫描到 ${new Date(currentScanToDate!).toISOString().split('T')[0]}，无需继续扫描`);
     return { scanned: 0, inserted: 0, skipped: 0, completed: true };
@@ -158,16 +158,16 @@ async function scanRepositoryInPhases(
   for (let i = 0; i < weeks.length; i++) {
     const week = weeks[i];
     const weekNumber = i + 1;
-    
+
     try {
       logger.info(`  [阶段 ${weekNumber}/${weeks.length}] ${week.start.toISOString().split('T')[0]} ~ ${week.end.toISOString().split('T')[0]}`);
 
-      // 执行扫描（使用日期范围限制）
+      // 执行扫描（使用日期范围限制，支持多作者）
       const scanner = new GitScanService(repoConfig.path);
       // 将结束日期设置为下一周的开始，确保包含本周的所有提交
       const weekEndPlusOne = new Date(week.end);
       weekEndPlusOne.setDate(weekEndPlusOne.getDate() + 1);
-      const commits = await scanner.incrementalScan(week.start, authorEmail, weekEndPlusOne);
+      const commits = await scanner.incrementalScan(week.start, authorEmails, weekEndPlusOne);
 
       if (commits.length > 0) {
         // 保存提交记录（带去重）
@@ -277,12 +277,15 @@ async function initScan() {
       }
       logger.info(`  目标日期: ${targetDate.toISOString().split('T')[0]}`);
 
+      // 收集所有作者邮箱
+      const authorEmails = config.authors.map(author => author.email);
+
       // 分阶段扫描（支持断点续传）
       const result = await scanRepositoryInPhases(
         repoConfig,
         targetDate,
         now,
-        config.author.email,
+        authorEmails,
         repositoryService,
         commitService
       );

@@ -15,6 +15,7 @@ import {
   filterAtom,
   statisticsAtom,
   repositoriesAtom,
+  authorsAtom,
 } from "../../../biz/atoms/gitStatistics.atom"
 import { gitStatisticsApi } from "../../../services/gitStatisticsApi"
 import type { CommitsByDate } from "../../../types/gitStatistics"
@@ -23,6 +24,7 @@ const GitStatisticsList: React.FC = () => {
   const filter = useAtomValue(filterAtom)
   const setStatistics = useSetAtom(statisticsAtom)
   const setRepositories = useSetAtom(repositoriesAtom)
+  const setAuthors = useSetAtom(authorsAtom)
   const [hasSearched, setHasSearched] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
@@ -37,6 +39,8 @@ const GitStatisticsList: React.FC = () => {
     const endDate = currentFilter.dateRange[1].endOf("day").valueOf()
     const repositoryIds =
       currentFilter.repositoryIds.length > 0 ? currentFilter.repositoryIds : undefined
+    const authorEmails =
+      currentFilter.authorEmails.length > 0 ? currentFilter.authorEmails : undefined
     const isOvertime = currentFilter.isOvertime
 
     setLoading(true)
@@ -49,12 +53,14 @@ const GitStatisticsList: React.FC = () => {
           startDate,
           endDate,
           repositoryIds,
+          authorEmails,
           isOvertime,
         }),
         gitStatisticsApi.getStatistics({
           startDate,
           endDate,
           repositoryIds,
+          authorEmails,
         }),
       ])
 
@@ -68,15 +74,19 @@ const GitStatisticsList: React.FC = () => {
     }
   }, [filter, setStatistics])
 
-  // 加载仓库列表
+  // 加载仓库列表和作者列表
   useMount(async () => {
     try {
-      const repos = await gitStatisticsApi.getRepositories()
+      const [repos, authors] = await Promise.all([
+        gitStatisticsApi.getRepositories(),
+        gitStatisticsApi.getAuthors()
+      ])
       setRepositories(repos)
+      setAuthors(authors)
       // 自动执行一次搜索
       await handleSearch()
     } catch (error) {
-      message.error("加载仓库列表失败")
+      message.error("加载初始数据失败")
     }
   })
 

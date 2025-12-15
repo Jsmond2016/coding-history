@@ -4,6 +4,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 export interface FilterState {
   dateRange: [Dayjs, Dayjs];
   repositoryIds: string[];
+  authorEmails: string[];
   isOvertime?: boolean; // 筛选是否加班：undefined=全部，true=仅加班，false=非加班
 }
 
@@ -11,6 +12,7 @@ export interface FilterState {
 export const defaultFilterState: FilterState = {
   dateRange: [dayjs().subtract(1, 'month'), dayjs()],
   repositoryIds: [],
+  authorEmails: [],
   isOvertime: undefined
 };
 
@@ -55,4 +57,6 @@ export const statisticsAtom = atom<StatisticsState>({
 });
 
 export const repositoriesAtom = atom<any[]>([]);
+
+export const authorsAtom = atom<any[]>([]);
 

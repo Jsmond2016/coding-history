@@ -7,15 +7,20 @@ export const RepositoryConfigSchema = z.object({
   enabled: z.boolean()
 });
 
+export const AuthorConfigSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+  isDefault: z.boolean().optional().default(false)
+});
+
 export const ConfigSchema = z.object({
   repositories: z.array(RepositoryConfigSchema),
-  author: z.object({
-    name: z.string(),
-    email: z.string().email()
-  }),
+  authors: z.array(AuthorConfigSchema).min(1, '至少需要配置一个作者'),
   scanInterval: z.string()
 });
 
 export type RepositoryConfig = z.infer<typeof RepositoryConfigSchema>;
+export type AuthorConfig = z.infer<typeof AuthorConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
+
 

@@ -32,6 +32,9 @@ async function executeScan() {
   const repositoryService = new RepositoryService();
   const commitService = new CommitService();
 
+  // 收集所有作者邮箱
+  const authorEmails = config.authors.map(author => author.email);
+
   logger.info('Starting scheduled scan...');
 
   try {
@@ -40,25 +43,25 @@ async function executeScan() {
 
       try {
         logger.info(`[定时扫描] 仓库: ${repo.name}`);
-        
+
         // 获取上次扫描时间
         const lastScanTime = await repositoryService.getLastScanTime(repo.id);
-        const fromDate = lastScanTime 
+        const fromDate = lastScanTime
           ? new Date(lastScanTime)
           : new Date('2000-01-01');
 
         logger.info(`[增量扫描] 从 ${fromDate.toISOString()} 开始扫描`);
 
-        // 执行增量扫描
+        // 执行增量扫描（使用所有配置的作者邮箱）
         const scanner = new GitScanService(repo.path);
-        const commits = await scanner.incrementalScan(fromDate, config.author.email);
+        const commits = await scanner.incrementalScan(fromDate, authorEmails);
 
         logger.info(`[扫描完成] 发现 ${commits.length} 个提交记录`);
 
         if (commits.length > 0) {
           // 保存到数据库（带去重）
           const insertResult = await commitService.batchInsertCommits(repo.id, commits);
-          
+
           logger.info(`[数据入库] 新增: ${insertResult.inserted} 条, 跳过重复: ${insertResult.skipped} 条`);
 
           // 更新仓库信息

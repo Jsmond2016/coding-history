@@ -98,16 +98,18 @@ export class CommitService {
     startDate: number;
     endDate: number;
     repositoryIds?: string[];
+    authorEmails?: string[];
     isOvertime?: boolean; // 筛选是否加班
   }): Promise<{ data: CommitsByDate[]; total: number }> {
-    const { startDate, endDate, repositoryIds, isOvertime } = params;
+    const { startDate, endDate, repositoryIds, authorEmails, isOvertime } = params;
 
     const where: any = {
       commitDate: {
         gte: BigInt(startDate),
         lte: BigInt(endDate)
       },
-      ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {})
+      ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {}),
+      ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {})
     };
 
     // 查询所有符合条件的提交
@@ -212,10 +214,11 @@ export class CommitService {
     startDate: number;
     endDate: number;
     repositoryIds?: string[];
+    authorEmails?: string[];
     page: number;
     pageSize: number;
   }): Promise<{ data: CommitWithRepoName[]; total: number }> {
-    const { startDate, endDate, repositoryIds, page, pageSize } = params;
+    const { startDate, endDate, repositoryIds, authorEmails, page, pageSize } = params;
     const skip = (page - 1) * pageSize;
 
     const where = {
@@ -223,7 +226,8 @@ export class CommitService {
         gte: BigInt(startDate),
         lte: BigInt(endDate)
       },
-      ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {})
+      ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {}),
+      ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {})
     };
 
     // 查询总数
@@ -267,6 +271,7 @@ export class CommitService {
     startDate: number;
     endDate: number;
     repositoryIds?: string[];
+    authorEmails?: string[];
   }): Promise<{
     totalCommits: number;
     totalInsertions: number;
@@ -286,14 +291,15 @@ export class CommitService {
       deletions: number;
     }>;
   }> {
-    const { startDate, endDate, repositoryIds } = params;
+    const { startDate, endDate, repositoryIds, authorEmails } = params;
 
     const where = {
       commitDate: {
         gte: BigInt(startDate),
         lte: BigInt(endDate)
       },
-      ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {})
+      ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {}),
+      ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {})
     };
 
     // 总体统计
@@ -335,30 +341,38 @@ export class CommitService {
     }));
 
     // 按日期统计 - 需要使用原始查询
+    const queryParams: any[] = [];
     let byDateQuery = `
-      SELECT 
+      SELECT
         DATE(commit_date / 1000, 'unixepoch') as date,
         COUNT(*) as commits,
         SUM(insertions) as insertions,
         SUM(deletions) as deletions
       FROM commits
-      WHERE commit_date >= ${BigInt(startDate)} 
+      WHERE commit_date >= ${BigInt(startDate)}
         AND commit_date <= ${BigInt(endDate)}
     `;
-    
+
     if (repositoryIds && repositoryIds.length > 0) {
       const placeholders = repositoryIds.map(() => '?').join(',');
       byDateQuery += ` AND repo_id IN (${placeholders})`;
+      queryParams.push(...repositoryIds);
     }
-    
+
+    if (authorEmails && authorEmails.length > 0) {
+      const placeholders = authorEmails.map(() => '?').join(',');
+      byDateQuery += ` AND author_email IN (${placeholders})`;
+      queryParams.push(...authorEmails);
+    }
+
     byDateQuery += ` GROUP BY date ORDER BY date DESC`;
-    
+
     const byDateRaw = await prisma.$queryRawUnsafe<Array<{
       date: string;
       commits: bigint;
       insertions: bigint | null;
       deletions: bigint | null;
-    }>>(byDateQuery, ...(repositoryIds || []));
+    }>>(byDateQuery, ...queryParams);
 
     const byDate = byDateRaw.map(row => ({
       date: row.date,

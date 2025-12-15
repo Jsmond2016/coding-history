@@ -24,9 +24,9 @@ export class GitScanService {
    * 扫描仓库提交记录
    * @param fromDate 起始日期，用于增量扫描
    * @param toDate 结束日期，可选
-   * @param authorEmail 作者邮箱，用于过滤
+   * @param authorEmails 作者邮箱数组，用于过滤（支持多个作者）
    */
-  async scanRepository(fromDate?: Date, toDate?: Date, authorEmail?: string): Promise<ScannedCommit[]> {
+  async scanRepository(fromDate?: Date, toDate?: Date, authorEmails?: string[]): Promise<ScannedCommit[]> {
     try {
       // 检查是否为有效的 Git 仓库
       const isRepo = await this.git.checkIsRepo();
@@ -47,13 +47,20 @@ export class GitScanService {
         logOptions['--until'] = toDate.toISOString();
       }
 
-      if (authorEmail) {
-        logOptions['--author'] = authorEmail;
+      if (authorEmails && authorEmails.length > 0) {
+        // simple-git 不支持在单个 --author 参数中使用正则表达式
+        // 需要使用 --perl-regexp 选项来启用 Perl 正则表达式
+        const authorPattern = authorEmails.map(email =>
+          email.replace(/[.*+?^${}()[\]\\]/g, '\\$&')
+        ).join('|');
+        logOptions['--perl-regexp'] = null;  // 启用 Perl 正则表达式
+        logOptions['--author'] = authorPattern;
+        logger.info(`Using author pattern with perl-regexp: ${authorPattern}`);
       }
 
       // 获取提交日志
       const logs = await this.git.log(logOptions);
-      
+
       logger.info(`Found ${logs.all.length} commits in ${this.repoPath}`);
 
       // 使用 ramda 处理提交数据
@@ -62,7 +69,7 @@ export class GitScanService {
           try {
             // 获取每个提交的 diff 统计
             const diff = await this.git.diffSummary([`${commit.hash}^`, commit.hash]);
-            
+
             return {
               hash: commit.hash,
               message: commit.message,
@@ -107,12 +114,12 @@ export class GitScanService {
   /**
    * 增量扫描：只扫描指定日期之后的提交
    * @param lastScanDate 起始日期
-   * @param authorEmail 作者邮箱，可选
+   * @param authorEmails 作者邮箱数组，可选（支持多个作者）
    * @param toDate 结束日期，可选
    */
-  async incrementalScan(lastScanDate: Date, authorEmail?: string, toDate?: Date): Promise<ScannedCommit[]> {
+  async incrementalScan(lastScanDate: Date, authorEmails?: string[], toDate?: Date): Promise<ScannedCommit[]> {
     logger.info(`Incremental scan from ${lastScanDate.toISOString()}${toDate ? ` to ${toDate.toISOString()}` : ''}`);
-    return this.scanRepository(lastScanDate, toDate, authorEmail);
+    return this.scanRepository(lastScanDate, toDate, authorEmails);
   }
 }
 

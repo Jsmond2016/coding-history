@@ -84,16 +84,26 @@ async function scanRepositoriesAsync(repositoryIds?: string[]) {
   const config = loadConfig();
   let scannedCount = 0;
 
+  // 收集所有作者邮箱
+  const authorEmails = config.authors.map(author => author.email);
+
   // 计算2周前的日期
   const twoWeeksAgo = new Date();
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
   const fromDate = twoWeeksAgo;
 
   logger.info(`[手动扫描] 开始扫描最近2周的提交数据（从 ${fromDate.toISOString()} 开始）`);
+  logger.info(`[手动扫描] 作者邮箱: ${authorEmails.join(', ')}`);
 
   for (const repoConfig of config.repositories) {
-    if (!repoConfig.enabled) continue;
-    if (repositoryIds && !repositoryIds.includes(repoConfig.id)) continue;
+    if (!repoConfig.enabled) {
+      logger.info(`[跳过] 仓库 ${repoConfig.name} 未启用`);
+      continue;
+    }
+    if (repositoryIds && !repositoryIds.includes(repoConfig.id)) {
+      logger.info(`[跳过] 仓库 ${repoConfig.name} 不在扫描列表中`);
+      continue;
+    }
 
     try {
       logger.info(`[扫描开始] 仓库: ${repoConfig.name}, 路径: ${repoConfig.path}`);
@@ -101,16 +111,19 @@ async function scanRepositoriesAsync(repositoryIds?: string[]) {
       // 先更新仓库代码到最新
       await pullRepository(repoConfig.path, repoConfig.name);
 
-      // 执行扫描（最近2周）
+      // 执行扫描（最近2周，使用所有配置的作者邮箱）
       const scanner = new GitScanService(repoConfig.path);
-      const commits = await scanner.incrementalScan(fromDate, config.author.email, new Date());
+      const commits = await scanner.incrementalScan(fromDate, authorEmails, new Date());
 
       logger.info(`[扫描完成] 发现 ${commits.length} 个提交记录`);
+      if (commits.length > 0) {
+        logger.info(`[提交样本] 第一个: ${commits[0].hash} - ${commits[0].authorEmail} - ${new Date(commits[0].date).toISOString()}`);
+      }
 
       if (commits.length > 0) {
         // 保存提交记录（带去重）
         const insertResult = await commitService.batchInsertCommits(repoConfig.id, commits);
-        
+
         logger.info(`[数据入库] 新增: ${insertResult.inserted} 条, 跳过重复: ${insertResult.skipped} 条`);
 
         // 更新仓库信息
@@ -156,15 +169,27 @@ app.get('/', async (c) => {
   return c.json(repositories);
 });
 
-// 获取单个仓库
+// 获取作者列表（必须在 /:id 路由之前定义）
+app.get('/authors', async (c) => {
+  try {
+    const config = loadConfig();
+    return c.json(config.authors);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('[获取作者列表] 失败:', error);
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+// 获取单个仓库（必须在 /authors 等具体路由之后）
 app.get('/:id', async (c) => {
   const id = c.req.param('id');
   const repository = await repositoryService.getRepositoryById(id);
-  
+
   if (!repository) {
     return c.json({ error: 'Repository not found' }, 404);
   }
-  
+
   return c.json(repository);
 });
 

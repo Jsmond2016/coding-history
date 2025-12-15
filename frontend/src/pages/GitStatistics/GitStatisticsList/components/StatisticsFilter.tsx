@@ -3,20 +3,21 @@ import { Space, DatePicker, Select, Button, message, ConfigProvider } from 'antd
 import { SearchOutlined, ReloadOutlined, UndoOutlined } from '@ant-design/icons';
 import { useAtom } from 'jotai';
 import dayjs, { type Dayjs } from 'dayjs';
-import { filterAtom, repositoriesAtom } from '../../../../biz/atoms/gitStatistics.atom';
+import { filterAtom, repositoriesAtom, authorsAtom } from '../../../../biz/atoms/gitStatistics.atom';
 import { gitStatisticsApi } from '../../../../services/gitStatisticsApi';
-import type { Repository } from '../../../../types/gitStatistics';
+import type { Repository, Author } from '../../../../types/gitStatistics';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 interface StatisticsFilterProps {
-  onSearch: (customFilter?: { dateRange: [Dayjs, Dayjs]; repositoryIds: string[]; isOvertime?: boolean }) => void;
+  onSearch: (customFilter?: { dateRange: [Dayjs, Dayjs]; repositoryIds: string[]; authorEmails: string[]; isOvertime?: boolean }) => void;
 }
 
 export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) => {
   const [filter, setFilter] = useAtom(filterAtom);
   const [repositories] = useAtom(repositoriesAtom);
+  const [authors] = useAtom(authorsAtom);
   const [scanning, setScanning] = React.useState(false);
   const [lastScanTime, setLastScanTime] = React.useState<number>(0);
 
@@ -109,6 +110,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
     const resetFilter = {
       dateRange: [dayjs().subtract(1, 'month'), dayjs()] as [Dayjs, Dayjs],
       repositoryIds: [] as string[],
+      authorEmails: [] as string[],
       isOvertime: undefined as boolean | undefined
     };
     setFilter(resetFilter);
@@ -155,12 +157,28 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         </Select>
 
         <Select
+          mode="multiple"
+          placeholder="选择作者（默认全部）"
+          value={filter.authorEmails}
+          onChange={(emails) => setFilter({ ...filter, authorEmails: emails })}
+          style={{ minWidth: 200 }}
+          allowClear
+          maxTagCount="responsive"
+        >
+          {authors.map((author: Author) => (
+            <Option key={author.email} value={author.email}>
+              {author.name}
+            </Option>
+          ))}
+        </Select>
+
+        <Select
           placeholder="是否加班（默认全部）"
           value={filter.isOvertime === undefined ? null : filter.isOvertime}
           onChange={(value) => {
-            setFilter({ 
-              ...filter, 
-              isOvertime: value === null || value === undefined ? undefined : value 
+            setFilter({
+              ...filter,
+              isOvertime: value === null || value === undefined ? undefined : value
             });
           }}
           style={{ width: 150 }}

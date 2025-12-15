@@ -5,6 +5,7 @@ export const CommitsQuerySchema = z.object({
   startDate: z.string().transform(val => parseInt(val)),
   endDate: z.string().transform(val => parseInt(val)),
   repositoryIds: z.string().optional().transform(val => val?.split(',')),
+  authorEmails: z.string().optional().transform(val => val?.split(',')),
   page: z.string().default('1').transform(val => parseInt(val)),
   pageSize: z.string().default('20').transform(val => parseInt(val))
 });
@@ -14,6 +15,7 @@ export const CommitsByDateQuerySchema = z.object({
   startDate: z.string().transform(val => parseInt(val)),
   endDate: z.string().transform(val => parseInt(val)),
   repositoryIds: z.string().optional().transform(val => val?.split(',')),
+  authorEmails: z.string().optional().transform(val => val?.split(',')),
   isOvertime: z.string().optional().transform(val => {
     if (val === undefined || val === '') return undefined;
     return val === 'true';
@@ -32,4 +34,5 @@ export type CommitsQuery = z.infer<typeof CommitsQuerySchema>;
 export type CommitsByDateQuery = z.infer<typeof CommitsByDateQuerySchema>;
 export type ScanRequest = z.infer<typeof ScanRequestSchema>;
 export type StatisticsQuery = z.infer<typeof StatisticsQuerySchema>;
+
 

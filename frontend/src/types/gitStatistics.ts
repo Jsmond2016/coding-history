@@ -9,6 +9,12 @@ export interface Repository {
   updatedAt: number;
 }
 
+export interface Author {
+  name: string;
+  email: string;
+  isDefault?: boolean;
+}
+
 export interface Commit {
   id: number;
   repoId: string;
@@ -42,6 +48,7 @@ export interface CommitsQuery {
   startDate: number;
   endDate: number;
   repositoryIds?: string[];
+  authorEmails?: string[];
   page: number;
   pageSize: number;
 }
@@ -50,6 +57,7 @@ export interface CommitsByDateQuery {
   startDate: number;
   endDate: number;
   repositoryIds?: string[];
+  authorEmails?: string[];
   isOvertime?: boolean; // 筛选是否加班
 }
 

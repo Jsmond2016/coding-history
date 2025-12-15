@@ -9,12 +9,13 @@ const commitService = new CommitService();
 // 获取提交记录列表（按日期分组）
 app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => {
   const query = c.req.valid('query');
-  
-  
+
+
   const result = await commitService.getCommitsByDate({
     startDate: query.startDate,
     endDate: query.endDate,
     repositoryIds: query.repositoryIds,
+    authorEmails: query.authorEmails,
     isOvertime: query.isOvertime
   });
 
@@ -28,19 +29,21 @@ app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => 
 // 获取提交记录列表（旧接口，保持兼容）
 app.get('/', zValidator('query', CommitsQuerySchema), async (c) => {
   const query = c.req.valid('query');
-  
+
   console.log('[Commits API] Query params:', {
     startDate: query.startDate,
     endDate: query.endDate,
     repositoryIds: query.repositoryIds,
+    authorEmails: query.authorEmails,
     page: query.page,
     pageSize: query.pageSize
   });
-  
+
   const result = await commitService.getCommits({
     startDate: query.startDate,
     endDate: query.endDate,
     repositoryIds: query.repositoryIds,
+    authorEmails: query.authorEmails,
     page: query.page,
     pageSize: query.pageSize
   });

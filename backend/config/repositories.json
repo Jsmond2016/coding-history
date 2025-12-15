@@ -29,11 +29,25 @@
       "name": "sm-genPage",
       "path": "/Users/huangjing/Desktop/Code/sm-genPage",
       "enabled": true
+    },
+    {
+       "id": "api-proxy-tool",
+      "name": "api-proxy-tool",
+      "path": "/Users/huangjing/Desktop/MyCode/temp/api-proxy-tool",
+      "enabled": true
+    } 
+  ],
+  "authors": [
+    {
+      "name": "huangjin",
+      "email": "huangjin@supermonkey.com.cn",
+      "isDefault": true
+    },
+    {
+      "name": "Jsmond2016",
+      "email": "jsmond2016@gmail.com",
+      "isDefault": true
     }
   ],
-  "author": {
-    "name": "huangjin",
-    "email": "huangjin@supermonkey.com.cn"
-  },
   "scanInterval": "0 2 * * *"
 }
