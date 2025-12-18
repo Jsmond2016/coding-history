@@ -49,5 +49,6 @@
       "isDefault": true
     }
   ],
-  "scanInterval": "0 2 * * *"
+  "scanInterval": "0 2 * * *",
+  "ignoredBranches": ["develop", "release", "uat"]
 }

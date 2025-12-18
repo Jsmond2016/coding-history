@@ -2,6 +2,13 @@ import { prisma } from '../db/client.js';
 import type { Commit } from '../schemas/database.schema.js';
 import type { ScannedCommit } from './GitScanService.js';
 import { calculateWorkStatus, type WorkStatus } from '../config/workStatus.config.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import type { Config } from '../schemas/config.schema.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface CommitWithRepoName extends Commit {
   repoName: string;
@@ -23,41 +30,92 @@ export interface CommitsByDate {
   workStatus: WorkStatus; // 工作状态
   hasRelease: boolean; // 是否有发版提交（chore(release)）
   repositories: string[]; // 当日修改的仓库列表
+  branches: string[]; // 当日修改的分支列表
 }
 
 export class CommitService {
   /**
+   * 加载配置文件
+   */
+  private loadConfig(): Config {
+    const configPath = path.join(__dirname, '../../config/repositories.json');
+    const configContent = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(configContent);
+    // 如果没有配置 ignoredBranches，使用默认值
+    if (!config.ignoredBranches) {
+      config.ignoredBranches = ['develop', 'release'];
+    }
+    return config;
+  }
+
+  /**
+   * 获取忽略的分支列表
+   */
+  private getIgnoredBranches(): string[] {
+    const config = this.loadConfig();
+    return config.ignoredBranches || ['develop', 'release'];
+  }
+
+  /**
+   * 检查分支是否应该被忽略
+   */
+  private shouldIgnoreBranch(branch?: string): boolean {
+    if (!branch) return false;
+    const ignoredBranches = this.getIgnoredBranches();
+    return ignoredBranches.includes(branch);
+  }
+
+  /**
    * 批量插入提交记录（带去重）
+   * 注意：同一个 commit hash 在同一个仓库中只会记录一次（基于 [repoId, commitHash] 唯一约束）
+   * 如果同一个 commit 在多个分支中，会优先记录更重要的分支
    */
   async batchInsertCommits(repoId: string, commits: ScannedCommit[]): Promise<{ inserted: number; skipped: number }> {
     if (commits.length === 0) return { inserted: 0, skipped: 0 };
 
     const now = BigInt(Date.now());
     
-    // 查询已存在的 commit hash（跨仓库去重）
-    const existingHashes = await prisma.commit.findMany({
+    // 查询已存在的 commit hash（基于 repoId 和 commitHash 去重）
+    const existingCommits = await prisma.commit.findMany({
       where: {
+        repoId,
         commitHash: {
           in: commits.map(c => c.hash)
         }
       },
       select: {
-        commitHash: true
+        commitHash: true,
+        branch: true
       }
     });
 
-    const existingHashSet = new Set(existingHashes.map(c => c.commitHash));
+    // 创建已存在的 commit hash 集合（同一仓库内去重）
+    const existingHashSet = new Set(existingCommits.map(c => c.commitHash));
     
-    // 过滤出新的提交
+    // 对于已存在的 commit，如果新扫描到的分支更优先，可以考虑更新分支信息
+    // 但为了简化，这里只插入新的 commit
     const newCommits = commits.filter(commit => !existingHashSet.has(commit.hash));
     
     if (newCommits.length === 0) {
       return { inserted: 0, skipped: commits.length };
     }
 
+    // 对同一个 commit hash 进行去重（如果扫描时发现同一个 commit 在多个分支中）
+    // 使用 Map 来去重，保留第一个出现的分支信息
+    const uniqueCommitsMap = new Map<string, ScannedCommit>();
+    newCommits.forEach(commit => {
+      if (!uniqueCommitsMap.has(commit.hash)) {
+        uniqueCommitsMap.set(commit.hash, commit);
+      }
+      // 如果已存在，可以选择更新分支信息（如果新分支更优先）
+      // 这里简单保留第一个，因为 GitScanService 已经做了分支优先级处理
+    });
+
+    const uniqueCommits = Array.from(uniqueCommitsMap.values());
+
     // 批量插入新提交
     await prisma.commit.createMany({
-      data: newCommits.map(commit => ({
+      data: uniqueCommits.map(commit => ({
         repoId,
         commitHash: commit.hash,
         authorName: commit.authorName,
@@ -73,8 +131,8 @@ export class CommitService {
     });
 
     return {
-      inserted: newCommits.length,
-      skipped: commits.length - newCommits.length
+      inserted: uniqueCommits.length,
+      skipped: commits.length - uniqueCommits.length
     };
   }
 
@@ -127,41 +185,69 @@ export class CommitService {
       orderBy: { commitDate: 'desc' }
     });
 
-    // 转换为带加班信息的提交记录
-    const commitsWithOvertime: CommitWithOvertime[] = commits.map(commit => {
-      const commitDate = Number(commit.commitDate);
-      const isOvertimeCommit = this.isOvertimeCommit(commitDate);
+    // 获取忽略的分支列表
+    const ignoredBranches = this.getIgnoredBranches();
 
-      return {
-        id: commit.id,
-        repoId: commit.repoId,
-        commitHash: commit.commitHash,
-        authorName: commit.authorName,
-        authorEmail: commit.authorEmail,
-        commitDate,
-        message: commit.message,
-        filesChanged: commit.filesChanged,
-        insertions: commit.insertions,
-        deletions: commit.deletions,
-        branch: commit.branch || undefined,
-        createdAt: Number(commit.createdAt),
-        repoName: commit.repository.name,
-        isOvertime: isOvertimeCommit,
-        overtimeCommitTimes: isOvertimeCommit ? [this.formatTime(commitDate)] : undefined
-      };
-    });
+    // 转换为带加班信息的提交记录，并过滤忽略的分支
+    const commitsWithOvertime: CommitWithOvertime[] = commits
+      .filter(commit => {
+        // 过滤掉忽略分支的提交
+        if (commit.branch && ignoredBranches.includes(commit.branch)) {
+          return false;
+        }
+        return true;
+      })
+      .map(commit => {
+        const commitDate = Number(commit.commitDate);
+        const isOvertimeCommit = this.isOvertimeCommit(commitDate);
+
+        return {
+          id: commit.id,
+          repoId: commit.repoId,
+          commitHash: commit.commitHash,
+          authorName: commit.authorName,
+          authorEmail: commit.authorEmail,
+          commitDate,
+          message: commit.message,
+          filesChanged: commit.filesChanged,
+          insertions: commit.insertions,
+          deletions: commit.deletions,
+          branch: commit.branch || undefined,
+          createdAt: Number(commit.createdAt),
+          repoName: commit.repository.name,
+          isOvertime: isOvertimeCommit,
+          overtimeCommitTimes: isOvertimeCommit ? [this.formatTime(commitDate)] : undefined
+        };
+      });
 
     // 按是否加班筛选
     const filteredCommits = isOvertime !== undefined
       ? commitsWithOvertime.filter(c => c.isOvertime === isOvertime)
       : commitsWithOvertime;
 
-    // 按日期分组
+    // 按日期分组，并对同一仓库同一 commit hash 进行去重
+    // 确保同一个 commit 在同一天只统计一次
     const commitsByDateMap = new Map<string, CommitWithOvertime[]>();
+    const seenCommitsInDate = new Map<string, Set<string>>(); // date -> Set<repoId:commitHash>
     
     filteredCommits.forEach(commit => {
       const date = new Date(commit.commitDate).toISOString().split('T')[0]; // YYYY-MM-DD
+      const commitKey = `${commit.repoId}:${commit.commitHash}`;
       
+      // 初始化该日期的已见 commit 集合
+      if (!seenCommitsInDate.has(date)) {
+        seenCommitsInDate.set(date, new Set());
+      }
+      
+      // 如果该 commit 在同一天已经出现过，跳过（去重）
+      if (seenCommitsInDate.get(date)!.has(commitKey)) {
+        return;
+      }
+      
+      // 标记该 commit 已处理
+      seenCommitsInDate.get(date)!.add(commitKey);
+      
+      // 添加到日期分组
       if (!commitsByDateMap.has(date)) {
         commitsByDateMap.set(date, []);
       }
@@ -199,6 +285,13 @@ export class CommitService {
 
         // 获取当日修改的仓库列表（去重）
         const repositories = Array.from(new Set(commits.map(c => c.repoName)));
+        
+        // 获取当日修改的分支列表（去重，过滤掉 undefined）
+        const branches = Array.from(new Set(
+          commits
+            .map(c => c.branch)
+            .filter((branch): branch is string => !!branch)
+        ));
 
         return {
           date,
@@ -208,7 +301,8 @@ export class CommitService {
           latestOvertimeCommits: overtimeTimes,
           workStatus,
           hasRelease,
-          repositories
+          repositories,
+          branches
         };
       })
       .sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序
@@ -239,12 +333,25 @@ export class CommitService {
       ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {})
     };
 
-    // 查询总数
-    const total = await prisma.commit.count({ where });
+    // 获取忽略的分支列表，用于过滤查询
+    const ignoredBranches = this.getIgnoredBranches();
+    
+    // 添加分支过滤条件
+    const whereWithBranchFilter: any = {
+      ...where,
+      NOT: {
+        branch: {
+          in: ignoredBranches
+        }
+      }
+    };
 
-    // 查询数据
+    // 查询总数（已过滤忽略分支）
+    const total = await prisma.commit.count({ where: whereWithBranchFilter });
+
+    // 查询数据（已过滤忽略分支）
     const commits = await prisma.commit.findMany({
-      where,
+      where: whereWithBranchFilter,
       include: {
         repository: {
           select: { name: true }
@@ -255,21 +362,22 @@ export class CommitService {
       take: pageSize
     });
 
+    // 数据已经在数据库查询时过滤了忽略分支，这里直接映射即可
     const data = commits.map(commit => ({
       id: commit.id,
-      repoId: commit.repoId,
-      commitHash: commit.commitHash,
-      authorName: commit.authorName,
-      authorEmail: commit.authorEmail,
-      commitDate: Number(commit.commitDate),
-      message: commit.message,
-      filesChanged: commit.filesChanged,
-      insertions: commit.insertions,
-      deletions: commit.deletions,
-      branch: commit.branch || undefined,
-      createdAt: Number(commit.createdAt),
-      repoName: commit.repository.name
-    }));
+        repoId: commit.repoId,
+        commitHash: commit.commitHash,
+        authorName: commit.authorName,
+        authorEmail: commit.authorEmail,
+        commitDate: Number(commit.commitDate),
+        message: commit.message,
+        filesChanged: commit.filesChanged,
+        insertions: commit.insertions,
+        deletions: commit.deletions,
+        branch: commit.branch || undefined,
+        createdAt: Number(commit.createdAt),
+        repoName: commit.repository.name
+      }));
 
     return { data, total };
   }
@@ -303,13 +411,22 @@ export class CommitService {
   }> {
     const { startDate, endDate, repositoryIds, authorEmails } = params;
 
-    const where = {
+    // 获取忽略的分支列表
+    const ignoredBranches = this.getIgnoredBranches();
+
+    const where: any = {
       commitDate: {
         gte: BigInt(startDate),
         lte: BigInt(endDate)
       },
       ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {}),
-      ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {})
+      ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {}),
+      // 过滤掉忽略分支的提交
+      NOT: {
+        branch: {
+          in: ignoredBranches
+        }
+      }
     };
 
     // 总体统计
@@ -373,6 +490,13 @@ export class CommitService {
       const placeholders = authorEmails.map(() => '?').join(',');
       byDateQuery += ` AND author_email IN (${placeholders})`;
       queryParams.push(...authorEmails);
+    }
+
+    // 过滤忽略的分支
+    if (ignoredBranches.length > 0) {
+      const branchPlaceholders = ignoredBranches.map(() => '?').join(',');
+      byDateQuery += ` AND (branch IS NULL OR branch NOT IN (${branchPlaceholders}))`;
+      queryParams.push(...ignoredBranches);
     }
 
     byDateQuery += ` GROUP BY date ORDER BY date DESC`;

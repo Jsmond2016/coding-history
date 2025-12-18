@@ -48,24 +48,30 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
       style={{ background: '#fff' }}
     >
       {data.map((dateGroup) => {
-        const { date, commits, totalCommits, overtimeCount, latestOvertimeCommits, workStatus, hasRelease, repositories } = dateGroup;
+        const { date, commits, totalCommits, overtimeCount, latestOvertimeCommits, workStatus, hasRelease, repositories, branches } = dateGroup;
         
-        // 按仓库分组
-        const commitsByRepo = commits.reduce((acc, commit) => {
+        // 按仓库分组，然后按分支分组
+        const commitsByRepoAndBranch = commits.reduce((acc, commit) => {
           if (!acc[commit.repoName]) {
-            acc[commit.repoName] = [];
+            acc[commit.repoName] = {};
           }
-          acc[commit.repoName].push(commit);
+          const branchKey = commit.branch || 'unknown';
+          if (!acc[commit.repoName][branchKey]) {
+            acc[commit.repoName][branchKey] = [];
+          }
+          acc[commit.repoName][branchKey].push(commit);
           return acc;
-        }, {} as Record<string, Commit[]>);
+        }, {} as Record<string, Record<string, Commit[]>>);
         
-        // 对每个仓库的commits按时间降序排序
-        Object.keys(commitsByRepo).forEach(repoName => {
-          commitsByRepo[repoName].sort((a, b) => b.commitDate - a.commitDate);
+        // 对每个仓库每个分支的commits按时间降序排序
+        Object.keys(commitsByRepoAndBranch).forEach(repoName => {
+          Object.keys(commitsByRepoAndBranch[repoName]).forEach(branch => {
+            commitsByRepoAndBranch[repoName][branch].sort((a, b) => b.commitDate - a.commitDate);
+          });
         });
 
         // 获取仓库列表（用于 Tabs）
-        const repoNames = Object.keys(commitsByRepo);
+        const repoNames = Object.keys(commitsByRepoAndBranch);
         const defaultActiveKey = repoNames[0] || '';
 
         return (
@@ -96,6 +102,21 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                       return (
                         <Tag key={repoName} color={colors[colorIndex]}>
                           {repoName}
+                        </Tag>
+                      );
+                    })}
+                  </>
+                )}
+                {/* 显示当日修改的分支标签 */}
+                {branches && branches.length > 0 && (
+                  <>
+                    {branches.map((branch, idx) => {
+                      // 使用不同颜色区分不同分支
+                      const branchColors = ['geekblue', 'cyan', 'purple', 'magenta', 'volcano', 'gold'];
+                      const colorIndex = idx % branchColors.length;
+                      return (
+                        <Tag key={branch} color={branchColors[colorIndex]}>
+                          🌿 {branch}
                         </Tag>
                       );
                     })}
@@ -135,8 +156,10 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
             ) : (
               <Tabs defaultActiveKey={defaultActiveKey} type="card">
                 {repoNames.map((repoName) => {
-                  const repoCommits = commitsByRepo[repoName];
-                  const shouldScroll = repoCommits.length > 10;
+                  const repoBranches = commitsByRepoAndBranch[repoName];
+                  const branchNames = Object.keys(repoBranches);
+                  const totalRepoCommits = Object.values(repoBranches).reduce((sum, commits) => sum + commits.length, 0);
+                  const defaultBranchKey = branchNames[0] || '';
                   
                   return (
                     <TabPane 
@@ -144,54 +167,84 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                         <span>
                           {repoName}
                           <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
-                            ({repoCommits.length})
+                            ({totalRepoCommits})
                           </Text>
                         </span>
                       } 
                       key={repoName}
                     >
-                      <div style={{ maxHeight: shouldScroll ? 600 : 'auto', overflowY: 'auto' }}>
-                        {repoCommits.map((commit) => (
-                          <div
-                            key={commit.id}
-                            style={{
-                              padding: '12px 16px',
-                              marginLeft: 16,
-                              borderLeft: '2px solid #f0f0f0',
-                              marginBottom: 8
-                            }}
-                          >
-                            <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                              <Space size="middle">
-                                <Text code>{commit.commitHash?.substring(0, 7) || '-'}</Text>
-                                <Text style={{ color: '#1890ff', fontWeight: 500 }}>
-                                  {dayjs(commit.commitDate).format('HH:mm:ss')}
-                                </Text>
-                                {commit.branch && (
-                                  <Tag color="blue">{commit.branch}</Tag>
-                                )}
-                                {commit.isOvertime && (
-                                  <Tag color="red">加班</Tag>
-                                )}
-                              </Space>
-                              
-                              <Text>{commit.message}</Text>
-                              
-                              <Space size="large">
-                                <Text type="secondary">
-                                  文件变更: {commit.filesChanged}
-                                </Text>
-                                <Text style={{ color: '#52c41a' }}>
-                                  +{commit.insertions}
-                                </Text>
-                                <Text style={{ color: '#ff4d4f' }}>
-                                  -{commit.deletions}
-                                </Text>
-                              </Space>
-                            </Space>
-                          </div>
-                        ))}
-                      </div>
+                      {/* 按分支分组展示 */}
+                      <Tabs 
+                        defaultActiveKey={defaultBranchKey} 
+                        type="line"
+                        size="small"
+                        style={{ marginTop: 8 }}
+                      >
+                        {branchNames.map((branch) => {
+                          const branchCommits = repoBranches[branch];
+                          const shouldScroll = branchCommits.length > 10;
+                          const branchDisplayName = branch === 'unknown' ? '未知分支' : branch;
+                          
+                          return (
+                            <TabPane
+                              tab={
+                                <span>
+                                  🌿 {branchDisplayName}
+                                  <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                                    ({branchCommits.length})
+                                  </Text>
+                                </span>
+                              }
+                              key={branch}
+                            >
+                              <div style={{ maxHeight: shouldScroll ? 500 : 'auto', overflowY: 'auto', marginTop: 8 }}>
+                                {branchCommits.map((commit) => (
+                                  <div
+                                    key={commit.id}
+                                    style={{
+                                      padding: '12px 16px',
+                                      marginLeft: 16,
+                                      borderLeft: '3px solid #1890ff',
+                                      marginBottom: 8,
+                                      backgroundColor: '#fafafa',
+                                      borderRadius: 4
+                                    }}
+                                  >
+                                    <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                                      <Space size="middle" wrap>
+                                        <Text code>{commit.commitHash?.substring(0, 7) || '-'}</Text>
+                                        <Text style={{ color: '#1890ff', fontWeight: 500 }}>
+                                          {dayjs(commit.commitDate).format('HH:mm:ss')}
+                                        </Text>
+                                        {commit.branch && (
+                                          <Tag color="geekblue">🌿 {commit.branch}</Tag>
+                                        )}
+                                        {commit.isOvertime && (
+                                          <Tag color="red">加班</Tag>
+                                        )}
+                                      </Space>
+                                      
+                                      <Text style={{ fontSize: 14 }}>{commit.message}</Text>
+                                      
+                                      <Space size="large">
+                                        <Text type="secondary">
+                                          文件变更: {commit.filesChanged}
+                                        </Text>
+                                        <Text style={{ color: '#52c41a', fontWeight: 500 }}>
+                                          +{commit.insertions}
+                                        </Text>
+                                        <Text style={{ color: '#ff4d4f', fontWeight: 500 }}>
+                                          -{commit.deletions}
+                                        </Text>
+                                      </Space>
+                                    </Space>
+                                  </div>
+                                ))}
+                              </div>
+                            </TabPane>
+                          );
+                        })}
+                      </Tabs>
                     </TabPane>
                   );
                 })}

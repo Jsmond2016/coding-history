@@ -170,10 +170,16 @@ async function scanRepositoryInPhases(
       const commits = await scanner.incrementalScan(week.start, authorEmails, weekEndPlusOne);
 
       if (commits.length > 0) {
-        // 保存提交记录（带去重）
+        // 统计分支信息
+        const branches = new Set(commits.map(c => c.branch).filter((b): b is string => !!b));
+        const branchInfo = branches.size > 0 
+          ? `，涉及 ${branches.size} 个分支: ${Array.from(branches).slice(0, 5).join(', ')}${branches.size > 5 ? '...' : ''}`
+          : '';
+        
+        // 保存提交记录（带去重，支持多分支）
         const insertResult = await commitService.batchInsertCommits(repoConfig.id, commits);
         
-        logger.info(`    ✓ 发现: ${commits.length} 条, 新增: ${insertResult.inserted} 条, 跳过: ${insertResult.skipped} 条`);
+        logger.info(`    ✓ 发现: ${commits.length} 条${branchInfo}, 新增: ${insertResult.inserted} 条, 跳过: ${insertResult.skipped} 条`);
 
         totalScanned += commits.length;
         totalInserted += insertResult.inserted;

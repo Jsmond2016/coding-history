@@ -44,6 +44,7 @@ export interface CommitsByDate {
   workStatus: WorkStatus; // 工作状态
   hasRelease: boolean; // 是否有发版提交（chore(release)）
   repositories: string[]; // 当日修改的仓库列表
+  branches: string[]; // 当日修改的分支列表
 }
 
 export interface CommitsQuery {
