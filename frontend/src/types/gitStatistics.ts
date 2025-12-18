@@ -27,6 +27,7 @@ export interface Commit {
   filesChanged: number;
   insertions: number;
   deletions: number;
+  branch?: string; // 提交所在的分支
   createdAt: number;
   isOvertime?: boolean; // 是否加班
   overtimeCommitTimes?: string[]; // 加班提交时间点
@@ -42,6 +43,7 @@ export interface CommitsByDate {
   latestOvertimeCommits: string[]; // 最晚的5个加班提交时间点
   workStatus: WorkStatus; // 工作状态
   hasRelease: boolean; // 是否有发版提交（chore(release)）
+  repositories: string[]; // 当日修改的仓库列表
 }
 
 export interface CommitsQuery {

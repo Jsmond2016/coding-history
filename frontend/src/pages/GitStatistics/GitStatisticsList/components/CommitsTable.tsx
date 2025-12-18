@@ -14,6 +14,12 @@ const columns: ColumnsType<Commit> = [
     fixed: 'left'
   },
   {
+    title: '分支',
+    dataIndex: 'branch',
+    width: 120,
+    render: (branch: string) => branch ? <span style={{ color: '#1890ff' }}>{branch}</span> : '-'
+  },
+  {
     title: '提交Hash',
     dataIndex: 'commitHash',
     width: 100,

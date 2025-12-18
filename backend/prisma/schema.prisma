@@ -36,6 +36,7 @@ model Commit {
   filesChanged  Int      @default(0) @map("files_changed")
   insertions    Int      @default(0)
   deletions     Int      @default(0)
+  branch        String?  // 提交所在的分支
   createdAt     BigInt   @map("created_at")
   
   repository    Repository @relation(fields: [repoId], references: [id])

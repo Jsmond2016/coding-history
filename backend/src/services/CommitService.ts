@@ -5,9 +5,11 @@ import { calculateWorkStatus, type WorkStatus } from '../config/workStatus.confi
 
 export interface CommitWithRepoName extends Commit {
   repoName: string;
+  branch?: string; // 提交所在的分支
 }
 
 export interface CommitWithOvertime extends CommitWithRepoName {
+  branch?: string; // 提交所在的分支
   isOvertime: boolean; // 是否加班（提交时间 >= 19:00）
   overtimeCommitTimes?: string[]; // 加班提交的时间点（最多5个）
 }
@@ -20,6 +22,7 @@ export interface CommitsByDate {
   latestOvertimeCommits: string[]; // 最晚的5个加班提交时间点
   workStatus: WorkStatus; // 工作状态
   hasRelease: boolean; // 是否有发版提交（chore(release)）
+  repositories: string[]; // 当日修改的仓库列表
 }
 
 export class CommitService {
@@ -64,6 +67,7 @@ export class CommitService {
         filesChanged: commit.filesChanged,
         insertions: commit.insertions,
         deletions: commit.deletions,
+        branch: commit.branch || null,
         createdAt: now
       }))
     });
@@ -139,6 +143,7 @@ export class CommitService {
         filesChanged: commit.filesChanged,
         insertions: commit.insertions,
         deletions: commit.deletions,
+        branch: commit.branch || undefined,
         createdAt: Number(commit.createdAt),
         repoName: commit.repository.name,
         isOvertime: isOvertimeCommit,
@@ -192,6 +197,9 @@ export class CommitService {
           overtimeCommits.length > 0
         );
 
+        // 获取当日修改的仓库列表（去重）
+        const repositories = Array.from(new Set(commits.map(c => c.repoName)));
+
         return {
           date,
           commits: sortedCommits, // 返回排序后的提交列表
@@ -199,7 +207,8 @@ export class CommitService {
           overtimeCount: overtimeCommits.length,
           latestOvertimeCommits: overtimeTimes,
           workStatus,
-          hasRelease
+          hasRelease,
+          repositories
         };
       })
       .sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序
@@ -257,6 +266,7 @@ export class CommitService {
       filesChanged: commit.filesChanged,
       insertions: commit.insertions,
       deletions: commit.deletions,
+      branch: commit.branch || undefined,
       createdAt: Number(commit.createdAt),
       repoName: commit.repository.name
     }));

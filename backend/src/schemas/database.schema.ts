@@ -22,6 +22,7 @@ export const CommitSchema = z.object({
   files_changed: z.number(),
   insertions: z.number(),
   deletions: z.number(),
+  branch: z.string().nullable(),
   created_at: z.number()
 });
 

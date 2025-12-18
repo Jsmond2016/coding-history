@@ -48,7 +48,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
       style={{ background: '#fff' }}
     >
       {data.map((dateGroup) => {
-        const { date, commits, totalCommits, overtimeCount, latestOvertimeCommits, workStatus, hasRelease } = dateGroup;
+        const { date, commits, totalCommits, overtimeCount, latestOvertimeCommits, workStatus, hasRelease, repositories } = dateGroup;
         
         // 按仓库分组
         const commitsByRepo = commits.reduce((acc, commit) => {
@@ -85,6 +85,21 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                 </Tag>
                 {hasRelease && (
                   <Tag color="purple">发版</Tag>
+                )}
+                {/* 显示当日修改的仓库标签 */}
+                {repositories && repositories.length > 0 && (
+                  <>
+                    {repositories.map((repoName, idx) => {
+                      // 使用不同颜色区分不同仓库
+                      const colors = ['blue', 'green', 'orange', 'cyan', 'purple', 'magenta', 'red', 'volcano', 'gold', 'lime'];
+                      const colorIndex = idx % colors.length;
+                      return (
+                        <Tag key={repoName} color={colors[colorIndex]}>
+                          {repoName}
+                        </Tag>
+                      );
+                    })}
+                  </>
                 )}
                 {overtimeCount > 0 && (
                   <Tooltip 
@@ -152,6 +167,9 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                                 <Text style={{ color: '#1890ff', fontWeight: 500 }}>
                                   {dayjs(commit.commitDate).format('HH:mm:ss')}
                                 </Text>
+                                {commit.branch && (
+                                  <Tag color="blue">{commit.branch}</Tag>
+                                )}
                                 {commit.isOvertime && (
                                   <Tag color="red">加班</Tag>
                                 )}
