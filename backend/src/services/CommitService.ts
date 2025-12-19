@@ -336,14 +336,13 @@ export class CommitService {
     // 获取忽略的分支列表，用于过滤查询
     const ignoredBranches = this.getIgnoredBranches();
     
-    // 添加分支过滤条件
+    // 添加分支过滤条件：排除忽略分支，但保留 branch 为 null 的记录
     const whereWithBranchFilter: any = {
       ...where,
-      NOT: {
-        branch: {
-          in: ignoredBranches
-        }
-      }
+      OR: [
+        { branch: null },
+        { branch: { notIn: ignoredBranches } }
+      ]
     };
 
     // 查询总数（已过滤忽略分支）
@@ -414,6 +413,8 @@ export class CommitService {
     // 获取忽略的分支列表
     const ignoredBranches = this.getIgnoredBranches();
 
+    // 构建 where 条件，正确处理忽略分支的过滤
+    // 需要排除 branch 在忽略列表中的记录，但保留 branch 为 null 的记录
     const where: any = {
       commitDate: {
         gte: BigInt(startDate),
@@ -421,12 +422,11 @@ export class CommitService {
       },
       ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {}),
       ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {}),
-      // 过滤掉忽略分支的提交
-      NOT: {
-        branch: {
-          in: ignoredBranches
-        }
-      }
+      // 过滤掉忽略分支的提交：branch 为 null 或 branch 不在忽略列表中
+      OR: [
+        { branch: null },
+        { branch: { notIn: ignoredBranches } }
+      ]
     };
 
     // 总体统计

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Collapse, Tag, Tooltip, Space, Typography, Tabs } from 'antd';
-import { ClockCircleOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { CommitsByDate, Commit, WorkStatus } from '../../../../types/gitStatistics';
 
@@ -16,6 +16,16 @@ const workStatusLabels: Record<WorkStatus, string> = {
   crazy: '疯狂',
   overtime: '加班',
   superCrazyOvertime: '超级疯狂加班'
+};
+
+// 工作状态提示文本
+const workStatusTips: Record<WorkStatus, string> = {
+  relaxed: '当日提交次数 < 6 次，且无加班记录',
+  normal: '当日提交次数 >= 6 次且 < 10 次，且无加班记录',
+  busy: '当日提交次数 >= 10 次且 < 15 次，且无加班记录',
+  crazy: '当日提交次数 >= 15 次且 < 20 次，且无加班记录',
+  overtime: '当日有提交时间 >= 19:00 的记录',
+  superCrazyOvertime: '当日提交次数 >= 20 次，且有加班记录'
 };
 
 // 工作状态标签颜色
@@ -86,9 +96,12 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                   共 {totalCommits} 条提交
                 </Text>
                 {/* 工作状态标签 */}
-                <Tag color={workStatusColors[workStatus]}>
-                  {workStatusLabels[workStatus]}
-                </Tag>
+                <Tooltip title={workStatusTips[workStatus]}>
+                  <Tag color={workStatusColors[workStatus]}>
+                    {workStatusLabels[workStatus]}
+                    <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 10 }} />
+                  </Tag>
+                </Tooltip>
                 {hasRelease && (
                   <Tag color="purple">发版</Tag>
                 )}

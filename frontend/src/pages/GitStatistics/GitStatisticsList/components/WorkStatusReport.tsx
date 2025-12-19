@@ -1,5 +1,6 @@
 import React from 'react';
-import { Card, Row, Col, Statistic } from 'antd';
+import { Card, Row, Col, Statistic, Tooltip } from 'antd';
+import { QuestionCircleOutlined } from '@ant-design/icons';
 import { Line } from '@ant-design/charts';
 import dayjs from 'dayjs';
 import type { CommitsByDate } from '../../../../types/gitStatistics';
@@ -40,7 +41,14 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
         </Col>
         <Col span={6}>
           <Statistic
-            title="轻松天数"
+            title={
+              <span>
+                轻松天数
+                <Tooltip title="当日提交次数 < 6 次，且无加班记录">
+                  <QuestionCircleOutlined style={{ marginLeft: 4, color: '#999', fontSize: 12 }} />
+                </Tooltip>
+              </span>
+            }
             value={relaxedDays}
             valueStyle={{ color: '#52c41a' }}
             suffix={`天 (${relaxedPercentage}%)`}
@@ -48,7 +56,14 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
         </Col>
         <Col span={6}>
           <Statistic
-            title="忙碌天数"
+            title={
+              <span>
+                忙碌天数
+                <Tooltip title="当日提交次数 >= 10 次且 < 15 次，或 >= 15 次且 < 20 次（疯狂）">
+                  <QuestionCircleOutlined style={{ marginLeft: 4, color: '#999', fontSize: 12 }} />
+                </Tooltip>
+              </span>
+            }
             value={busyDays}
             valueStyle={{ color: '#ff9800' }}
             suffix={`天 (${busyPercentage}%)`}
