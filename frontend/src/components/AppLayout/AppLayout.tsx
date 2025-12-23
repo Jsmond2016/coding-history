@@ -33,19 +33,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     {
       key: 'git-statistics',
       icon: <BarChartOutlined />,
-      label: 'Git Statistics',
+      label: 'Git数据看板',
       onClick: () => navigate('/git-statistics')
     },
     {
       key: 'tasks',
       icon: <ScheduleOutlined />,
-      label: 'Task Management',
+      label: '任务管理',
       onClick: () => navigate('/tasks')
     },
     {
       key: 'logs',
       icon: <FileTextOutlined />,
-      label: 'Logs',
+      label: '日志管理',
       onClick: () => navigate('/logs')
     }
   ];
