@@ -3,7 +3,8 @@ import { Layout, Menu } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BarChartOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  ScheduleOutlined
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -22,6 +23,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     if (location.pathname.startsWith('/logs')) {
       return 'logs';
     }
+    if (location.pathname.startsWith('/tasks')) {
+      return 'tasks';
+    }
     return 'git-statistics';
   };
 
@@ -31,6 +35,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       icon: <BarChartOutlined />,
       label: 'Git Statistics',
       onClick: () => navigate('/git-statistics')
+    },
+    {
+      key: 'tasks',
+      icon: <ScheduleOutlined />,
+      label: 'Task Management',
+      onClick: () => navigate('/tasks')
     },
     {
       key: 'logs',

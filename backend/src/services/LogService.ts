@@ -1,5 +1,8 @@
 import { prisma } from '../db/client.js';
 
+// 类型断言：Prisma Client 已包含这些模型，但 TypeScript 类型可能未及时更新
+const prismaClient = prisma as any;
+
 export type ServerLogType = 'start' | 'stop' | 'error';
 export type ScheduledTaskStatus = 'success' | 'failed';
 
@@ -28,6 +31,7 @@ export interface CreateScheduledTaskLogParams {
   repositories: string[];
   totalCommits: number;
   errorMessage?: string;
+  taskId?: number; // 关联的任务ID
 }
 
 export interface LogsQueryParams {
@@ -46,7 +50,7 @@ export class LogService {
    */
   async createServerLog(params: CreateServerLogParams): Promise<void> {
     const now = BigInt(Date.now());
-    await prisma.serverLog.create({
+    await prismaClient.serverLog.create({
       data: {
         type: params.type,
         message: params.message,
@@ -62,7 +66,7 @@ export class LogService {
    */
   async createRequestLog(params: CreateRequestLogParams): Promise<void> {
     const now = BigInt(Date.now());
-    await prisma.requestLog.create({
+    await prismaClient.requestLog.create({
       data: {
         method: params.method,
         url: params.url,
@@ -82,7 +86,7 @@ export class LogService {
    */
   async createScheduledTaskLog(params: CreateScheduledTaskLogParams): Promise<void> {
     const now = BigInt(Date.now());
-    await prisma.scheduledTaskLog.create({
+    await prismaClient.scheduledTaskLog.create({
       data: {
         taskName: params.taskName,
         cronExpression: params.cronExpression,
@@ -92,6 +96,7 @@ export class LogService {
         repositories: JSON.stringify(params.repositories),
         totalCommits: params.totalCommits,
         errorMessage: params.errorMessage,
+        taskId: params.taskId,
         createdAt: now
       }
     });
@@ -128,7 +133,7 @@ export class LogService {
     const skip = (page - 1) * pageSize;
 
     const [logs, total] = await Promise.all([
-      prisma.serverLog.findMany({
+      prismaClient.serverLog.findMany({
         where,
         orderBy: {
           timestamp: 'desc'
@@ -136,11 +141,11 @@ export class LogService {
         skip,
         take: pageSize
       }),
-      prisma.serverLog.count({ where })
+      prismaClient.serverLog.count({ where })
     ]);
 
     return {
-      data: logs.map(log => ({
+      data: logs.map((log: any) => ({
         id: log.id,
         type: log.type,
         message: log.message,
@@ -185,7 +190,7 @@ export class LogService {
     const skip = (page - 1) * pageSize;
 
     const [logs, total] = await Promise.all([
-      prisma.requestLog.findMany({
+      prismaClient.requestLog.findMany({
         where,
         orderBy: {
           timestamp: 'desc'
@@ -193,11 +198,11 @@ export class LogService {
         skip,
         take: pageSize
       }),
-      prisma.requestLog.count({ where })
+      prismaClient.requestLog.count({ where })
     ]);
 
     return {
-      data: logs.map(log => ({
+      data: logs.map((log: any) => ({
         id: log.id,
         method: log.method,
         url: log.url,
@@ -246,7 +251,7 @@ export class LogService {
     const skip = (page - 1) * pageSize;
 
     const [logs, total] = await Promise.all([
-      prisma.scheduledTaskLog.findMany({
+      prismaClient.scheduledTaskLog.findMany({
         where,
         orderBy: {
           startTime: 'desc'
@@ -254,11 +259,11 @@ export class LogService {
         skip,
         take: pageSize
       }),
-      prisma.scheduledTaskLog.count({ where })
+      prismaClient.scheduledTaskLog.count({ where })
     ]);
 
     return {
-      data: logs.map(log => ({
+      data: logs.map((log: any) => ({
         id: log.id,
         taskName: log.taskName,
         cronExpression: log.cronExpression,
@@ -283,21 +288,21 @@ export class LogService {
     const cutoffTime = BigInt(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const [serverLogsDeleted, requestLogsDeleted, taskLogsDeleted] = await Promise.all([
-      prisma.serverLog.deleteMany({
+      prismaClient.serverLog.deleteMany({
         where: {
           timestamp: {
             lt: cutoffTime
           }
         }
       }),
-      prisma.requestLog.deleteMany({
+      prismaClient.requestLog.deleteMany({
         where: {
           timestamp: {
             lt: cutoffTime
           }
         }
       }),
-      prisma.scheduledTaskLog.deleteMany({
+      prismaClient.scheduledTaskLog.deleteMany({
         where: {
           startTime: {
             lt: cutoffTime

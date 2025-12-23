@@ -89,9 +89,31 @@ model ScheduledTaskLog {
   repositories    String   // JSON 数组字符串，存储仓库列表
   totalCommits    Int      @default(0) @map("total_commits")
   errorMessage    String?  @map("error_message")
+  taskId          Int?     @map("task_id") // 关联的任务ID
   createdAt       BigInt   @map("created_at")
 
   @@index([status, startTime], name: "idx_task_log_status_time")
   @@index([startTime], name: "idx_task_log_time")
+  @@index([taskId], name: "idx_task_log_task_id")
   @@map("scheduled_task_logs")
+}
+
+model ScanTask {
+  id                Int      @id @default(autoincrement())
+  name              String
+  description       String?
+  taskType          String   @map("task_type") // manual, scheduled
+  scanRangeType     String   @map("scan_range_type") // 2weeks, 1month, 3months, 6months, custom
+  startDate         BigInt?  @map("start_date") // 自定义开始时间（时间戳，毫秒）
+  endDate           BigInt?  @map("end_date") // 自定义结束时间（时间戳，毫秒）
+  cronExpression    String?  @map("cron_expression") // 定时任务 Cron 表达式
+  repositoryIds      String?  @map("repository_ids") // JSON 数组字符串，存储仓库ID列表，null表示所有仓库
+  enabled           Boolean  @default(true)
+  lastExecuteTime   BigInt?  @map("last_execute_time") // 最后执行时间
+  createdAt         BigInt   @map("created_at")
+  updatedAt         BigInt   @map("updated_at")
+
+  @@index([taskType, enabled], name: "idx_scan_task_type_enabled")
+  @@index([enabled], name: "idx_scan_task_enabled")
+  @@map("scan_tasks")
 }

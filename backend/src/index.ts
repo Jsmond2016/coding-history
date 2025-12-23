@@ -9,6 +9,7 @@ import repositoriesRoute from './routes/repositories.js';
 import commitsRoute from './routes/commits.js';
 import statisticsRoute from './routes/statistics.js';
 import logsRoute from './routes/logs.js';
+import tasksRoute from './routes/tasks.js';
 import { startScheduler, restartScheduler } from './jobs/scanScheduler.js';
 import { logger } from './config/logger.js';
 import { RepositoryService } from './services/RepositoryService.js';
@@ -46,14 +47,15 @@ app.use('/api/v1/*', async (c, next) => {
   let requestBody: string | undefined;
   if (['POST', 'PUT', 'PATCH'].includes(method)) {
     try {
-      const body = await c.req.clone().json().catch(() => null);
+      // Hono 的请求体只能读取一次，所以先尝试读取
+      const body = await c.req.json().catch(() => null);
       if (body) {
         // 过滤敏感字段
         const sanitizedBody = sanitizeRequestBody(body);
         requestBody = JSON.stringify(sanitizedBody);
       }
     } catch {
-      // 忽略解析错误
+      // 忽略解析错误（请求体可能已被读取或格式错误）
     }
   }
 
@@ -98,6 +100,7 @@ app.route('/api/v1/repositories', repositoriesRoute);
 app.route('/api/v1/commits', commitsRoute);
 app.route('/api/v1/statistics', statisticsRoute);
 app.route('/api/v1/logs', logsRoute);
+app.route('/api/v1/tasks', tasksRoute);
 
 // 健康检查
 app.get('/health', (c) => c.json({ status: 'ok' }));
@@ -225,8 +228,8 @@ async function startServer() {
     // 初始化仓库配置
     await initRepositories();
 
-    // 启动定时任务（每天增量扫描）
-    startScheduler();
+    // 启动定时任务（从配置文件和数据库加载）
+    await startScheduler();
 
     // 启动配置文件监听
     watchConfigFile();

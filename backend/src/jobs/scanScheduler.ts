@@ -8,6 +8,8 @@ import { RepositoryService } from '../services/RepositoryService.js';
 import { GitScanService } from '../services/GitScanService.js';
 import { CommitService } from '../services/CommitService.js';
 import { LogService } from '../services/LogService.js';
+import { ScanTaskService } from '../services/ScanTaskService.js';
+import { executeScanTask } from '../services/ScanTaskExecutor.js';
 import { logger } from '../config/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -336,60 +338,125 @@ async function executeScan(): Promise<void> {
 }
 
 /**
+ * 执行数据库中的定时任务
+ * 根据任务ID执行对应的扫描任务
+ */
+async function executeDatabaseTask(taskId: number): Promise<void> {
+  try {
+    const taskService = new ScanTaskService();
+    const task = await taskService.getTaskById(taskId);
+
+    if (!task) {
+      logger.error(`[定时任务] 任务 ID ${taskId} 不存在`);
+      return;
+    }
+
+    if (!task.enabled) {
+      logger.debug(`[定时任务] 任务 ${task.name} 已禁用，跳过执行`);
+      return;
+    }
+
+    logger.info(`[定时任务] 开始执行数据库任务: ${task.name}`);
+
+    // 执行任务
+    const result = await executeScanTask(task, { taskId: task.id });
+
+    // 更新最后执行时间
+    await taskService.updateLastExecuteTime(task.id, Date.now());
+
+    if (result.success) {
+      logger.info(`[定时任务] 任务 ${task.name} 执行成功，扫描 ${result.scannedRepositories.length} 个仓库，新增 ${result.totalCommits} 条提交`);
+    } else {
+      logger.error(`[定时任务] 任务 ${task.name} 执行失败: ${result.errorMessage}`);
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(`[定时任务] 执行数据库任务失败: ${errorMsg}`);
+  }
+}
+
+/**
  * 启动定时任务调度器
  * 
  * 功能说明：
  * 1. 如果已有定时任务在运行，先停止旧任务
- * 2. 从配置文件读取定时任务配置
- * 3. 支持多个定时任务同时运行
- * 4. 每个任务都会执行相同的扫描逻辑
+ * 2. 从配置文件读取定时任务配置（向后兼容）
+ * 3. 从数据库加载启用的定时任务
+ * 4. 支持多个定时任务同时运行
  * 
  * 配置格式：
  * - 字符串格式（向后兼容）：单个 Cron 表达式
  * - 数组格式（推荐）：支持多个定时任务，每个任务可配置描述信息
  * 
- * @throws {Error} 当配置文件格式错误时可能抛出异常
+ * 数据库任务：
+ * - 从 ScanTask 表中加载 taskType='scheduled' 且 enabled=true 的任务
+ * - 每个任务使用自己的 Cron 表达式和扫描配置
  * 
- * @example
- * // 配置示例（repositories.json）
- * {
- *   "scanInterval": [
- *     { "cron": "0 10 * * *", "description": "每天上午10点" },
- *     { "cron": "0 19 * * *", "description": "每天傍晚19点" }
- *   ]
- * }
+ * @throws {Error} 当配置文件格式错误时可能抛出异常
  */
-export function startScheduler(): void {
+export async function startScheduler(): Promise<void> {
   // 如果已有定时任务在运行，先停止（避免重复启动）
   if (currentSchedulers.length > 0) {
     logger.info('[定时任务] 检测到已有任务运行，先停止旧任务');
     stopScheduler();
   }
 
-  // 加载配置
-  const config = loadConfig();
-  
-  // 规范化调度配置（统一转换为数组格式）
-  const scheduleTimes = normalizeScheduleConfig(config.scanInterval);
+  const taskService = new ScanTaskService();
+  const schedulers: ScheduledTask[] = [];
 
-  // 检查是否有配置的定时任务
-  if (scheduleTimes.length === 0) {
-    logger.warn('[定时任务] 未配置任何定时任务时间，调度器未启动');
+  // 1. 加载配置文件中的定时任务（向后兼容）
+  try {
+    const config = loadConfig();
+    const scheduleTimes = normalizeScheduleConfig(config.scanInterval);
+
+    if (scheduleTimes.length > 0) {
+      scheduleTimes.forEach((schedule, index) => {
+        const cronExpr = schedule.cron;
+        const description = schedule.description || `配置任务 ${index + 1}`;
+        
+        const task = cron.schedule(cronExpr, executeScan);
+        schedulers.push(task);
+        
+        logger.info(`[定时任务] ${description} 调度已启动，Cron 表达式: ${cronExpr}`);
+      });
+    }
+  } catch (error) {
+    logger.warn('[定时任务] 加载配置文件任务失败，继续加载数据库任务:', error);
+  }
+
+  // 2. 加载数据库中的定时任务
+  try {
+    const dbTasks = await taskService.getEnabledScheduledTasks();
+
+    if (dbTasks.length > 0) {
+      dbTasks.forEach((task) => {
+        if (!task.cronExpression) {
+          logger.warn(`[定时任务] 任务 ${task.name} 没有 Cron 表达式，跳过`);
+          return;
+        }
+
+        // 创建定时任务，执行时调用 executeDatabaseTask
+        const scheduledTask = cron.schedule(task.cronExpression, () => {
+          executeDatabaseTask(task.id).catch((error) => {
+            logger.error(`[定时任务] 执行数据库任务 ${task.name} 失败:`, error);
+          });
+        });
+
+        schedulers.push(scheduledTask);
+        logger.info(`[定时任务] 数据库任务 "${task.name}" 调度已启动，Cron 表达式: ${task.cronExpression}`);
+      });
+    }
+  } catch (error) {
+    logger.error('[定时任务] 加载数据库任务失败:', error);
+  }
+
+  // 检查是否有任何任务
+  if (schedulers.length === 0) {
+    logger.warn('[定时任务] 未找到任何定时任务（配置文件或数据库），调度器未启动');
     return;
   }
 
-  // 创建多个定时任务
-  currentSchedulers = scheduleTimes.map((schedule, index) => {
-    const cronExpr = schedule.cron;
-    const description = schedule.description || `定时任务 ${index + 1}`;
-    
-    // 使用 node-cron 创建定时任务
-    const task = cron.schedule(cronExpr, executeScan);
-    
-    logger.info(`[定时任务] ${description} 调度已启动，Cron 表达式: ${cronExpr}`);
-    return task;
-  });
-
+  currentSchedulers = schedulers;
   logger.info(`[定时任务] 调度器已启动，共 ${currentSchedulers.length} 个定时任务`);
 }
 
@@ -426,10 +493,12 @@ export function stopScheduler(): void {
  * 功能说明：
  * 1. 停止当前所有定时任务
  * 2. 重新加载配置文件
- * 3. 使用新配置启动定时任务
+ * 3. 重新加载数据库任务
+ * 4. 使用新配置启动定时任务
  * 
  * 使用场景：
  * - 配置文件热重载时调用
+ * - 数据库任务更新时调用
  * - 需要更新定时任务配置时调用
  * 
  * @returns {Promise<void>}
@@ -444,8 +513,8 @@ export async function restartScheduler(): Promise<void> {
   // 停止当前定时任务
   stopScheduler();
 
-  // 启动新的定时任务（会读取最新配置）
-  startScheduler();
+  // 启动新的定时任务（会读取最新配置和数据库任务）
+  await startScheduler();
 
   logger.info('[定时任务] 调度器已使用新配置重启');
 }
