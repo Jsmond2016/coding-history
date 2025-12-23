@@ -62,6 +62,24 @@ const RequestLogsTable: React.FC<RequestLogsTableProps> = ({ data, loading, pagi
       )
     },
     {
+      title: '模块',
+      dataIndex: 'module',
+      key: 'module',
+      width: 120,
+      render: (module: string) => (
+        <Tag color="blue">{module || '-'}</Tag>
+      ),
+      filters: [
+        { text: 'repositories', value: 'repositories' },
+        { text: 'commits', value: 'commits' },
+        { text: 'logs', value: 'logs' },
+        { text: 'tasks', value: 'tasks' },
+        { text: 'config', value: 'config' },
+        { text: 'statistics', value: 'statistics' }
+      ],
+      onFilter: (value, record) => record.module === value
+    },
+    {
       title: 'URL',
       dataIndex: 'url',
       key: 'url',

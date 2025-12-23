@@ -38,6 +38,14 @@ app.use('/api/v1/*', async (c, next) => {
   const pathname = urlObj.pathname;
   const routeName = pathname.split('/').slice(0, 4).join('/'); // 例如: /api/v1/repositories
   
+  // 提取模块名称（从路由名称中提取最后一个部分）
+  // 例如: /api/v1/repositories -> repositories
+  let module: string | undefined;
+  const pathParts = pathname.split('/').filter(Boolean);
+  if (pathParts.length >= 3 && pathParts[0] === 'api' && pathParts[1] === 'v1') {
+    module = pathParts[2]; // 提取模块名称，如 repositories, commits, logs 等
+  }
+  
   // 获取请求体（仅对 POST/PUT/PATCH 请求）
   let requestBody: string | undefined;
   if (['POST', 'PUT', 'PATCH'].includes(method)) {
@@ -78,6 +86,7 @@ app.use('/api/v1/*', async (c, next) => {
     method,
     url,
     routeName,
+    module,
     statusCode,
     requestBody,
     responseBody,

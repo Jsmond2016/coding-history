@@ -36,7 +36,8 @@ app.get('/request', zValidator('query', LogsQuerySchema), async (c) => {
       endTime: query.endTime,
       page: query.page,
       pageSize: query.pageSize,
-      statusCode: query.statusCode
+      statusCode: query.statusCode,
+      module: query.module
     });
 
     return c.json(result);

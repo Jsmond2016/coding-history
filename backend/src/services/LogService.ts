@@ -16,6 +16,7 @@ export interface CreateRequestLogParams {
   method: string;
   url: string;
   routeName?: string;
+  module?: string; // 模块名称，如 repositories, commits, logs 等
   statusCode: number;
   requestBody?: string;
   responseBody?: string;
@@ -42,6 +43,7 @@ export interface LogsQueryParams {
   type?: string;
   status?: string;
   statusCode?: number;
+  module?: string; // 模块名称筛选
 }
 
 export class LogService {
@@ -71,6 +73,7 @@ export class LogService {
         method: params.method,
         url: params.url,
         routeName: params.routeName,
+        module: params.module,
         statusCode: params.statusCode,
         requestBody: params.requestBody,
         responseBody: params.responseBody,
@@ -168,7 +171,8 @@ export class LogService {
       endTime,
       page = 1,
       pageSize = 20,
-      statusCode
+      statusCode,
+      module
     } = params;
 
     const where: any = {};
@@ -185,6 +189,10 @@ export class LogService {
 
     if (statusCode) {
       where.statusCode = statusCode;
+    }
+
+    if (module) {
+      where.module = module;
     }
 
     const skip = (page - 1) * pageSize;
@@ -207,6 +215,7 @@ export class LogService {
         method: log.method,
         url: log.url,
         routeName: log.routeName,
+        module: log.module,
         statusCode: log.statusCode,
         requestBody: log.requestBody,
         responseBody: log.responseBody,

@@ -15,6 +15,7 @@ export interface RequestLog {
   method: string;
   url: string;
   routeName?: string;
+  module?: string; // 模块名称，如 repositories, commits, logs, tasks, config 等
   statusCode: number;
   requestBody?: string;
   responseBody?: string;
@@ -44,6 +45,7 @@ export interface LogsQueryParams {
   type?: ServerLogType;
   status?: ScheduledTaskStatus;
   statusCode?: number;
+  module?: string; // 模块名称筛选
 }
 
 export interface LogsResponse<T> {

@@ -69,6 +69,7 @@ model RequestLog {
   method       String // GET, POST, PUT, DELETE, etc.
   url          String
   routeName    String? @map("route_name")
+  module       String? // 模块名称，从 routeName 提取，如 repositories, commits, logs 等
   statusCode   Int     @map("status_code")
   requestBody  String? @map("request_body")
   responseBody String? @map("response_body")
@@ -78,6 +79,7 @@ model RequestLog {
 
   @@index([method, timestamp], name: "idx_request_log_method_time")
   @@index([statusCode, timestamp], name: "idx_request_log_status_time")
+  @@index([module, timestamp], name: "idx_request_log_module_time")
   @@index([timestamp], name: "idx_request_log_time")
   @@map("request_logs")
 }

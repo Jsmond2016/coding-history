@@ -38,7 +38,8 @@ export const LogsQuerySchema = z.object({
   pageSize: z.string().default('20').transform(val => parseInt(val)),
   type: z.string().optional(), // 服务器日志类型：start, stop, error
   status: z.string().optional(), // 定时任务状态：success, failed
-  statusCode: z.string().optional().transform(val => val ? parseInt(val) : undefined) // 请求状态码
+  statusCode: z.string().optional().transform(val => val ? parseInt(val) : undefined), // 请求状态码
+  module: z.string().optional() // 请求模块名称：repositories, commits, logs, tasks, config 等
 });
 
 // 创建扫描任务参数验证
