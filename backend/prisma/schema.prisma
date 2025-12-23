@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:../database/git-statistics.db"
+  url      = env("DATABASE_URL")
 }
 
 model Repository {

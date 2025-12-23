@@ -1,3 +1,6 @@
+// 必须在所有其他导入之前加载环境变量
+import 'dotenv/config';
+
 import { Hono } from 'hono';
 import { logger as honoLogger } from 'hono/logger';
 import { cors } from 'hono/cors';

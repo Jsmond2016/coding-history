@@ -8,6 +8,9 @@
  *   pnpm init-scan --months 12  # 扫描最近12个月
  */
 
+// 加载环境变量
+import 'dotenv/config';
+
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
