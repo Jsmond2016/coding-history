@@ -70,11 +70,23 @@ pnpm install
       "enabled": true
     }
   ],
-  "author": {
-    "name": "Your Name",
-    "email": "your.email@company.com"
-  },
-  "scanInterval": "0 2 * * *"
+  "authors": [
+    {
+      "name": "Your Name",
+      "email": "your.email@company.com",
+      "isDefault": true
+    }
+  ],
+  "scanInterval": [
+    {
+      "cron": "0 10 * * *",
+      "description": "每天上午10点"
+    },
+    {
+      "cron": "0 19 * * *",
+      "description": "每天傍晚19点"
+    }
+  ]
 }
 ```
 

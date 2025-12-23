@@ -49,6 +49,15 @@
       "isDefault": true
     }
   ],
-  "scanInterval": "0 2 * * *",
+  "scanInterval": [
+    {
+      "cron": "0 10 * * *",
+      "description": "每天上午10点"
+    },
+    {
+      "cron": "0 19 * * *",
+      "description": "每天傍晚19点"
+    }
+  ],
   "ignoredBranches": ["develop", "release", "uat"]
 }

@@ -3,7 +3,7 @@ import type { ScheduledTask } from 'node-cron';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import type { Config } from '../schemas/config.schema.js';
+import type { Config, ScanSchedule } from '../schemas/config.schema.js';
 import { RepositoryService } from '../services/RepositoryService.js';
 import { GitScanService } from '../services/GitScanService.js';
 import { CommitService } from '../services/CommitService.js';
@@ -126,7 +126,7 @@ async function executeScan() {
 
 /**
  * 启动定时任务调度器
- * 每天上午10点和傍晚19点执行
+ * 从配置文件读取定时任务时间配置
  */
 export function startScheduler() {
   // 如果已有定时任务在运行，先停止
@@ -134,14 +134,29 @@ export function startScheduler() {
     stopScheduler();
   }
 
-  // 定义两个执行时间点：上午10点和傍晚19点
-  const scheduleTimes = [
-    { cron: '0 10 * * *', description: '每天上午10点' },
-    { cron: '0 19 * * *', description: '每天傍晚19点' }
-  ];
+  const config = loadConfig();
+  
+  // 统一转换为数组格式
+  let scheduleTimes: ScanSchedule[];
+  
+  if (typeof config.scanInterval === 'string') {
+    // 向后兼容：单个字符串格式，转换为数组
+    scheduleTimes = [{ cron: config.scanInterval }];
+  } else {
+    // 新的数组格式
+    scheduleTimes = config.scanInterval;
+  }
+
+  if (scheduleTimes.length === 0) {
+    logger.warn('[定时任务] 未配置任何定时任务时间，调度器未启动');
+    return;
+  }
 
   // 创建多个定时任务
-  currentSchedulers = scheduleTimes.map(({ cron: cronExpr, description }) => {
+  currentSchedulers = scheduleTimes.map((schedule, index) => {
+    const cronExpr = schedule.cron;
+    const description = schedule.description || `定时任务 ${index + 1}`;
+    
     const task = cron.schedule(cronExpr, executeScan);
     logger.info(`[定时任务] ${description} 调度已启动，Cron 表达式: ${cronExpr}`);
     return task;
