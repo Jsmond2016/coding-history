@@ -90,22 +90,47 @@
 
 #### 2.2.2 工作状态配置
 **需求描述**：
-工作状态判断规则需要支持配置化，便于后续调整。
+工作状态判断规则需要支持配置化，便于后续调整。配置已迁移到数据库，支持通过前端界面进行配置。
 
-**配置文件位置**：`backend/src/config/workStatus.config.ts`
+**配置方式**：
+1. **前端配置界面**（推荐）：访问"配置管理" → "数据指标配置"标签页
+2. **默认配置**：`backend/src/config/workStatus.config.ts`
 
 **配置项**：
 ```typescript
 {
   thresholds: {
-    relaxed: 6,      // 轻松阈值
-    normal: 10,      // 正常阈值
-    busy: 15,        // 忙碌阈值
-    superCrazy: 20  // 超级疯狂阈值
+    relaxed: 6,      // 轻松阈值：提交次数 < 此值
+    normal: 10,      // 正常阈值：>= relaxed 且 < normal
+    busy: 15,        // 忙碌阈值：>= normal 且 < busy
+    superCrazy: 20  // 疯狂阈值：>= busy 且 < superCrazy，>= 此值：超级疯狂
   },
-  overtimeHour: 19  // 加班时间阈值（小时）
+  overtimeHour: 19,  // 加班时间阈值（小时）：提交时间 >= 此时间判定为加班
+  labels: {          // 工作状态标签文本（可自定义）
+    relaxed: '轻松',
+    normal: '正常',
+    busy: '忙碌',
+    crazy: '疯狂',
+    overtime: '加班',
+    superCrazyOvertime: '超级疯狂加班'
+  },
+  colors: {          // 工作状态标签颜色（Ant Design Tag colors）
+    relaxed: 'green',
+    normal: 'blue',
+    busy: 'orange',
+    crazy: 'red',
+    overtime: 'red',
+    superCrazyOvertime: 'magenta'
+  }
 }
 ```
+
+**配置功能**：
+- ✅ 支持通过前端界面配置所有参数
+- ✅ 配置实时生效，无需重启服务
+- ✅ 支持预览配置效果
+- ✅ 配置验证（阈值必须递增，颜色值必须有效）
+- ✅ 配置存储在数据库中，持久化保存
 
 #### 2.2.3 工作状态展示
 **需求描述**：
@@ -505,7 +530,7 @@ type WorkStatus =
 ## 8. 后续优化建议
 
 ### 8.1 功能扩展
-- 支持自定义工作状态阈值配置（前端配置界面）
+- ✅ 支持自定义工作状态阈值配置（前端配置界面）- **已实现**
 - 支持导出统计数据
 - 支持更多图表类型（柱状图、饼图等）
 - 支持图表数据导出（PNG、PDF）
@@ -526,10 +551,15 @@ type WorkStatus =
 ## 9. 附录
 
 ### 9.1 相关文件
-- 后端工作状态配置：`backend/src/config/workStatus.config.ts`
+- 后端工作状态配置（默认值）：`backend/src/config/workStatus.config.ts`
+- 后端数据指标配置服务：`backend/src/services/DataMetricsConfigService.ts`
 - 后端服务：`backend/src/services/CommitService.ts`
+- 后端配置路由：`backend/src/routes/config.ts`
 - 前端类型定义：`frontend/src/types/gitStatistics.ts`
 - 前端工具函数：`frontend/src/utils/workStatus.ts`
+- 前端配置 API：`frontend/src/services/configApi.ts`
+- 前端配置管理页面：`frontend/src/pages/Config/ConfigList.tsx`
+- 前端数据指标配置组件：`frontend/src/pages/Config/components/DataMetricsConfig.tsx`
 - 前端列表组件：`frontend/src/pages/GitStatistics/GitStatisticsList/components/CommitsByDateList.tsx`
 - 前端筛选组件：`frontend/src/pages/GitStatistics/GitStatisticsList/components/StatisticsFilter.tsx`
 - 前端统计报表组件：`frontend/src/pages/GitStatistics/GitStatisticsList/components/WorkStatusReport.tsx`
