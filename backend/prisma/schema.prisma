@@ -44,10 +44,11 @@ model Commit {
 
   repository Repository @relation(fields: [repoId], references: [id])
 
-  @@unique([repoId, commitHash])
+  @@unique([repoId, commitHash, branch]) // 允许同一个 commit 在不同分支中保存多条记录
   @@index([repoId, commitDate], name: "idx_commits_repo_date")
   @@index([authorEmail, commitDate], name: "idx_commits_author")
   @@index([commitDate], name: "idx_commits_date")
+  @@index([repoId, branch, commitDate], name: "idx_commits_repo_branch_date")
   @@map("commits")
 }
 

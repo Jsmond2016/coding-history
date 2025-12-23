@@ -4,6 +4,7 @@ import type { ScannedCommit } from './GitScanService.js';
 import { calculateWorkStatus, type WorkStatus, type WorkStatusConfig } from '../config/workStatus.config.js';
 import { ConfigService } from './ConfigService.js';
 import { DataMetricsConfigService } from './DataMetricsConfigService.js';
+import { logger } from '../config/logger.js';
 
 export interface CommitWithRepoName {
   id: number;
@@ -56,21 +57,23 @@ export class CommitService {
 
   /**
    * 批量插入提交记录（带去重）
-   * 注意：同一个 commit hash 在同一个仓库中只会记录一次（基于 [repoId, commitHash] 唯一约束）
-   * 如果同一个 commit 在多个分支中，会优先记录更重要的分支
+   * 注意：同一个 commit hash 在同一个仓库的同一个分支中只会记录一次（基于 [repoId, commitHash, branch] 唯一约束）
+   * 允许同一个 commit 在不同分支中保存多条记录
    */
   async batchInsertCommits(repoId: string, commits: ScannedCommit[]): Promise<{ inserted: number; skipped: number }> {
     if (commits.length === 0) return { inserted: 0, skipped: 0 };
 
     const now = BigInt(Date.now());
     
-    // 查询已存在的 commit hash（基于 repoId 和 commitHash 去重）
+    // 查询已存在的 commit（基于 repoId, commitHash 和 branch 去重）
+    // 构建 OR 条件查询所有可能的 commitHash:branch 组合
     const existingCommits = await prisma.commit.findMany({
       where: {
         repoId,
-        commitHash: {
-          in: commits.map(c => c.hash)
-        }
+        OR: commits.map(c => ({
+          commitHash: c.hash,
+          branch: c.branch || null
+        }))
       },
       select: {
         commitHash: true,
@@ -78,50 +81,75 @@ export class CommitService {
       }
     });
 
-    // 创建已存在的 commit hash 集合（同一仓库内去重）
-    const existingHashSet = new Set(existingCommits.map(c => c.commitHash));
+    // 创建已存在的 commit 键集合（repoId:commitHash:branch）
+    const existingKeys = new Set(
+      existingCommits.map(c => `${c.commitHash}:${c.branch || ''}`)
+    );
     
-    // 对于已存在的 commit，如果新扫描到的分支更优先，可以考虑更新分支信息
-    // 但为了简化，这里只插入新的 commit
-    const newCommits = commits.filter(commit => !existingHashSet.has(commit.hash));
+    // 过滤出新的提交（基于 commitHash 和 branch 组合）
+    const newCommits = commits.filter(commit => {
+      const key = `${commit.hash}:${commit.branch || ''}`;
+      return !existingKeys.has(key);
+    });
     
     if (newCommits.length === 0) {
       return { inserted: 0, skipped: commits.length };
     }
 
-    // 对同一个 commit hash 进行去重（如果扫描时发现同一个 commit 在多个分支中）
-    // 使用 Map 来去重，保留第一个出现的分支信息
-    const uniqueCommitsMap = new Map<string, ScannedCommit>();
-    newCommits.forEach(commit => {
-      if (!uniqueCommitsMap.has(commit.hash)) {
-        uniqueCommitsMap.set(commit.hash, commit);
+    // 批量插入新提交（允许同一个 commit 在不同分支中保存多条记录）
+    try {
+      await prisma.commit.createMany({
+        data: newCommits.map(commit => ({
+          repoId,
+          commitHash: commit.hash,
+          authorName: commit.authorName,
+          authorEmail: commit.authorEmail,
+          commitDate: BigInt(commit.date),
+          message: commit.message,
+          filesChanged: commit.filesChanged,
+          insertions: commit.insertions,
+          deletions: commit.deletions,
+          branch: commit.branch || null, // 分支名称，如果为 undefined 则设为 null
+          createdAt: now
+        })),
+        skipDuplicates: true // 跳过重复的记录（基于唯一约束）
+      });
+    } catch (error) {
+      // 如果批量插入失败（可能是唯一约束冲突），尝试逐个插入
+      logger.warn('Batch insert failed, trying individual inserts:', error);
+      let inserted = 0;
+      for (const commit of newCommits) {
+        try {
+          await prisma.commit.create({
+            data: {
+              repoId,
+              commitHash: commit.hash,
+              authorName: commit.authorName,
+              authorEmail: commit.authorEmail,
+              commitDate: BigInt(commit.date),
+              message: commit.message,
+              filesChanged: commit.filesChanged,
+              insertions: commit.insertions,
+              deletions: commit.deletions,
+              branch: commit.branch || null,
+              createdAt: now
+            }
+          });
+          inserted++;
+        } catch (insertError) {
+          // 忽略重复记录错误
+          logger.debug(`Skipped duplicate commit ${commit.hash} in branch ${commit.branch}`);
+        }
       }
-      // 如果已存在，可以选择更新分支信息（如果新分支更优先）
-      // 这里简单保留第一个，因为 GitScanService 已经做了分支优先级处理
-    });
-
-    const uniqueCommits = Array.from(uniqueCommitsMap.values());
-
-    // 批量插入新提交
-    await prisma.commit.createMany({
-      data: uniqueCommits.map(commit => ({
-        repoId,
-        commitHash: commit.hash,
-        authorName: commit.authorName,
-        authorEmail: commit.authorEmail,
-        commitDate: BigInt(commit.date),
-        message: commit.message,
-        filesChanged: commit.filesChanged,
-        insertions: commit.insertions,
-        deletions: commit.deletions,
-        branch: commit.branch || null,
-        createdAt: now
-      }))
-    });
+      return {
+        inserted,
+        skipped: commits.length - inserted
+      };
+    }
 
     return {
-      inserted: uniqueCommits.length,
-      skipped: commits.length - uniqueCommits.length
+      inserted: newCommits.length,
+      skipped: commits.length - newCommits.length
     };
   }
 
@@ -225,26 +253,38 @@ export class CommitService {
       : commitsWithOvertime;
 
     // 按日期分组，并对同一仓库同一 commit hash 进行去重
-    // 确保同一个 commit 在同一天只统计一次
+    // 确保同一个 commit 在同一天只统计一次，但收集所有分支信息
     const commitsByDateMap = new Map<string, CommitWithOvertime[]>();
-    const seenCommitsInDate = new Map<string, Set<string>>(); // date -> Set<repoId:commitHash>
+    const seenCommitsInDate = new Map<string, Map<string, CommitWithOvertime>>(); // date -> Map<repoId:commitHash, commit>
     
     filteredCommits.forEach(commit => {
       const date = new Date(commit.commitDate).toISOString().split('T')[0]; // YYYY-MM-DD
       const commitKey = `${commit.repoId}:${commit.commitHash}`;
       
-      // 初始化该日期的已见 commit 集合
+      // 初始化该日期的已见 commit Map
       if (!seenCommitsInDate.has(date)) {
-        seenCommitsInDate.set(date, new Set());
+        seenCommitsInDate.set(date, new Map());
       }
       
-      // 如果该 commit 在同一天已经出现过，跳过（去重）
-      if (seenCommitsInDate.get(date)!.has(commitKey)) {
+      const dateCommitsMap = seenCommitsInDate.get(date)!;
+      
+      // 如果该 commit 在同一天已经出现过，合并分支信息
+      if (dateCommitsMap.has(commitKey)) {
+        const existingCommit = dateCommitsMap.get(commitKey)!;
+        // 合并分支信息：如果新分支不在现有分支列表中，更新 branch 字段
+        // 注意：这里只保留一个 branch 字段，但可以通过其他方式收集所有分支
+        // 为了简化，如果现有 commit 没有 branch 或新 commit 的 branch 不同，更新为包含更多信息的
+        if (!existingCommit.branch && commit.branch) {
+          existingCommit.branch = commit.branch;
+        } else if (existingCommit.branch && commit.branch && existingCommit.branch !== commit.branch) {
+          // 如果两个分支不同，保留第一个（或者可以合并，但为了简化先保留第一个）
+          // 这里可以根据需要调整策略
+        }
         return;
       }
       
-      // 标记该 commit 已处理
-      seenCommitsInDate.get(date)!.add(commitKey);
+      // 新 commit，添加到 Map
+      dateCommitsMap.set(commitKey, commit);
       
       // 添加到日期分组
       if (!commitsByDateMap.has(date)) {
@@ -286,12 +326,14 @@ export class CommitService {
         // 获取当日修改的仓库列表（去重）
         const repositories = Array.from(new Set(commits.map(c => c.repoName)));
         
-        // 获取当日修改的分支列表（去重，过滤掉 undefined）
-        const branches = Array.from(new Set(
-          commits
-            .map(c => c.branch)
-            .filter((branch): branch is string => !!branch)
-        ));
+        // 获取当日修改的分支列表（从所有 commit 的分支信息中收集，去重）
+        const branchesSet = new Set<string>();
+        commits.forEach(c => {
+          if (c.branch) {
+            branchesSet.add(c.branch);
+          }
+        });
+        const branches = Array.from(branchesSet).sort();
 
         return {
           date,

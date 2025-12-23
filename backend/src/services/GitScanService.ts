@@ -11,7 +11,7 @@ export interface ScannedCommit {
   filesChanged: number;
   insertions: number;
   deletions: number;
-  branch?: string; // 提交所在的分支
+  branch?: string; // 提交所在的分支（可选，但按分支扫描时会填充）
 }
 
 export class GitScanService {
@@ -22,7 +22,7 @@ export class GitScanService {
   }
 
   /**
-   * 扫描仓库提交记录
+   * 扫描仓库提交记录（按分支分别扫描，确保多分支提交都能被记录）
    * @param fromDate 起始日期，用于增量扫描
    * @param toDate 结束日期，可选
    * @param authorEmails 作者邮箱数组，用于过滤（支持多个作者）
@@ -35,135 +35,38 @@ export class GitScanService {
         throw new Error(`${this.repoPath} is not a valid git repository`);
       }
 
-      // 构建 log 选项数组（simple-git 需要使用数组形式传递参数）
-      const logOptions: string[] = ['--all']; // 扫描所有分支
+      // 获取所有本地和远程分支
+      const allBranches = await this.getAllBranches();
+      logger.info(`Found ${allBranches.length} branches in ${this.repoPath}`);
 
-      if (fromDate) {
-        // 使用 --since 参数指定起始日期
-        logOptions.push('--since', fromDate.toISOString());
-      }
+      const allCommits: ScannedCommit[] = [];
 
-      if (toDate) {
-        // 使用 --until 参数指定结束日期
-        logOptions.push('--until', toDate.toISOString());
-      }
-
-      if (authorEmails && authorEmails.length > 0) {
-        // simple-git 不支持在单个 --author 参数中使用正则表达式
-        // 需要使用 --perl-regexp 选项来启用 Perl 正则表达式
-        const authorPattern = authorEmails.map(email =>
-          email.replace(/[.*+?^${}()[\]\\]/g, '\\$&')
-        ).join('|');
-        logOptions.push('--perl-regexp');  // 启用 Perl 正则表达式
-        logOptions.push('--author', authorPattern);
-        logger.info(`Using author pattern with perl-regexp: ${authorPattern}`);
-      }
-
-      // 获取提交日志（扫描所有分支）
-      const logs = await this.git.log(logOptions);
-
-      logger.info(`Found ${logs.all.length} commits in ${this.repoPath} (scanning all branches)`);
-
-      // 获取当前分支和主分支名称（用于优先选择）
-      let currentBranch: string | undefined;
-      let mainBranch: string | undefined;
-      try {
-        const currentBranchInfo = await this.git.branch();
-        currentBranch = currentBranchInfo.current;
-        // 尝试找到主分支（main 或 master）
-        const allBranches = await this.git.branchLocal();
-        mainBranch = allBranches.all.find(b => b === 'main' || b === 'master');
-      } catch (error) {
-        logger.debug(`Failed to get current branch info: ${error}`);
-      }
-
-      // 辅助函数：获取 commit 所在的分支
-      const getCommitBranch = async (commitHash: string): Promise<string | undefined> => {
+      // 为每个分支单独扫描提交
+      for (const branchName of allBranches) {
         try {
-          // 使用 git branch --contains 查找包含该 commit 的分支
-          const branchList = await this.git.branch(['--contains', commitHash, '-a']);
-          const branchNames = branchList.all.filter(b => 
-            !b.includes('HEAD') && !b.includes('->') && !b.includes('detached')
-          );
-          
-          if (branchNames.length > 0) {
-            // 优先选择顺序：当前分支 > 主分支 > 本地分支 > 远程分支
-            const normalizedNames = branchNames.map(b => {
-              if (b.startsWith('remotes/')) {
-                return b.replace(/^remotes\/origin\//, '').replace(/^remotes\//, '');
-              }
-              return b;
-            });
-            
-            // 优先选择当前分支
-            if (currentBranch && normalizedNames.includes(currentBranch)) {
-              return currentBranch;
-            }
-            
-            // 其次选择主分支
-            if (mainBranch && normalizedNames.includes(mainBranch)) {
-              return mainBranch;
-            }
-            
-            // 优先选择本地分支
-            const localBranch = branchNames.find(b => !b.startsWith('remotes/'));
-            if (localBranch) {
-              return localBranch;
-            }
-            
-            // 最后选择远程分支
-            return normalizedNames[0];
-          }
-        } catch (branchError) {
-          logger.debug(`Failed to get branch for commit ${commitHash}: ${branchError}`);
+          const branchCommits = await this.scanBranch(branchName, fromDate, toDate, authorEmails);
+          allCommits.push(...branchCommits);
+          logger.debug(`Scanned ${branchCommits.length} commits from branch ${branchName}`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.warn(`Failed to scan branch ${branchName}: ${errorMessage}`);
+          // 继续扫描其他分支，不中断整个流程
         }
-        return undefined;
-      };
-      
-      // 使用 ramda 处理提交数据
-      const commits = await Promise.all(
-        R.map(async (commit) => {
-          try {
-            // 获取每个提交的 diff 统计
-            const diff = await this.git.diffSummary([`${commit.hash}^`, commit.hash]);
+      }
 
-            // 获取该 commit 所在的分支
-            const branch = await getCommitBranch(commit.hash);
+      // 去重：同一个 commit hash 在同一个分支中只保留一条记录
+      const uniqueCommitsMap = new Map<string, ScannedCommit>();
+      for (const commit of allCommits) {
+        const key = `${commit.hash}:${commit.branch}`;
+        if (!uniqueCommitsMap.has(key)) {
+          uniqueCommitsMap.set(key, commit);
+        }
+      }
 
-            return {
-              hash: commit.hash,
-              message: commit.message,
-              date: new Date(commit.date).getTime(),
-              authorName: commit.author_name,
-              authorEmail: commit.author_email,
-              filesChanged: diff.files.length,
-              insertions: diff.insertions,
-              deletions: diff.deletions,
-              branch
-            };
-          } catch (error) {
-            // 第一个提交没有父提交，使用默认值
-            logger.warn(`Failed to get diff for commit ${commit.hash}: ${error}`);
-            
-            // 尝试获取分支信息
-            const branch = await getCommitBranch(commit.hash);
-            
-            return {
-              hash: commit.hash,
-              message: commit.message,
-              date: new Date(commit.date).getTime(),
-              authorName: commit.author_name,
-              authorEmail: commit.author_email,
-              filesChanged: 0,
-              insertions: 0,
-              deletions: 0,
-              branch
-            };
-          }
-        }, logs.all)
-      );
+      const uniqueCommits = Array.from(uniqueCommitsMap.values());
+      logger.info(`Found ${uniqueCommits.length} unique commits (across ${allBranches.length} branches)`);
 
-      return commits;
+      return uniqueCommits;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -178,6 +81,150 @@ export class GitScanService {
   }
 
   /**
+   * 获取所有分支（本地和远程）
+   * 返回格式：本地分支直接返回名称，远程分支返回 origin/branchName 格式
+   */
+  private async getAllBranches(): Promise<string[]> {
+    try {
+      const localBranches = await this.git.branchLocal();
+      const remoteBranches = await this.git.branch(['-r']);
+      
+      const branches = new Set<string>();
+      
+      // 添加本地分支
+      for (const branch of localBranches.all) {
+        if (!branch.includes('HEAD') && !branch.includes('->')) {
+          branches.add(branch);
+        }
+      }
+      
+      // 添加远程分支（保留 origin/branchName 格式，以便直接扫描）
+      for (const branch of remoteBranches.all) {
+        if (!branch.includes('HEAD') && !branch.includes('->')) {
+          // 规范化远程分支名称：remotes/origin/feature/xxx -> origin/feature/xxx
+          const normalized = branch
+            .replace(/^remotes\//, ''); // 只移除 remotes/ 前缀，保留 origin/
+          branches.add(normalized);
+          
+          // 同时添加简化名称（用于显示和存储）
+          const simpleName = normalized.replace(/^origin\//, '');
+          if (simpleName !== normalized) {
+            // 如果简化名称与本地分支不同，也添加（用于存储）
+            // 注意：这里不直接添加到 branches Set，因为我们需要用 origin/xxx 格式来扫描
+          }
+        }
+      }
+      
+      return Array.from(branches);
+    } catch (error) {
+      logger.warn(`Failed to get all branches: ${error}`);
+      // 如果获取分支失败，尝试使用当前分支
+      try {
+        const currentBranch = await this.git.branch();
+        return currentBranch.current ? [currentBranch.current] : [];
+      } catch {
+        return [];
+      }
+    }
+  }
+
+  /**
+   * 扫描单个分支的提交记录
+   */
+  private async scanBranch(
+    branchName: string,
+    fromDate?: Date,
+    toDate?: Date,
+    authorEmails?: string[]
+  ): Promise<ScannedCommit[]> {
+    // 确定实际的分支名称和存储用的分支名称
+    // branchName 可能是 "origin/feature/xxx" 或 "feature/xxx"
+    let actualBranchName = branchName; // 用于 git.log() 的分支名称
+    let storageBranchName = branchName; // 用于存储到数据库的分支名称
+    
+    // 如果分支名称以 origin/ 开头，说明是远程分支
+    if (branchName.startsWith('origin/')) {
+      actualBranchName = branchName; // 直接使用 origin/xxx 格式扫描
+      storageBranchName = branchName.replace(/^origin\//, ''); // 存储时去掉 origin/ 前缀
+    } else {
+      // 本地分支，直接使用
+      actualBranchName = branchName;
+      storageBranchName = branchName;
+    }
+    
+    try {
+
+      // 构建 log 选项数组
+      const logOptions: string[] = [actualBranchName]; // 使用实际的分支名称
+
+      if (fromDate) {
+        logOptions.push('--since', fromDate.toISOString());
+      }
+
+      if (toDate) {
+        logOptions.push('--until', toDate.toISOString());
+      }
+
+      if (authorEmails && authorEmails.length > 0) {
+        const authorPattern = authorEmails.map(email =>
+          email.replace(/[.*+?^${}()[\]\\]/g, '\\$&')
+        ).join('|');
+        logOptions.push('--perl-regexp');
+        logOptions.push('--author', authorPattern);
+      }
+
+      // 获取该分支的提交日志
+      const logs = await this.git.log(logOptions);
+
+      // 处理提交数据
+      const commits = await Promise.all(
+        R.map(async (commit) => {
+          try {
+            // 获取每个提交的 diff 统计
+            const diff = await this.git.diffSummary([`${commit.hash}^`, commit.hash]);
+
+            return {
+              hash: commit.hash,
+              message: commit.message,
+              date: new Date(commit.date).getTime(),
+              authorName: commit.author_name,
+              authorEmail: commit.author_email,
+              filesChanged: diff.files.length,
+              insertions: diff.insertions,
+              deletions: diff.deletions,
+              branch: storageBranchName || undefined // 使用存储用的分支名称（去掉 origin/ 前缀）
+            };
+          } catch (error) {
+            // 第一个提交没有父提交，使用默认值
+            logger.debug(`Failed to get diff for commit ${commit.hash} in branch ${storageBranchName}: ${error}`);
+            
+            return {
+              hash: commit.hash,
+              message: commit.message,
+              date: new Date(commit.date).getTime(),
+              authorName: commit.author_name,
+              authorEmail: commit.author_email,
+              filesChanged: 0,
+              insertions: 0,
+              deletions: 0,
+              branch: storageBranchName || undefined // 使用存储用的分支名称（去掉 origin/ 前缀）
+            };
+          }
+        }, logs.all)
+      );
+
+      return commits;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      // 如果扫描失败，记录警告（使用 warn 级别以便排查问题）
+      // 注意：actualBranchName 可能未定义（如果错误发生在初始化之前）
+      const actualName = typeof actualBranchName !== 'undefined' ? actualBranchName : branchName;
+      logger.warn(`Failed to scan branch ${branchName} (actual: ${actualName}): ${errorMessage}`);
+      return [];
+    }
+  }
+
+  /**
    * 增量扫描：只扫描指定日期之后的提交
    * @param lastScanDate 起始日期
    * @param authorEmails 作者邮箱数组，可选（支持多个作者）
@@ -188,4 +235,3 @@ export class GitScanService {
     return this.scanRepository(lastScanDate, toDate, authorEmails);
   }
 }
-
