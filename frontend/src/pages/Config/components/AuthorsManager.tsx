@@ -112,7 +112,7 @@ const AuthorsManager: React.FC<AuthorsManagerProps> = ({
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      <div className="mb-4">
         <Button
           type="primary"
           size="small"
