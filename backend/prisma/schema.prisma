@@ -47,3 +47,51 @@ model Commit {
   @@index([commitDate], name: "idx_commits_date")
   @@map("commits")
 }
+
+model ServerLog {
+  id          Int      @id @default(autoincrement())
+  type        String   // start, stop, error
+  message     String
+  errorStack  String?  @map("error_stack")
+  timestamp   BigInt
+  createdAt   BigInt   @map("created_at")
+
+  @@index([type, timestamp], name: "idx_server_log_type_time")
+  @@index([timestamp], name: "idx_server_log_time")
+  @@map("server_logs")
+}
+
+model RequestLog {
+  id            Int      @id @default(autoincrement())
+  method        String   // GET, POST, PUT, DELETE, etc.
+  url           String
+  routeName     String?  @map("route_name")
+  statusCode    Int      @map("status_code")
+  requestBody   String?  @map("request_body")
+  responseBody  String?  @map("response_body")
+  duration      Int      // 请求耗时（毫秒）
+  timestamp     BigInt
+  createdAt     BigInt   @map("created_at")
+
+  @@index([method, timestamp], name: "idx_request_log_method_time")
+  @@index([statusCode, timestamp], name: "idx_request_log_status_time")
+  @@index([timestamp], name: "idx_request_log_time")
+  @@map("request_logs")
+}
+
+model ScheduledTaskLog {
+  id              Int      @id @default(autoincrement())
+  taskName        String   @map("task_name")
+  cronExpression  String?  @map("cron_expression")
+  startTime       BigInt   @map("start_time")
+  endTime         BigInt?  @map("end_time")
+  status          String   // success, failed
+  repositories    String   // JSON 数组字符串，存储仓库列表
+  totalCommits    Int      @default(0) @map("total_commits")
+  errorMessage    String?  @map("error_message")
+  createdAt       BigInt   @map("created_at")
+
+  @@index([status, startTime], name: "idx_task_log_status_time")
+  @@index([startTime], name: "idx_task_log_time")
+  @@map("scheduled_task_logs")
+}

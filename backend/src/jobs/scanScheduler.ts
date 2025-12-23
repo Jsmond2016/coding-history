@@ -7,6 +7,7 @@ import type { Config, ScanSchedule } from '../schemas/config.schema.js';
 import { RepositoryService } from '../services/RepositoryService.js';
 import { GitScanService } from '../services/GitScanService.js';
 import { CommitService } from '../services/CommitService.js';
+import { LogService } from '../services/LogService.js';
 import { logger } from '../config/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,9 +33,24 @@ async function executeScan() {
   const config = loadConfig();
   const repositoryService = new RepositoryService();
   const commitService = new CommitService();
+  const logService = new LogService();
 
   // 收集所有作者邮箱
   const authorEmails = config.authors.map(author => author.email);
+
+  // 获取当前定时任务的 cron 表达式和描述
+  const scheduleTimes: ScanSchedule[] = typeof config.scanInterval === 'string'
+    ? [{ cron: config.scanInterval }]
+    : config.scanInterval;
+  const currentSchedule = scheduleTimes[0]; // 使用第一个定时任务配置
+  const taskName = currentSchedule?.description || '定时扫描任务';
+  const cronExpression = currentSchedule?.cron;
+
+  const startTime = Date.now();
+  const scannedRepositories: string[] = [];
+  let totalCommits = 0;
+  let hasError = false;
+  let errorMessage: string | undefined;
 
   logger.info('Starting scheduled scan...');
 
@@ -49,6 +65,7 @@ async function executeScan() {
 
       try {
         logger.info(`[定时扫描] 仓库: ${repo.name}`);
+        scannedRepositories.push(repo.name);
 
         // 获取上次扫描时间
         const lastScanTime = await repositoryService.getLastScanTime(repo.id);
@@ -84,6 +101,7 @@ async function executeScan() {
           const insertResult = await commitService.batchInsertCommits(repo.id, commits);
 
           logger.info(`[数据入库] 新增: ${insertResult.inserted} 条, 跳过重复: ${insertResult.skipped} 条`);
+          totalCommits += insertResult.inserted;
 
           // 更新仓库信息
           const result = await commitService.getCommits({
@@ -93,24 +111,32 @@ async function executeScan() {
             page: 1,
             pageSize: 1
           });
-          const totalCommits = result.total;
+          const repoTotalCommits = result.total;
 
           await repositoryService.updateRepositoryScanInfo(
             repo.id,
             Date.now(),
-            totalCommits
+            repoTotalCommits
           );
 
-          logger.info(`[仓库更新] ${repo.name} 总计 ${totalCommits} 条提交记录`);
+          logger.info(`[仓库更新] ${repo.name} 总计 ${repoTotalCommits} 条提交记录`);
         } else {
           logger.info(`[无新数据] ${repo.name} 没有新的提交记录`);
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        hasError = true;
+        const errorMsg = error instanceof Error ? error.message : String(error);
         const errorStack = error instanceof Error ? error.stack : undefined;
+        
+        if (!errorMessage) {
+          errorMessage = `扫描仓库 ${repo.name} 失败: ${errorMsg}`;
+        } else {
+          errorMessage += `; ${repo.name}: ${errorMsg}`;
+        }
+        
         logger.error({
           msg: `Failed to scan repository ${repo.name}`,
-          error: errorMessage,
+          error: errorMsg,
           stack: errorStack,
           repositoryId: repo.id,
           repositoryPath: repo.path
@@ -120,7 +146,27 @@ async function executeScan() {
 
     logger.info('Scheduled scan completed');
   } catch (error) {
+    hasError = true;
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    errorMessage = `定时任务执行失败: ${errorMsg}`;
     logger.error('Scheduled scan failed:', error);
+  } finally {
+    // 记录定时任务日志
+    const endTime = Date.now();
+    try {
+      await logService.createScheduledTaskLog({
+        taskName,
+        cronExpression,
+        startTime,
+        endTime,
+        status: hasError ? 'failed' : 'success',
+        repositories: scannedRepositories,
+        totalCommits,
+        errorMessage
+      });
+    } catch (logError) {
+      logger.error('记录定时任务日志失败:', logError);
+    }
   }
 }
 

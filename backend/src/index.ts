@@ -8,9 +8,11 @@ import { serve } from '@hono/node-server';
 import repositoriesRoute from './routes/repositories.js';
 import commitsRoute from './routes/commits.js';
 import statisticsRoute from './routes/statistics.js';
+import logsRoute from './routes/logs.js';
 import { startScheduler, restartScheduler } from './jobs/scanScheduler.js';
 import { logger } from './config/logger.js';
 import { RepositoryService } from './services/RepositoryService.js';
+import { LogService } from './services/LogService.js';
 import { readFileSync, watch } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -20,6 +22,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = new Hono();
+const logService = new LogService();
 
 // 中间件
 app.use('*', honoLogger());
@@ -28,10 +31,73 @@ app.use('*', cors({
   credentials: true
 }));
 
+// 请求日志中间件（只记录 API 请求）
+app.use('/api/v1/*', async (c, next) => {
+  const startTime = Date.now();
+  const method = c.req.method;
+  const url = c.req.url;
+  
+  // 提取路由名称（从 URL 路径中提取）
+  const urlObj = new URL(url);
+  const pathname = urlObj.pathname;
+  const routeName = pathname.split('/').slice(0, 4).join('/'); // 例如: /api/v1/repositories
+  
+  // 获取请求体（仅对 POST/PUT/PATCH 请求）
+  let requestBody: string | undefined;
+  if (['POST', 'PUT', 'PATCH'].includes(method)) {
+    try {
+      const body = await c.req.clone().json().catch(() => null);
+      if (body) {
+        // 过滤敏感字段
+        const sanitizedBody = sanitizeRequestBody(body);
+        requestBody = JSON.stringify(sanitizedBody);
+      }
+    } catch {
+      // 忽略解析错误
+    }
+  }
+
+  await next();
+
+  const duration = Date.now() - startTime;
+  const statusCode = c.res.status;
+
+  // 获取响应体（仅对错误响应或特定状态码）
+  let responseBody: string | undefined;
+  if (statusCode >= 400) {
+    try {
+      const clonedRes = c.res.clone();
+      const body = await clonedRes.json().catch(() => null);
+      if (body) {
+        responseBody = JSON.stringify(body);
+      }
+    } catch {
+      // 忽略解析错误
+    }
+  }
+
+  // 异步记录日志，不阻塞请求
+  logService.createRequestLog({
+    method,
+    url,
+    routeName,
+    statusCode,
+    requestBody,
+    responseBody,
+    duration
+  }).catch((error) => {
+    logger.error({
+      msg: 'Failed to create request log',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  });
+});
+
 // 路由注册
 app.route('/api/v1/repositories', repositoriesRoute);
 app.route('/api/v1/commits', commitsRoute);
 app.route('/api/v1/statistics', statisticsRoute);
+app.route('/api/v1/logs', logsRoute);
 
 // 健康检查
 app.get('/health', (c) => c.json({ status: 'ok' }));
@@ -129,6 +195,26 @@ function watchConfigFile() {
   return watcher;
 }
 
+// 过滤敏感字段的辅助函数
+function sanitizeRequestBody(body: any): any {
+  if (typeof body !== 'object' || body === null) {
+    return body;
+  }
+
+  const sensitiveFields = ['password', 'token', 'secret', 'apiKey', 'authorization'];
+  const sanitized = Array.isArray(body) ? [...body] : { ...body };
+
+  for (const key in sanitized) {
+    if (sensitiveFields.some(field => key.toLowerCase().includes(field.toLowerCase()))) {
+      sanitized[key] = '***REDACTED***';
+    } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+      sanitized[key] = sanitizeRequestBody(sanitized[key]);
+    }
+  }
+
+  return sanitized;
+}
+
 // 启动服务器
 const port = 3000;
 
@@ -149,6 +235,12 @@ async function startServer() {
     logger.info('[提示] 如需初始化历史数据，请运行: pnpm init-scan');
     logger.info('[提示] 修改 config/repositories.json 后会自动重新加载配置');
 
+    // 记录服务器启动日志
+    await logService.createServerLog({
+      type: 'start',
+      message: `服务器启动成功，运行在端口 ${port}`
+    });
+
     serve({
       fetch: app.fetch,
       port
@@ -161,9 +253,85 @@ async function startServer() {
       error: errorMessage,
       stack: errorStack
     });
+    
+    // 记录服务器启动失败日志
+    await logService.createServerLog({
+      type: 'error',
+      message: `服务器启动失败: ${errorMessage}`,
+      errorStack
+    }).catch(() => {
+      // 忽略日志记录失败
+    });
+    
     throw error;
   }
 }
+
+// 优雅关闭处理
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`收到 ${signal} 信号，正在关闭服务器...`);
+  
+  try {
+    await logService.createServerLog({
+      type: 'stop',
+      message: `服务器收到 ${signal} 信号，正在关闭`
+    });
+  } catch (error) {
+    logger.error('记录服务器关闭日志失败:', error);
+  }
+  
+  process.exit(0);
+};
+
+// 注册信号处理器
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// 未捕获的异常处理
+process.on('uncaughtException', async (error) => {
+  const errorMessage = error.message;
+  const errorStack = error.stack;
+  
+  logger.error({
+    msg: '未捕获的异常',
+    error: errorMessage,
+    stack: errorStack
+  });
+  
+  try {
+    await logService.createServerLog({
+      type: 'error',
+      message: `未捕获的异常: ${errorMessage}`,
+      errorStack
+    });
+  } catch (logError) {
+    logger.error('记录异常日志失败:', logError);
+  }
+  
+  process.exit(1);
+});
+
+// 未处理的 Promise 拒绝
+process.on('unhandledRejection', async (reason, promise) => {
+  const errorMessage = reason instanceof Error ? reason.message : String(reason);
+  const errorStack = reason instanceof Error ? reason.stack : undefined;
+  
+  logger.error({
+    msg: '未处理的 Promise 拒绝',
+    error: errorMessage,
+    stack: errorStack
+  });
+  
+  try {
+    await logService.createServerLog({
+      type: 'error',
+      message: `未处理的 Promise 拒绝: ${errorMessage}`,
+      errorStack
+    });
+  } catch (logError) {
+    logger.error('记录异常日志失败:', logError);
+  }
+});
 
 startServer().catch((error) => {
   const errorMessage = error instanceof Error ? error.message : String(error);
