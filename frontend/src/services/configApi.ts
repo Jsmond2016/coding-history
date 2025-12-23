@@ -130,3 +130,46 @@ export const deleteIgnoredBranch = async (repoId: string, branchId: number): Pro
   await api.delete(`/config/repositories/${repoId}/ignored-branches/${branchId}`);
 };
 
+export interface DataMetricsConfig {
+  id: number;
+  thresholds: {
+    relaxed: number;
+    normal: number;
+    busy: number;
+    superCrazy: number;
+  };
+  overtimeHour: number;
+  labels: Record<string, string>;
+  colors: Record<string, string>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface UpdateDataMetricsConfigParams {
+  thresholds: {
+    relaxed: number;
+    normal: number;
+    busy: number;
+    superCrazy: number;
+  };
+  overtimeHour: number;
+  labels: Record<string, string>;
+  colors: Record<string, string>;
+}
+
+/**
+ * 获取数据指标配置
+ */
+export const getDataMetricsConfig = async (): Promise<DataMetricsConfig> => {
+  const response = await api.get<{ data: DataMetricsConfig }>('/config/data-metrics');
+  return response.data.data;
+};
+
+/**
+ * 更新数据指标配置
+ */
+export const updateDataMetricsConfig = async (params: UpdateDataMetricsConfigParams): Promise<DataMetricsConfig> => {
+  const response = await api.put<{ data: DataMetricsConfig }>('/config/data-metrics', params);
+  return response.data.data;
+};
+

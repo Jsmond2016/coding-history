@@ -1,16 +1,27 @@
 import { prisma } from '../db/client.js';
 import type { Commit } from '../schemas/database.schema.js';
 import type { ScannedCommit } from './GitScanService.js';
-import { calculateWorkStatus, type WorkStatus } from '../config/workStatus.config.js';
+import { calculateWorkStatus, type WorkStatus, type WorkStatusConfig } from '../config/workStatus.config.js';
 import { ConfigService } from './ConfigService.js';
+import { DataMetricsConfigService } from './DataMetricsConfigService.js';
 
-export interface CommitWithRepoName extends Commit {
+export interface CommitWithRepoName {
+  id: number;
+  repoId: string;
   repoName: string;
+  commitHash: string;
+  authorName: string;
+  authorEmail: string;
+  commitDate: number;
+  message: string;
+  filesChanged: number;
+  insertions: number;
+  deletions: number;
   branch?: string; // 提交所在的分支
+  createdAt: number;
 }
 
 export interface CommitWithOvertime extends CommitWithRepoName {
-  branch?: string; // 提交所在的分支
   isOvertime: boolean; // 是否加班（提交时间 >= 19:00）
   overtimeCommitTimes?: string[]; // 加班提交的时间点（最多5个）
 }
@@ -29,9 +40,11 @@ export interface CommitsByDate {
 
 export class CommitService {
   private configService: ConfigService;
+  private dataMetricsConfigService: DataMetricsConfigService;
 
   constructor() {
     this.configService = new ConfigService();
+    this.dataMetricsConfigService = new DataMetricsConfigService();
   }
 
   /**
@@ -113,12 +126,13 @@ export class CommitService {
   }
 
   /**
-   * 检查提交是否为加班（19:00之后）
+   * 检查提交是否为加班（根据配置的加班时间阈值）
    */
-  private isOvertimeCommit(commitDate: number): boolean {
+  private async isOvertimeCommit(commitDate: number): Promise<boolean> {
+    const config = await this.dataMetricsConfigService.getConfig();
     const date = new Date(commitDate);
     const hour = date.getHours();
-    return hour >= 19;
+    return hour >= config.overtimeHour;
   }
 
   /**
@@ -164,37 +178,46 @@ export class CommitService {
     // 获取忽略的分支列表
     const ignoredBranches = await this.getAllIgnoredBranches();
 
-    // 转换为带加班信息的提交记录，并过滤忽略的分支
-    const commitsWithOvertime: CommitWithOvertime[] = commits
-      .filter(commit => {
-        // 过滤掉忽略分支的提交
-        if (commit.branch && ignoredBranches.includes(commit.branch)) {
-          return false;
-        }
-        return true;
-      })
-      .map(commit => {
-        const commitDate = Number(commit.commitDate);
-        const isOvertimeCommit = this.isOvertimeCommit(commitDate);
+    // 获取数据指标配置
+    const dataMetricsConfig = await this.dataMetricsConfigService.getConfig();
+    const workStatusConfig: WorkStatusConfig = {
+      thresholds: dataMetricsConfig.thresholds,
+      overtimeHour: dataMetricsConfig.overtimeHour
+    };
 
-        return {
-          id: commit.id,
-          repoId: commit.repoId,
-          commitHash: commit.commitHash,
-          authorName: commit.authorName,
-          authorEmail: commit.authorEmail,
-          commitDate,
-          message: commit.message,
-          filesChanged: commit.filesChanged,
-          insertions: commit.insertions,
-          deletions: commit.deletions,
-          branch: commit.branch || undefined,
-          createdAt: Number(commit.createdAt),
-          repoName: commit.repository.name,
-          isOvertime: isOvertimeCommit,
-          overtimeCommitTimes: isOvertimeCommit ? [this.formatTime(commitDate)] : undefined
-        };
-      });
+    // 转换为带加班信息的提交记录，并过滤忽略的分支
+    const commitsWithOvertime: CommitWithOvertime[] = await Promise.all(
+      commits
+        .filter(commit => {
+          // 过滤掉忽略分支的提交
+          if (commit.branch && ignoredBranches.includes(commit.branch)) {
+            return false;
+          }
+          return true;
+        })
+        .map(async (commit) => {
+          const commitDate = Number(commit.commitDate);
+          const isOvertimeCommit = await this.isOvertimeCommit(commitDate);
+
+          return {
+            id: commit.id,
+            repoId: commit.repoId,
+            commitHash: commit.commitHash,
+            authorName: commit.authorName,
+            authorEmail: commit.authorEmail,
+            commitDate,
+            message: commit.message,
+            filesChanged: commit.filesChanged,
+            insertions: commit.insertions,
+            deletions: commit.deletions,
+            branch: commit.branch || undefined,
+            createdAt: Number(commit.createdAt),
+            repoName: commit.repository.name,
+            isOvertime: isOvertimeCommit,
+            overtimeCommitTimes: isOvertimeCommit ? [this.formatTime(commitDate)] : undefined
+          };
+        })
+    );
 
     // 按是否加班筛选
     const filteredCommits = isOvertime !== undefined
@@ -256,7 +279,8 @@ export class CommitService {
         // 计算工作状态：根据总提交次数和是否有加班记录
         const workStatus = calculateWorkStatus(
           commits.length,
-          overtimeCommits.length > 0
+          overtimeCommits.length > 0,
+          workStatusConfig
         );
 
         // 获取当日修改的仓库列表（去重）
@@ -310,7 +334,7 @@ export class CommitService {
     };
 
     // 获取忽略的分支列表，用于过滤查询
-    const ignoredBranches = this.getIgnoredBranches();
+    const ignoredBranches = await this.getAllIgnoredBranches();
     
     // 添加分支过滤条件：排除忽略分支，但保留 branch 为 null 的记录
     const whereWithBranchFilter: any = {
@@ -338,21 +362,21 @@ export class CommitService {
     });
 
     // 数据已经在数据库查询时过滤了忽略分支，这里直接映射即可
-    const data = commits.map(commit => ({
+    const data: CommitWithRepoName[] = commits.map(commit => ({
       id: commit.id,
-        repoId: commit.repoId,
-        commitHash: commit.commitHash,
-        authorName: commit.authorName,
-        authorEmail: commit.authorEmail,
-        commitDate: Number(commit.commitDate),
-        message: commit.message,
-        filesChanged: commit.filesChanged,
-        insertions: commit.insertions,
-        deletions: commit.deletions,
-        branch: commit.branch || undefined,
-        createdAt: Number(commit.createdAt),
-        repoName: commit.repository.name
-      }));
+      repoId: commit.repoId,
+      commitHash: commit.commitHash,
+      authorName: commit.authorName,
+      authorEmail: commit.authorEmail,
+      commitDate: Number(commit.commitDate),
+      message: commit.message,
+      filesChanged: commit.filesChanged,
+      insertions: commit.insertions,
+      deletions: commit.deletions,
+      branch: commit.branch || undefined,
+      createdAt: Number(commit.createdAt),
+      repoName: commit.repository.name
+    }));
 
     return { data, total };
   }

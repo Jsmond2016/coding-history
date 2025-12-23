@@ -3,13 +3,16 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { ConfigService } from '../services/ConfigService.js';
 import { RepositoryService } from '../services/RepositoryService.js';
+import { DataMetricsConfigService } from '../services/DataMetricsConfigService.js';
 import { logger } from '../config/logger.js';
 import { restartScheduler } from '../jobs/scanScheduler.js';
+import type { WorkStatus } from '../config/workStatus.config.js';
 import { prisma } from '../db/client.js';
 
 const app = new Hono();
 const configService = new ConfigService();
 const repositoryService = new RepositoryService();
+const dataMetricsConfigService = new DataMetricsConfigService();
 
 // Schema 定义
 const CreateRepositorySchema = z.object({
@@ -224,6 +227,43 @@ app.delete('/repositories/:id/ignored-branches/:branchId', async (c) => {
   } catch (error) {
     logger.error('Failed to delete ignored branch:', error);
     return c.json({ error: 'Failed to delete ignored branch' }, 500);
+  }
+});
+
+// Schema 定义
+const UpdateDataMetricsConfigSchema = z.object({
+  thresholds: z.object({
+    relaxed: z.number().int().min(0),
+    normal: z.number().int().min(0),
+    busy: z.number().int().min(0),
+    superCrazy: z.number().int().min(0)
+  }),
+  overtimeHour: z.number().int().min(0).max(23),
+  labels: z.record(z.string(), z.string()),
+  colors: z.record(z.string(), z.string())
+});
+
+// 获取数据指标配置
+app.get('/data-metrics', async (c) => {
+  try {
+    const config = await dataMetricsConfigService.getConfig();
+    return c.json({ data: config });
+  } catch (error) {
+    logger.error('Failed to get data metrics config:', error);
+    return c.json({ error: 'Failed to get data metrics config' }, 500);
+  }
+});
+
+// 更新数据指标配置
+app.put('/data-metrics', zValidator('json', UpdateDataMetricsConfigSchema), async (c) => {
+  try {
+    const data = c.req.valid('json');
+    const config = await dataMetricsConfigService.updateConfig(data);
+    return c.json({ data: config });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to update data metrics config:', error);
+    return c.json({ error: errorMessage || 'Failed to update data metrics config' }, 500);
   }
 });
 

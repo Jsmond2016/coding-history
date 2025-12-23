@@ -1,26 +1,27 @@
 import React from 'react';
-import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Switch, Modal, Typography, Flex } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Switch, Modal, Typography, Flex, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  DatabaseOutlined,
+  BarChartOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
 import {
   getRepositoriesConfig,
-  createRepository,
   updateRepository,
   deleteRepository,
-  type RepositoryConfig,
-  type CreateRepositoryParams
+  type RepositoryConfig
 } from '../../services/configApi';
 import RepositoryForm from './components/RepositoryForm';
 import AuthorsManager from './components/AuthorsManager';
 import IgnoredBranchesManager from './components/IgnoredBranchesManager';
+import DataMetricsConfig from './components/DataMetricsConfig';
 
 const { Panel } = Collapse;
 
@@ -238,62 +239,92 @@ const ConfigList: React.FC = () => {
     }
   ];
 
+  const tabItems = [
+    {
+      key: 'repositories',
+      label: (
+        <span>
+          <DatabaseOutlined />
+          仓库配置
+        </span>
+      ),
+      children: (
+        <div>
+          <Flex justify="space-between" align="center" className="mb-4">
+            <Title level={4} className="m-0">
+              仓库配置
+            </Title>
+            <Space>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={loadRepositories}
+                loading={loading}
+              >
+                刷新
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleCreate}
+              >
+                添加仓库
+              </Button>
+            </Space>
+          </Flex>
+
+          <Table
+            columns={columns}
+            dataSource={repositories}
+            loading={loading}
+            rowKey="id"
+            pagination={false}
+            expandable={{
+              expandedRowKeys: expandedKeys,
+              onExpandedRowsChange: (keys) => setExpandedKeys(keys as string[]),
+              expandedRowRender: (record: RepositoryConfig) => (
+                <div className="py-4">
+                  <Collapse defaultActiveKey={['authors', 'branches']}>
+                    <Panel header={`作者配置 (${record.authors.length})`} key="authors">
+                      <AuthorsManager
+                        repoId={record.id}
+                        authors={record.authors}
+                        onUpdate={loadRepositories}
+                      />
+                    </Panel>
+                    <Panel header={`忽略分支配置 (${record.ignoredBranches.length})`} key="branches">
+                      <IgnoredBranchesManager
+                        repoId={record.id}
+                        branches={record.ignoredBranches}
+                        onUpdate={loadRepositories}
+                      />
+                    </Panel>
+                  </Collapse>
+                </div>
+              )
+            }}
+          />
+        </div>
+      )
+    },
+    {
+      key: 'data-metrics',
+      label: (
+        <span>
+          <BarChartOutlined />
+          数据指标配置
+        </span>
+      ),
+      children: <DataMetricsConfig />
+    }
+  ];
+
   return (
     <div>
       <Card>
-        <Flex justify="space-between" align="center" className="mb-4">
-          <Title level={2} className="m-0">
-            配置管理
-          </Title>
-          <Space>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={loadRepositories}
-              loading={loading}
-            >
-              刷新
-            </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleCreate}
-            >
-              添加仓库
-            </Button>
-          </Space>
-        </Flex>
-
-        <Table
-          columns={columns}
-          dataSource={repositories}
-          loading={loading}
-          rowKey="id"
-          pagination={false}
-          expandable={{
-            expandedRowKeys: expandedKeys,
-            onExpandedRowsChange: (keys) => setExpandedKeys(keys as string[]),
-            expandedRowRender: (record: RepositoryConfig) => (
-              <div className="py-4">
-                <Collapse defaultActiveKey={['authors', 'branches']}>
-                  <Panel header={`作者配置 (${record.authors.length})`} key="authors">
-                    <AuthorsManager
-                      repoId={record.id}
-                      authors={record.authors}
-                      onUpdate={loadRepositories}
-                    />
-                  </Panel>
-                  <Panel header={`忽略分支配置 (${record.ignoredBranches.length})`} key="branches">
-                    <IgnoredBranchesManager
-                      repoId={record.id}
-                      branches={record.ignoredBranches}
-                      onUpdate={loadRepositories}
-                    />
-                  </Panel>
-                </Collapse>
-              </div>
-            )
-          }}
-        />
+        <Title level={2} className="mb-4">
+          配置管理
+        </Title>
+        <Tabs items={tabItems} />
       </Card>
 
       <RepositoryForm

@@ -14,6 +14,7 @@ import configRoute from './routes/config.js';
 import { startScheduler, restartScheduler } from './jobs/scanScheduler.js';
 import { logger } from './config/logger.js';
 import { LogService } from './services/LogService.js';
+import { DataMetricsConfigService } from './services/DataMetricsConfigService.js';
 
 
 const app = new Hono();
@@ -126,6 +127,15 @@ const port = 3000;
 async function startServer() {
   try {
     logger.info('[应用启动] 正在初始化...');
+
+    // 初始化数据指标配置（如果不存在则创建默认配置）
+    try {
+      const dataMetricsConfigService = new DataMetricsConfigService();
+      await dataMetricsConfigService.initDefaultConfig();
+      logger.info('[初始化] 数据指标配置已就绪');
+    } catch (error) {
+      logger.warn('[初始化] 数据指标配置初始化失败，将使用默认配置:', error);
+    }
 
     // 启动定时任务（从数据库加载）
     await startScheduler();
