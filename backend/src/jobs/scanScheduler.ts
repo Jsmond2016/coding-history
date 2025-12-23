@@ -12,8 +12,8 @@ import { logger } from '../config/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 保存当前运行的定时任务实例
-let currentScheduler: ScheduledTask | null = null;
+// 保存当前运行的定时任务实例（支持多个任务）
+let currentSchedulers: ScheduledTask[] = [];
 
 /**
  * 加载配置文件
@@ -26,6 +26,7 @@ function loadConfig(): Config {
 
 /**
  * 执行扫描任务
+ * 自动同步最近一周的代码记录
  */
 async function executeScan() {
   const config = loadConfig();
@@ -37,6 +38,11 @@ async function executeScan() {
 
   logger.info('Starting scheduled scan...');
 
+  // 计算最近一周的起始时间（当前时间 - 7天）
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  oneWeekAgo.setHours(0, 0, 0, 0); // 设置为当天的00:00:00
+
   try {
     for (const repo of config.repositories) {
       if (!repo.enabled) continue;
@@ -46,11 +52,26 @@ async function executeScan() {
 
         // 获取上次扫描时间
         const lastScanTime = await repositoryService.getLastScanTime(repo.id);
-        const fromDate = lastScanTime
-          ? new Date(lastScanTime)
-          : new Date('2000-01-01');
-
-        logger.info(`[增量扫描] 从 ${fromDate.toISOString()} 开始扫描`);
+        
+        // 确定扫描起始时间：
+        // 1. 如果没有上次扫描时间，从2000-01-01开始（首次扫描）
+        // 2. 如果上次扫描时间早于一周前，从一周前开始（确保同步最近一周）
+        // 3. 如果上次扫描时间在一周内，从上次扫描时间开始（增量扫描）
+        let fromDate: Date;
+        if (!lastScanTime) {
+          fromDate = new Date('2000-01-01');
+          logger.info(`[首次扫描] 从 ${fromDate.toISOString()} 开始扫描`);
+        } else {
+          const lastScanDate = new Date(lastScanTime);
+          // 如果上次扫描时间早于一周前，从一周前开始扫描
+          if (lastScanDate < oneWeekAgo) {
+            fromDate = oneWeekAgo;
+            logger.info(`[一周同步] 上次扫描时间 ${lastScanDate.toISOString()} 早于一周前，从 ${fromDate.toISOString()} 开始扫描（确保同步最近一周）`);
+          } else {
+            fromDate = lastScanDate;
+            logger.info(`[增量扫描] 从 ${fromDate.toISOString()} 开始扫描`);
+          }
+        }
 
         // 执行增量扫描（使用所有配置的作者邮箱）
         const scanner = new GitScanService(repo.path);
@@ -105,29 +126,41 @@ async function executeScan() {
 
 /**
  * 启动定时任务调度器
+ * 每天上午10点和傍晚19点执行
  */
 export function startScheduler() {
-  const config = loadConfig();
-
   // 如果已有定时任务在运行，先停止
-  if (currentScheduler) {
-    currentScheduler.stop();
+  if (currentSchedulers.length > 0) {
+    stopScheduler();
   }
 
-  // 启动定时任务
-  currentScheduler = cron.schedule(config.scanInterval, executeScan);
+  // 定义两个执行时间点：上午10点和傍晚19点
+  const scheduleTimes = [
+    { cron: '0 10 * * *', description: '每天上午10点' },
+    { cron: '0 19 * * *', description: '每天傍晚19点' }
+  ];
 
-  logger.info(`[定时任务] 调度器已启动，Cron 表达式: ${config.scanInterval}`);
+  // 创建多个定时任务
+  currentSchedulers = scheduleTimes.map(({ cron: cronExpr, description }) => {
+    const task = cron.schedule(cronExpr, executeScan);
+    logger.info(`[定时任务] ${description} 调度已启动，Cron 表达式: ${cronExpr}`);
+    return task;
+  });
+
+  logger.info(`[定时任务] 调度器已启动，共 ${currentSchedulers.length} 个定时任务`);
 }
 
 /**
  * 停止定时任务调度器
  */
 export function stopScheduler() {
-  if (currentScheduler) {
-    currentScheduler.stop();
-    currentScheduler = null;
-    logger.info('[定时任务] 调度器已停止');
+  if (currentSchedulers.length > 0) {
+    currentSchedulers.forEach((scheduler, index) => {
+      scheduler.stop();
+      logger.info(`[定时任务] 调度器 ${index + 1} 已停止`);
+    });
+    currentSchedulers = [];
+    logger.info('[定时任务] 所有调度器已停止');
   }
 }
 
