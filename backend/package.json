@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "init-scan": "tsx src/scripts/init-scan.ts",
+    "migrate-config": "tsx src/scripts/migrate-config-to-db.ts",
     "clean-logs": "bash scripts/clean-logs.sh"
   },
   "dependencies": {

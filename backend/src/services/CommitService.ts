@@ -2,13 +2,7 @@ import { prisma } from '../db/client.js';
 import type { Commit } from '../schemas/database.schema.js';
 import type { ScannedCommit } from './GitScanService.js';
 import { calculateWorkStatus, type WorkStatus } from '../config/workStatus.config.js';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import type { Config } from '../schemas/config.schema.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { ConfigService } from './ConfigService.js';
 
 export interface CommitWithRepoName extends Commit {
   repoName: string;
@@ -34,35 +28,17 @@ export interface CommitsByDate {
 }
 
 export class CommitService {
-  /**
-   * 加载配置文件
-   */
-  private loadConfig(): Config {
-    const configPath = path.join(__dirname, '../../config/repositories.json');
-    const configContent = readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(configContent);
-    // 如果没有配置 ignoredBranches，使用默认值
-    if (!config.ignoredBranches) {
-      config.ignoredBranches = ['develop', 'release'];
-    }
-    return config;
+  private configService: ConfigService;
+
+  constructor() {
+    this.configService = new ConfigService();
   }
 
   /**
-   * 获取忽略的分支列表
+   * 获取所有仓库的忽略分支列表（合并去重）
    */
-  private getIgnoredBranches(): string[] {
-    const config = this.loadConfig();
-    return config.ignoredBranches || ['develop', 'release'];
-  }
-
-  /**
-   * 检查分支是否应该被忽略
-   */
-  private shouldIgnoreBranch(branch?: string): boolean {
-    if (!branch) return false;
-    const ignoredBranches = this.getIgnoredBranches();
-    return ignoredBranches.includes(branch);
+  private async getAllIgnoredBranches(): Promise<string[]> {
+    return await this.configService.getAllIgnoredBranches();
   }
 
   /**
@@ -186,7 +162,7 @@ export class CommitService {
     });
 
     // 获取忽略的分支列表
-    const ignoredBranches = this.getIgnoredBranches();
+    const ignoredBranches = await this.getAllIgnoredBranches();
 
     // 转换为带加班信息的提交记录，并过滤忽略的分支
     const commitsWithOvertime: CommitWithOvertime[] = commits
@@ -411,7 +387,7 @@ export class CommitService {
     const { startDate, endDate, repositoryIds, authorEmails } = params;
 
     // 获取忽略的分支列表
-    const ignoredBranches = this.getIgnoredBranches();
+    const ignoredBranches = await this.getAllIgnoredBranches();
 
     // 构建 where 条件，正确处理忽略分支的过滤
     // 需要排除 branch 在忽略列表中的记录，但保留 branch 为 null 的记录

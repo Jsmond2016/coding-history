@@ -11,27 +11,12 @@
 // 加载环境变量
 import 'dotenv/config';
 
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
-import type { Config } from '../schemas/config.schema.js';
 import { RepositoryService } from '../services/RepositoryService.js';
+import { ConfigService } from '../services/ConfigService.js';
 import { GitScanService } from '../services/GitScanService.js';
 import { CommitService } from '../services/CommitService.js';
 import { logger } from '../config/logger.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-/**
- * 加载配置文件
- */
-function loadConfig(): Config {
-  const configPath = path.join(__dirname, '../../config/repositories.json');
-  const configContent = readFileSync(configPath, 'utf-8');
-  return JSON.parse(configContent);
-}
 
 /**
  * 解析命令行参数
@@ -226,7 +211,7 @@ async function scanRepositoryInPhases(
  */
 async function initScan() {
   const { months } = parseArgs();
-  const config = loadConfig();
+  const configService = new ConfigService();
   const repositoryService = new RepositoryService();
   const commitService = new CommitService();
   
@@ -246,39 +231,29 @@ async function initScan() {
   let failCount = 0;
   let completedCount = 0;
 
-  // 首先同步仓库配置到数据库
-  for (const repo of config.repositories) {
-    await repositoryService.upsertRepository({
-      id: repo.id,
-      name: repo.name,
-      path: repo.path
-    });
-  }
-  logger.info(`[初始化] 已同步 ${config.repositories.length} 个仓库配置到数据库\n`);
+  // 获取所有启用的仓库配置
+  const repos = await configService.getEnabledRepositories();
+  logger.info(`[初始化] 找到 ${repos.length} 个启用的仓库\n`);
 
-  for (const repoConfig of config.repositories) {
-    if (!repoConfig.enabled) {
-      logger.info(`[跳过] ${repoConfig.name} (已禁用)`);
-      continue;
-    }
+  for (const repo of repos) {
 
     // 检查该仓库是否已完成初始扫描
-    const isCompleted = await repositoryService.isInitialScanCompleted(repoConfig.id, targetDateTimestamp);
+    const isCompleted = await repositoryService.isInitialScanCompleted(repo.id, targetDateTimestamp);
     if (isCompleted) {
-      logger.info(`[跳过] ${repoConfig.name} (已完成初始扫描到目标日期)`);
+      logger.info(`[跳过] ${repo.name} (已完成初始扫描到目标日期)`);
       completedCount++;
       continue;
     }
 
     try {
-      logger.info(`\n[扫描仓库] ${repoConfig.name}`);
-      logger.info(`  路径: ${repoConfig.path}`);
+      logger.info(`\n[扫描仓库] ${repo.name}`);
+      logger.info(`  路径: ${repo.path}`);
       
       // 先更新仓库代码到最新
-      await pullRepository(repoConfig.path, repoConfig.name);
+      await pullRepository(repo.path, repo.name);
       
       // 获取当前扫描进度
-      const currentScanToDate = await repositoryService.getInitialScanToDate(repoConfig.id);
+      const currentScanToDate = await repositoryService.getInitialScanToDate(repo.id);
       if (currentScanToDate) {
         logger.info(`  继续扫描: 从 ${new Date(currentScanToDate).toISOString().split('T')[0]} 继续`);
       } else {
@@ -286,12 +261,16 @@ async function initScan() {
       }
       logger.info(`  目标日期: ${targetDate.toISOString().split('T')[0]}`);
 
-      // 收集所有作者邮箱
-      const authorEmails = config.authors.map(author => author.email);
+      // 获取该仓库的作者邮箱列表
+      const authorEmails = await configService.getAuthorEmailsByRepoId(repo.id);
+      if (authorEmails.length === 0) {
+        logger.warn(`  [跳过] 仓库 ${repo.name} 没有配置作者，跳过`);
+        continue;
+      }
 
       // 分阶段扫描（支持断点续传）
       const result = await scanRepositoryInPhases(
-        repoConfig,
+        repo,
         targetDate,
         now,
         authorEmails,
@@ -307,13 +286,13 @@ async function initScan() {
       const dbResult = await commitService.getCommits({
         startDate: 0,
         endDate: Date.now(),
-        repositoryIds: [repoConfig.id],
+        repositoryIds: [repo.id],
         page: 1,
         pageSize: 1
       });
 
       await repositoryService.updateRepositoryScanInfo(
-        repoConfig.id,
+        repo.id,
         Date.now(),
         dbResult.total
       );
@@ -328,7 +307,7 @@ async function initScan() {
       successCount++;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[扫描失败] ${repoConfig.name}: ${errorMessage}`);
+      logger.error(`[扫描失败] ${repo.name}: ${errorMessage}`);
       failCount++;
       // 继续扫描下一个仓库，不中断整个流程
     }

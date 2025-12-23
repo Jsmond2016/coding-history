@@ -51,6 +51,7 @@ export class RepositoryService {
     id: string;
     name: string;
     path: string;
+    enabled?: boolean;
   }): Promise<void> {
     const now = BigInt(Date.now());
     
@@ -59,12 +60,14 @@ export class RepositoryService {
       update: {
         name: repo.name,
         path: repo.path,
+        ...(repo.enabled !== undefined && { enabled: repo.enabled }),
         updatedAt: now
       },
       create: {
         id: repo.id,
         name: repo.name,
         path: repo.path,
+        enabled: repo.enabled !== undefined ? repo.enabled : true,
         createdAt: now,
         updatedAt: now
       }

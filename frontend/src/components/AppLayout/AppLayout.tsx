@@ -4,7 +4,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BarChartOutlined,
   FileTextOutlined,
-  ScheduleOutlined
+  ScheduleOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -26,6 +27,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     if (location.pathname.startsWith('/tasks')) {
       return 'tasks';
     }
+    if (location.pathname.startsWith('/config')) {
+      return 'config';
+    }
     return 'git-statistics';
   };
 
@@ -35,6 +39,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       icon: <BarChartOutlined />,
       label: 'Git数据看板',
       onClick: () => navigate('/git-statistics')
+    },
+    {
+      key: 'config',
+      icon: <SettingOutlined />,
+      label: '配置管理',
+      onClick: () => navigate('/config')
     },
     {
       key: 'tasks',

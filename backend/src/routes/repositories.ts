@@ -2,20 +2,15 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { ScanRequestSchema } from '../schemas/api.schema.js';
 import { RepositoryService } from '../services/RepositoryService.js';
+import { ConfigService } from '../services/ConfigService.js';
 import { GitScanService } from '../services/GitScanService.js';
 import { CommitService } from '../services/CommitService.js';
 import { logger } from '../config/logger.js';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import type { Config } from '../schemas/config.schema.js';
 import simpleGit, { SimpleGit } from 'simple-git';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = new Hono();
 const repositoryService = new RepositoryService();
+const configService = new ConfigService();
 const commitService = new CommitService();
 
 // 扫描状态管理（内存存储）
@@ -28,14 +23,6 @@ let scanStatus: {
   scannedCount: 0
 };
 
-/**
- * 加载配置文件
- */
-function loadConfig(): Config {
-  const configPath = path.join(__dirname, '../../config/repositories.json');
-  const configContent = readFileSync(configPath, 'utf-8');
-  return JSON.parse(configContent);
-}
 
 /**
  * 更新 Git 仓库代码（执行 git pull）
@@ -81,11 +68,7 @@ async function pullRepository(repoPath: string, repoName: string): Promise<boole
  * 异步扫描仓库（扫描最近2周的数据）
  */
 async function scanRepositoriesAsync(repositoryIds?: string[]) {
-  const config = loadConfig();
   let scannedCount = 0;
-
-  // 收集所有作者邮箱
-  const authorEmails = config.authors.map(author => author.email);
 
   // 计算2周前的日期
   const twoWeeksAgo = new Date();
@@ -93,26 +76,31 @@ async function scanRepositoriesAsync(repositoryIds?: string[]) {
   const fromDate = twoWeeksAgo;
 
   logger.info(`[手动扫描] 开始扫描最近2周的提交数据（从 ${fromDate.toISOString()} 开始）`);
-  logger.info(`[手动扫描] 作者邮箱: ${authorEmails.join(', ')}`);
 
-  for (const repoConfig of config.repositories) {
-    if (!repoConfig.enabled) {
-      logger.info(`[跳过] 仓库 ${repoConfig.name} 未启用`);
-      continue;
-    }
-    if (repositoryIds && !repositoryIds.includes(repoConfig.id)) {
-      logger.info(`[跳过] 仓库 ${repoConfig.name} 不在扫描列表中`);
-      continue;
-    }
+  // 获取要扫描的仓库列表
+  const allRepos = await configService.getEnabledRepositories();
+  const reposToScan = repositoryIds && repositoryIds.length > 0
+    ? allRepos.filter(repo => repositoryIds.includes(repo.id))
+    : allRepos;
 
+  for (const repo of reposToScan) {
     try {
-      logger.info(`[扫描开始] 仓库: ${repoConfig.name}, 路径: ${repoConfig.path}`);
+      logger.info(`[扫描开始] 仓库: ${repo.name}, 路径: ${repo.path}`);
+
+      // 获取该仓库的作者邮箱列表
+      const authorEmails = await configService.getAuthorEmailsByRepoId(repo.id);
+      if (authorEmails.length === 0) {
+        logger.warn(`[跳过] 仓库 ${repo.name} 没有配置作者，跳过`);
+        continue;
+      }
+
+      logger.info(`[手动扫描] 作者邮箱: ${authorEmails.join(', ')}`);
 
       // 先更新仓库代码到最新
-      await pullRepository(repoConfig.path, repoConfig.name);
+      await pullRepository(repo.path, repo.name);
 
-      // 执行扫描（最近2周，使用所有配置的作者邮箱）
-      const scanner = new GitScanService(repoConfig.path);
+      // 执行扫描（最近2周，使用该仓库配置的作者邮箱）
+      const scanner = new GitScanService(repo.path);
       const commits = await scanner.incrementalScan(fromDate, authorEmails, new Date());
 
       logger.info(`[扫描完成] 发现 ${commits.length} 个提交记录`);
@@ -122,7 +110,7 @@ async function scanRepositoriesAsync(repositoryIds?: string[]) {
 
       if (commits.length > 0) {
         // 保存提交记录（带去重）
-        const insertResult = await commitService.batchInsertCommits(repoConfig.id, commits);
+        const insertResult = await commitService.batchInsertCommits(repo.id, commits);
 
         logger.info(`[数据入库] 新增: ${insertResult.inserted} 条, 跳过重复: ${insertResult.skipped} 条`);
 
@@ -130,32 +118,32 @@ async function scanRepositoriesAsync(repositoryIds?: string[]) {
         const result = await commitService.getCommits({
           startDate: 0,
           endDate: Date.now(),
-          repositoryIds: [repoConfig.id],
+          repositoryIds: [repo.id],
           page: 1,
           pageSize: 1
         });
         const totalCommits = result.total;
 
         await repositoryService.updateRepositoryScanInfo(
-          repoConfig.id,
+          repo.id,
           Date.now(),
           totalCommits
         );
 
-        logger.info(`[仓库更新] ${repoConfig.name} 总计 ${totalCommits} 条提交记录`);
+        logger.info(`[仓库更新] ${repo.name} 总计 ${totalCommits} 条提交记录`);
         scannedCount++;
       } else {
-        logger.info(`[无新数据] ${repoConfig.name} 没有新的提交记录`);
+        logger.info(`[无新数据] ${repo.name} 没有新的提交记录`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error({
-        msg: `Failed to scan repository ${repoConfig.name}`,
+        msg: `Failed to scan repository ${repo.name}`,
         error: errorMessage,
         stack: errorStack,
-        repositoryId: repoConfig.id,
-        repositoryPath: repoConfig.path
+        repositoryId: repo.id,
+        repositoryPath: repo.path
       });
     }
   }
@@ -170,10 +158,17 @@ app.get('/', async (c) => {
 });
 
 // 获取作者列表（必须在 /:id 路由之前定义）
+// 注意：此接口已废弃，请使用 /api/v1/config/repositories/:id/authors
 app.get('/authors', async (c) => {
   try {
-    const config = loadConfig();
-    return c.json(config.authors);
+    // 获取所有仓库的所有作者（去重）
+    const allAuthors = await configService.getAllAuthorEmails();
+    // 返回格式兼容旧接口
+    const authors = Array.from(new Set(allAuthors)).map(email => ({
+      email,
+      name: email.split('@')[0] // 简单提取名称
+    }));
+    return c.json(authors);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('[获取作者列表] 失败:', error);

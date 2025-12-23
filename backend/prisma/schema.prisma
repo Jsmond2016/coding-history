@@ -11,35 +11,38 @@ datasource db {
 }
 
 model Repository {
-  id                  String   @id
-  name                String
-  path                String
-  lastScanTime        BigInt?  @map("last_scan_time")
-  totalCommits        Int      @default(0) @map("total_commits")
-  initialScanToDate   BigInt?  @map("initial_scan_to_date")
-  createdAt           BigInt   @map("created_at")
-  updatedAt           BigInt   @map("updated_at")
-  
-  commits             Commit[]
+  id                String  @id
+  name              String
+  path              String
+  enabled           Boolean @default(true)
+  lastScanTime      BigInt? @map("last_scan_time")
+  totalCommits      Int     @default(0) @map("total_commits")
+  initialScanToDate BigInt? @map("initial_scan_to_date")
+  createdAt         BigInt  @map("created_at")
+  updatedAt         BigInt  @map("updated_at")
+
+  commits         Commit[]
+  authors         Author[]
+  ignoredBranches IgnoredBranch[]
 
   @@map("repositories")
 }
 
 model Commit {
-  id            Int      @id @default(autoincrement())
-  repoId        String   @map("repo_id")
-  commitHash    String   @map("commit_hash")
-  authorName    String   @map("author_name")
-  authorEmail   String   @map("author_email")
-  commitDate    BigInt   @map("commit_date")
-  message       String
-  filesChanged  Int      @default(0) @map("files_changed")
-  insertions    Int      @default(0)
-  deletions     Int      @default(0)
-  branch        String?  // 提交所在的分支
-  createdAt     BigInt   @map("created_at")
-  
-  repository    Repository @relation(fields: [repoId], references: [id])
+  id           Int     @id @default(autoincrement())
+  repoId       String  @map("repo_id")
+  commitHash   String  @map("commit_hash")
+  authorName   String  @map("author_name")
+  authorEmail  String  @map("author_email")
+  commitDate   BigInt  @map("commit_date")
+  message      String
+  filesChanged Int     @default(0) @map("files_changed")
+  insertions   Int     @default(0)
+  deletions    Int     @default(0)
+  branch       String? // 提交所在的分支
+  createdAt    BigInt  @map("created_at")
+
+  repository Repository @relation(fields: [repoId], references: [id])
 
   @@unique([repoId, commitHash])
   @@index([repoId, commitDate], name: "idx_commits_repo_date")
@@ -49,12 +52,12 @@ model Commit {
 }
 
 model ServerLog {
-  id          Int      @id @default(autoincrement())
-  type        String   // start, stop, error
-  message     String
-  errorStack  String?  @map("error_stack")
-  timestamp   BigInt
-  createdAt   BigInt   @map("created_at")
+  id         Int     @id @default(autoincrement())
+  type       String // start, stop, error
+  message    String
+  errorStack String? @map("error_stack")
+  timestamp  BigInt
+  createdAt  BigInt  @map("created_at")
 
   @@index([type, timestamp], name: "idx_server_log_type_time")
   @@index([timestamp], name: "idx_server_log_time")
@@ -62,16 +65,16 @@ model ServerLog {
 }
 
 model RequestLog {
-  id            Int      @id @default(autoincrement())
-  method        String   // GET, POST, PUT, DELETE, etc.
-  url           String
-  routeName     String?  @map("route_name")
-  statusCode    Int      @map("status_code")
-  requestBody   String?  @map("request_body")
-  responseBody  String?  @map("response_body")
-  duration      Int      // 请求耗时（毫秒）
-  timestamp     BigInt
-  createdAt     BigInt   @map("created_at")
+  id           Int     @id @default(autoincrement())
+  method       String // GET, POST, PUT, DELETE, etc.
+  url          String
+  routeName    String? @map("route_name")
+  statusCode   Int     @map("status_code")
+  requestBody  String? @map("request_body")
+  responseBody String? @map("response_body")
+  duration     Int // 请求耗时（毫秒）
+  timestamp    BigInt
+  createdAt    BigInt  @map("created_at")
 
   @@index([method, timestamp], name: "idx_request_log_method_time")
   @@index([statusCode, timestamp], name: "idx_request_log_status_time")
@@ -80,17 +83,17 @@ model RequestLog {
 }
 
 model ScheduledTaskLog {
-  id              Int      @id @default(autoincrement())
-  taskName        String   @map("task_name")
-  cronExpression  String?  @map("cron_expression")
-  startTime       BigInt   @map("start_time")
-  endTime         BigInt?  @map("end_time")
-  status          String   // success, failed
-  repositories    String   // JSON 数组字符串，存储仓库列表
-  totalCommits    Int      @default(0) @map("total_commits")
-  errorMessage    String?  @map("error_message")
-  taskId          Int?     @map("task_id") // 关联的任务ID
-  createdAt       BigInt   @map("created_at")
+  id             Int     @id @default(autoincrement())
+  taskName       String  @map("task_name")
+  cronExpression String? @map("cron_expression")
+  startTime      BigInt  @map("start_time")
+  endTime        BigInt? @map("end_time")
+  status         String // success, failed
+  repositories   String // JSON 数组字符串，存储仓库列表
+  totalCommits   Int     @default(0) @map("total_commits")
+  errorMessage   String? @map("error_message")
+  taskId         Int?    @map("task_id") // 关联的任务ID
+  createdAt      BigInt  @map("created_at")
 
   @@index([status, startTime], name: "idx_task_log_status_time")
   @@index([startTime], name: "idx_task_log_time")
@@ -99,21 +102,50 @@ model ScheduledTaskLog {
 }
 
 model ScanTask {
-  id                Int      @id @default(autoincrement())
-  name              String
-  description       String?
-  taskType          String   @map("task_type") // manual, scheduled
-  scanRangeType     String   @map("scan_range_type") // 2weeks, 1month, 3months, 6months, custom
-  startDate         BigInt?  @map("start_date") // 自定义开始时间（时间戳，毫秒）
-  endDate           BigInt?  @map("end_date") // 自定义结束时间（时间戳，毫秒）
-  cronExpression    String?  @map("cron_expression") // 定时任务 Cron 表达式
-  repositoryIds      String?  @map("repository_ids") // JSON 数组字符串，存储仓库ID列表，null表示所有仓库
-  enabled           Boolean  @default(true)
-  lastExecuteTime   BigInt?  @map("last_execute_time") // 最后执行时间
-  createdAt         BigInt   @map("created_at")
-  updatedAt         BigInt   @map("updated_at")
+  id              Int     @id @default(autoincrement())
+  name            String
+  description     String?
+  taskType        String  @map("task_type") // manual, scheduled
+  scanRangeType   String  @map("scan_range_type") // 2weeks, 1month, 3months, 6months, custom
+  startDate       BigInt? @map("start_date") // 自定义开始时间（时间戳，毫秒）
+  endDate         BigInt? @map("end_date") // 自定义结束时间（时间戳，毫秒）
+  cronExpression  String? @map("cron_expression") // 定时任务 Cron 表达式
+  repositoryIds   String? @map("repository_ids") // JSON 数组字符串，存储仓库ID列表，null表示所有仓库
+  enabled         Boolean @default(true)
+  lastExecuteTime BigInt? @map("last_execute_time") // 最后执行时间
+  createdAt       BigInt  @map("created_at")
+  updatedAt       BigInt  @map("updated_at")
 
   @@index([taskType, enabled], name: "idx_scan_task_type_enabled")
   @@index([enabled], name: "idx_scan_task_enabled")
   @@map("scan_tasks")
+}
+
+model Author {
+  id        Int     @id @default(autoincrement())
+  repoId    String  @map("repo_id")
+  name      String
+  email     String
+  isDefault Boolean @default(false) @map("is_default")
+  createdAt BigInt  @map("created_at")
+  updatedAt BigInt  @map("updated_at")
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, email])
+  @@index([repoId])
+  @@map("authors")
+}
+
+model IgnoredBranch {
+  id         Int    @id @default(autoincrement())
+  repoId     String @map("repo_id")
+  branchName String @map("branch_name")
+  createdAt  BigInt @map("created_at")
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, branchName])
+  @@index([repoId])
+  @@map("ignored_branches")
 }

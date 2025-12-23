@@ -1,17 +1,11 @@
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
-import type { Config } from '../schemas/config.schema.js';
 import type { ScanTask, ScanRangeType } from './ScanTaskService.js';
 import { RepositoryService } from './RepositoryService.js';
+import { ConfigService } from './ConfigService.js';
 import { GitScanService } from './GitScanService.js';
 import { CommitService } from './CommitService.js';
 import { LogService } from './LogService.js';
 import { logger } from '../config/logger.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export interface ScanTaskExecutionResult {
   success: boolean;
@@ -24,14 +18,6 @@ export interface ExecuteScanTaskOptions {
   taskId?: number; // 任务ID，用于日志关联
 }
 
-/**
- * 加载配置文件
- */
-function loadConfig(): Config {
-  const configPath = path.join(__dirname, '../../config/repositories.json');
-  const configContent = readFileSync(configPath, 'utf-8');
-  return JSON.parse(configContent);
-}
 
 /**
  * 更新 Git 仓库代码（执行 git pull）
@@ -171,13 +157,10 @@ export function calculateScanDateRange(
  * @returns {Promise<ScanTaskExecutionResult>} 执行结果
  */
 export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskOptions): Promise<ScanTaskExecutionResult> {
-  const config = loadConfig();
+  const configService = new ConfigService();
   const repositoryService = new RepositoryService();
   const commitService = new CommitService();
   const logService = new LogService();
-
-  // 收集所有作者邮箱
-  const authorEmails = config.authors.map(author => author.email);
 
   // 计算扫描时间范围
   let fromDate: Date;
@@ -213,9 +196,10 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
   };
 
   // 确定要扫描的仓库列表
+  const allRepos = await configService.getEnabledRepositories();
   const repositoriesToScan = task.repositoryIds && task.repositoryIds.length > 0
-    ? config.repositories.filter(repo => task.repositoryIds!.includes(repo.id) && repo.enabled)
-    : config.repositories.filter(repo => repo.enabled);
+    ? allRepos.filter(repo => task.repositoryIds!.includes(repo.id))
+    : allRepos;
 
   if (repositoriesToScan.length === 0) {
     logger.warn('[任务执行] 没有可扫描的仓库');
@@ -228,22 +212,29 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
   }
 
   // 遍历仓库执行扫描
-  for (const repoConfig of repositoriesToScan) {
+  for (const repo of repositoriesToScan) {
     try {
-      logger.info(`[任务执行] 扫描仓库: ${repoConfig.name}`);
+      logger.info(`[任务执行] 扫描仓库: ${repo.name}`);
+
+      // 获取该仓库的作者邮箱列表
+      const authorEmails = await configService.getAuthorEmailsByRepoId(repo.id);
+      if (authorEmails.length === 0) {
+        logger.warn(`[任务执行] 仓库 ${repo.name} 没有配置作者，跳过`);
+        continue;
+      }
 
       // 先更新仓库代码到最新
-      await pullRepository(repoConfig.path, repoConfig.name);
+      await pullRepository(repo.path, repo.name);
 
       // 执行扫描
-      const scanner = new GitScanService(repoConfig.path);
+      const scanner = new GitScanService(repo.path);
       const commits = await scanner.incrementalScan(fromDate, authorEmails, toDate);
 
       logger.info(`[任务执行] 发现 ${commits.length} 个提交记录`);
 
       if (commits.length > 0) {
         // 保存到数据库（带去重）
-        const insertResult = await commitService.batchInsertCommits(repoConfig.id, commits);
+        const insertResult = await commitService.batchInsertCommits(repo.id, commits);
         logger.info(`[任务执行] 新增: ${insertResult.inserted} 条, 跳过重复: ${insertResult.skipped} 条`);
 
         result.totalCommits += insertResult.inserted;
@@ -252,37 +243,37 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
         const dbResult = await commitService.getCommits({
           startDate: 0,
           endDate: Date.now(),
-          repositoryIds: [repoConfig.id],
+          repositoryIds: [repo.id],
           page: 1,
           pageSize: 1
         });
 
         await repositoryService.updateRepositoryScanInfo(
-          repoConfig.id,
+          repo.id,
           Date.now(),
           dbResult.total
         );
 
-        logger.info(`[任务执行] ${repoConfig.name} 总计 ${dbResult.total} 条提交记录`);
+        logger.info(`[任务执行] ${repo.name} 总计 ${dbResult.total} 条提交记录`);
       } else {
-        logger.info(`[任务执行] ${repoConfig.name} 没有新的提交记录`);
+        logger.info(`[任务执行] ${repo.name} 没有新的提交记录`);
       }
 
-      result.scannedRepositories.push(repoConfig.name);
+      result.scannedRepositories.push(repo.name);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error({
-        msg: `[任务执行] 扫描仓库 ${repoConfig.name} 失败`,
+        msg: `[任务执行] 扫描仓库 ${repo.name} 失败`,
         error: errorMsg,
-        repositoryId: repoConfig.id,
-        repositoryPath: repoConfig.path
+        repositoryId: repo.id,
+        repositoryPath: repo.path
       });
 
       result.success = false;
       if (!result.errorMessage) {
-        result.errorMessage = `扫描仓库 ${repoConfig.name} 失败: ${errorMsg}`;
+        result.errorMessage = `扫描仓库 ${repo.name} 失败: ${errorMsg}`;
       } else {
-        result.errorMessage += `; ${repoConfig.name}: ${errorMsg}`;
+        result.errorMessage += `; ${repo.name}: ${errorMsg}`;
       }
     }
   }

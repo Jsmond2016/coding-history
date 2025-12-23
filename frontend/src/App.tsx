@@ -4,6 +4,7 @@ import AppLayout from './components/AppLayout/AppLayout';
 import GitStatisticsList from './pages/GitStatistics/GitStatisticsList';
 import LogsList from './pages/Logs/LogsList';
 import TasksList from './pages/Tasks/TasksList';
+import ConfigList from './pages/Config/ConfigList';
 
 const App: React.FC = () => {
   return (
@@ -14,6 +15,7 @@ const App: React.FC = () => {
           <Route path="/git-statistics" element={<GitStatisticsList />} />
           <Route path="/tasks" element={<TasksList />} />
           <Route path="/logs" element={<LogsList />} />
+          <Route path="/config" element={<ConfigList />} />
         </Routes>
       </AppLayout>
     </BrowserRouter>
