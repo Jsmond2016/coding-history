@@ -1,14 +1,20 @@
 {
-  "name": "git-statistics-app",
+  "name": "coding-history-app",
   "version": "1.0.0",
   "private": true,
   "description": "Git commit statistics application",
   "scripts": {
-    "dev:backend": "pnpm --filter git-statistics-backend dev",
-    "dev:frontend": "pnpm --filter git-statistics-frontend dev",
-    "build:backend": "pnpm --filter git-statistics-backend build",
-    "build:frontend": "pnpm --filter git-statistics-frontend build",
-    "init-scan": "pnpm --filter git-statistics-backend init-scan"
+    "dev:backend": "pnpm --filter coding-history-backend dev",
+    "dev:frontend": "pnpm --filter coding-history-frontend dev",
+    "build:backend": "pnpm --filter coding-history-backend build",
+    "build:frontend": "pnpm --filter coding-history-frontend build",
+    "init-scan": "pnpm --filter coding-history-backend init-scan",
+    "start:pm2": "pm2 start ecosystem.config.cjs",
+    "stop:pm2": "pm2 stop ecosystem.config.cjs",
+    "restart:pm2": "pm2 restart ecosystem.config.cjs",
+    "delete:pm2": "pm2 delete ecosystem.config.cjs",
+    "logs:pm2": "pm2 logs",
+    "status:pm2": "pm2 status"
   }
 }
 

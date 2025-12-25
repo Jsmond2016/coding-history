@@ -1,4 +1,4 @@
-# Git 提交记录统计系统
+# Coding History - 代码提交记录统计系统
 
 一个全栈 Web 应用，用于统计和展示多个本地 Git 仓库的提交记录。
 
@@ -114,8 +114,48 @@ pnpm migrate-config
 }
 ```
 
-### 3. 启动后端
+### 3. 启动服务
 
+#### 方式一：PM2 后台启动（推荐）
+
+使用 PM2 在后台启动服务，不占用终端窗口：
+
+```bash
+# 启动服务（后台运行）
+./start-pm2.sh
+# 或
+pnpm start:pm2
+
+# 查看服务状态
+pnpm status:pm2
+# 或
+pm2 status
+
+# 查看日志
+pnpm logs:pm2
+# 或
+pm2 logs
+
+# 停止服务
+./stop-pm2.sh
+# 或
+pnpm stop:pm2
+
+# 重启服务
+pnpm restart:pm2
+```
+
+**PM2 启动的优势：**
+- 服务在后台运行，不占用终端窗口
+- 自动重启（进程崩溃时）
+- 日志管理（输出到文件）
+- 进程监控和管理
+
+#### 方式二：传统方式启动
+
+如果需要在前台运行查看实时日志：
+
+**启动后端：**
 ```bash
 cd backend
 pnpm dev
@@ -123,8 +163,7 @@ pnpm dev
 
 后端服务将在 `http://localhost:3000` 启动。
 
-### 4. 启动前端
-
+**启动前端：**
 ```bash
 cd frontend
 pnpm dev
@@ -213,7 +252,7 @@ pnpm build
 
 1. **权限问题**: 确保应用有权限访问配置的 Git 仓库路径
 2. **首次扫描**: 对于大型仓库，首次扫描可能需要较长时间
-3. **数据备份**: 定期备份 SQLite 数据库文件（`backend/database/git-statistics.db`）
+3. **数据备份**: 定期备份 SQLite 数据库文件（`backend/database/coding-history.db`）
 4. **时区处理**: 确保前后端时区一致
 
 ## 许可证
