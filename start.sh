@@ -15,14 +15,24 @@ fi
 echo "正在安装依赖..."
 pnpm install
 
-# 同步最近3个月的代码记录
-echo "正在同步最近3个月的代码记录..."
-if pnpm init-scan -- --months 3; then
-    echo "✓ 代码记录同步完成"
+# 根据环境变量决定是否执行初始化扫描
+# ENABLE_STARTUP_SCAN 控制是否在启动时执行扫描（默认: false）
+ENABLE_STARTUP_SCAN=${ENABLE_STARTUP_SCAN:-false}
+
+if [ "$ENABLE_STARTUP_SCAN" = "true" ]; then
+    # 同步最近3个月的代码记录
+    echo "正在同步最近3个月的代码记录..."
+    if pnpm init-scan -- --months 3; then
+        echo "✓ 代码记录同步完成"
+    else
+        echo "⚠ 代码记录同步失败，将继续启动服务（可稍后手动执行: pnpm init-scan）"
+    fi
+    echo ""
 else
-    echo "⚠ 代码记录同步失败，将继续启动服务（可稍后手动执行: pnpm init-scan）"
+    echo "跳过启动时扫描（ENABLE_STARTUP_SCAN=false）"
+    echo "如需手动扫描，请执行: pnpm init-scan"
+    echo ""
 fi
-echo ""
 
 # 启动后端（后台运行）
 echo "正在启动后端服务..."

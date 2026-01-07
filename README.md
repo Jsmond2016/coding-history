@@ -56,7 +56,46 @@ coding-history/
 pnpm install
 ```
 
-### 2. 配置仓库
+### 2. 环境变量配置（可选）
+
+#### 后端环境变量（backend/.env）
+
+在 `backend` 目录下可以创建 `.env` 文件来配置环境变量：
+
+```bash
+# 控制是否在项目启动时立即执行定时任务扫描
+# true: 如果当前时间匹配 cron 表达式，会立即执行一次扫描（默认）
+# false: 只启动定时任务，不立即执行扫描
+ENABLE_STARTUP_SCAN=true
+```
+
+**说明**：
+- `ENABLE_STARTUP_SCAN`: 控制项目启动时是否默认执行定时任务扫描
+  - 设置为 `true`（默认）：如果当前时间匹配定时任务的 cron 表达式，会在启动时立即执行一次扫描
+  - 设置为 `false`：只启动定时任务调度器，不会在启动时立即执行扫描，定时任务会按计划执行
+
+#### 启动脚本环境变量
+
+如果使用 `start.sh` 脚本启动项目，可以通过环境变量控制是否执行初始化扫描：
+
+```bash
+# 默认行为：不执行初始化扫描（ENABLE_STARTUP_SCAN 默认为 false）
+./start.sh
+
+# 启用启动时初始化扫描
+ENABLE_STARTUP_SCAN=true ./start.sh
+
+# 或者导出环境变量后启动
+export ENABLE_STARTUP_SCAN=true
+./start.sh
+```
+
+**说明**：
+- `ENABLE_STARTUP_SCAN`: 控制 `start.sh` 脚本是否在启动时执行初始化扫描（`pnpm init-scan`）
+  - 设置为 `true`：启动时会自动执行初始化扫描，同步最近3个月的代码记录
+  - 设置为 `false`（默认）：跳过启动时的初始化扫描，可以稍后手动执行 `pnpm init-scan`
+
+### 3. 配置仓库
 
 **注意**: 配置已迁移到数据库，请使用前端配置管理页面进行配置。
 

@@ -172,4 +172,3 @@ export const updateDataMetricsConfig = async (params: UpdateDataMetricsConfigPar
   const response = await api.put<{ data: DataMetricsConfig }>('/config/data-metrics', params);
   return response.data.data;
 };
-

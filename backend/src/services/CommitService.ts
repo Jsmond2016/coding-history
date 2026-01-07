@@ -247,17 +247,12 @@ export class CommitService {
         })
     );
 
-    // 按是否加班筛选
-    const filteredCommits = isOvertime !== undefined
-      ? commitsWithOvertime.filter(c => c.isOvertime === isOvertime)
-      : commitsWithOvertime;
-
     // 按日期分组，并对同一仓库同一 commit hash 进行去重
     // 确保同一个 commit 在同一天只统计一次，但收集所有分支信息
     const commitsByDateMap = new Map<string, CommitWithOvertime[]>();
     const seenCommitsInDate = new Map<string, Map<string, CommitWithOvertime>>(); // date -> Map<repoId:commitHash, commit>
     
-    filteredCommits.forEach(commit => {
+    commitsWithOvertime.forEach(commit => {
       const date = new Date(commit.commitDate).toISOString().split('T')[0]; // YYYY-MM-DD
       const commitKey = `${commit.repoId}:${commit.commitHash}`;
       
@@ -294,7 +289,7 @@ export class CommitService {
     });
 
     // 转换为数组并计算每天的加班情况和工作状态
-    const data: CommitsByDate[] = Array.from(commitsByDateMap.entries())
+    let data: CommitsByDate[] = Array.from(commitsByDateMap.entries())
       .map(([date, commits]) => {
         // 获取当天所有加班提交的时间点（最多5个，按时间降序）
         const overtimeCommits = commits.filter(c => c.isOvertime);
@@ -337,7 +332,7 @@ export class CommitService {
 
         return {
           date,
-          commits: sortedCommits, // 返回排序后的提交列表
+          commits: sortedCommits, // 返回排序后的提交列表（包含该天的所有提交，不进行过滤）
           totalCommits: commits.length,
           overtimeCount: overtimeCommits.length,
           latestOvertimeCommits: overtimeTimes,
@@ -349,7 +344,21 @@ export class CommitService {
       })
       .sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序
 
-    return { data, total: filteredCommits.length };
+    // 根据 isOvertime 参数筛选日期（而不是筛选提交记录）
+    // 筛选逻辑：基于天数，而不是基于提交记录
+    // - isOvertime === true: 只返回包含至少一条加班提交的天数（但该天的所有提交记录都返回）
+    // - isOvertime === false: 只返回不包含任何加班提交的天数（但该天的所有提交记录都返回）
+    if (isOvertime !== undefined) {
+      data = data.filter(dateGroup => {
+        const hasOvertime = dateGroup.overtimeCount > 0;
+        return isOvertime ? hasOvertime : !hasOvertime;
+      });
+    }
+
+    // 计算总提交数（用于返回）
+    const totalCommits = data.reduce((sum, dateGroup) => sum + dateGroup.totalCommits, 0);
+
+    return { data, total: totalCommits };
   }
 
   /**
