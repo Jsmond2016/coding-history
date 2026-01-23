@@ -34,6 +34,27 @@ else
     echo ""
 fi
 
+# 清理函数：确保所有子进程都被终止
+cleanup() {
+  echo ""
+  echo "正在停止服务..."
+  if [ ! -z "$BACKEND_PID" ]; then
+    # 终止后端进程及其所有子进程
+    pkill -P $BACKEND_PID 2>/dev/null
+    kill $BACKEND_PID 2>/dev/null
+  fi
+  if [ ! -z "$FRONTEND_PID" ]; then
+    # 终止前端进程及其所有子进程
+    pkill -P $FRONTEND_PID 2>/dev/null
+    kill $FRONTEND_PID 2>/dev/null
+  fi
+  echo "服务已停止"
+  exit 0
+}
+
+# 注册信号处理函数
+trap cleanup INT TERM
+
 # 启动后端（后台运行）
 echo "正在启动后端服务..."
 cd backend
@@ -60,7 +81,6 @@ echo "=========================================="
 echo ""
 echo "按 Ctrl+C 停止服务"
 
-# 等待用户中断
-trap "kill $BACKEND_PID $FRONTEND_PID; exit" INT TERM
+# 等待所有后台进程，直到收到中断信号
 wait
 

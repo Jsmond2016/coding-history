@@ -103,6 +103,24 @@ export function calculateScanDateRange(
   let fromDate: Date;
 
   switch (scanRangeType) {
+    case '1day':
+      fromDate = new Date();
+      fromDate.setDate(fromDate.getDate() - 1);
+      fromDate.setHours(0, 0, 0, 0);
+      break;
+
+    case '3days':
+      fromDate = new Date();
+      fromDate.setDate(fromDate.getDate() - 3);
+      fromDate.setHours(0, 0, 0, 0);
+      break;
+
+    case '7days':
+      fromDate = new Date();
+      fromDate.setDate(fromDate.getDate() - 7);
+      fromDate.setHours(0, 0, 0, 0);
+      break;
+
     case '2weeks':
       fromDate = new Date();
       fromDate.setDate(fromDate.getDate() - 14);

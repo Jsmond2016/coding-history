@@ -109,7 +109,7 @@ model ScanTask {
   name            String
   description     String?
   taskType        String  @map("task_type") // manual, scheduled
-  scanRangeType   String  @map("scan_range_type") // 2weeks, 1month, 3months, 6months, custom
+  scanRangeType   String  @map("scan_range_type") // 1day, 3days, 7days, 2weeks, 1month, 3months, 6months, custom
   startDate       BigInt? @map("start_date") // 自定义开始时间（时间戳，毫秒）
   endDate         BigInt? @map("end_date") // 自定义结束时间（时间戳，毫秒）
   cronExpression  String? @map("cron_expression") // 定时任务 Cron 表达式

@@ -59,7 +59,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
       form.resetFields();
       form.setFieldsValue({
         taskType: 'manual',
-        scanRangeType: '2weeks',
+        scanRangeType: '3days',
         enabled: true
       });
     }
@@ -143,7 +143,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
         layout="vertical"
         initialValues={{
           taskType: 'manual',
-          scanRangeType: '2weeks',
+          scanRangeType: '3days',
           enabled: true
         }}
       >
@@ -190,6 +190,9 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           rules={[{ required: true, message: '请选择扫描范围' }]}
         >
           <Select>
+            <Option value="1day">近1天</Option>
+            <Option value="3days">近3天</Option>
+            <Option value="7days">近7天</Option>
             <Option value="2weeks">近2周</Option>
             <Option value="1month">近1个月</Option>
             <Option value="3months">近3个月</Option>

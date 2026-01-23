@@ -7,7 +7,8 @@ import {
   DeleteOutlined,
   ReloadOutlined,
   DatabaseOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  SyncOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -22,6 +23,7 @@ import RepositoryForm from './components/RepositoryForm';
 import AuthorsManager from './components/AuthorsManager';
 import IgnoredBranchesManager from './components/IgnoredBranchesManager';
 import DataMetricsConfig from './components/DataMetricsConfig';
+import ManualSyncModal from './components/ManualSyncModal';
 
 const { Panel } = Collapse;
 
@@ -33,8 +35,10 @@ const ConfigList: React.FC = () => {
   const [expandedKeys, setExpandedKeys] = React.useState<string[]>([]);
   const [authorsModalOpen, setAuthorsModalOpen] = React.useState(false);
   const [branchesModalOpen, setBranchesModalOpen] = React.useState(false);
+  const [syncModalOpen, setSyncModalOpen] = React.useState(false);
   const [editingRepoForAuthors, setEditingRepoForAuthors] = React.useState<RepositoryConfig | undefined>();
   const [editingRepoForBranches, setEditingRepoForBranches] = React.useState<RepositoryConfig | undefined>();
+  const [syncingRepo, setSyncingRepo] = React.useState<RepositoryConfig | undefined>();
 
   // 加载仓库配置列表
   const loadRepositories = React.useCallback(async () => {
@@ -98,6 +102,12 @@ const ConfigList: React.FC = () => {
   const handleEditBranches = (repo: RepositoryConfig) => {
     setEditingRepoForBranches(repo);
     setBranchesModalOpen(true);
+  };
+
+  // 处理手动同步
+  const handleManualSync = (repo: RepositoryConfig) => {
+    setSyncingRepo(repo);
+    setSyncModalOpen(true);
   };
 
   // 表格列定义
@@ -202,10 +212,19 @@ const ConfigList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 280,
       fixed: 'right',
       render: (_: any, record: RepositoryConfig) => (
         <Space>
+          <Button
+            type="link"
+            size="small"
+            icon={<SyncOutlined />}
+            onClick={() => handleManualSync(record)}
+            disabled={!record.enabled}
+          >
+            同步
+          </Button>
           <Button
             type="link"
             size="small"
@@ -380,6 +399,22 @@ const ConfigList: React.FC = () => {
           />
         )}
       </Modal>
+
+      {/* 手动同步弹窗 */}
+      {syncingRepo && (
+        <ManualSyncModal
+          open={syncModalOpen}
+          repositoryId={syncingRepo.id}
+          repositoryName={syncingRepo.name}
+          onClose={() => {
+            setSyncModalOpen(false);
+            setSyncingRepo(undefined);
+          }}
+          onSuccess={() => {
+            loadRepositories();
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -1,10 +1,11 @@
 import { prisma } from '../db/client.js';
+import { ConfigService } from './ConfigService.js';
 
 // 类型断言：Prisma Client 已包含这些模型，但 TypeScript 类型可能未及时更新
 const prismaClient = prisma as any;
 
 export type TaskType = 'manual' | 'scheduled';
-export type ScanRangeType = '2weeks' | '1month' | '3months' | '6months' | 'custom';
+export type ScanRangeType = '1day' | '3days' | '7days' | '2weeks' | '1month' | '3months' | '6months' | 'custom';
 
 export interface ScanTask {
   id: number;
@@ -178,10 +179,23 @@ export class ScanTaskService {
   }
 
   /**
-   * 获取预定义的默认任务列表
+   * 获取预定义的默认任务列表（根据仓库配置动态生成）
    */
-  getDefaultTasks(): Omit<CreateScanTaskParams, 'enabled'>[] {
-    return [
+  async getDefaultTasks(): Promise<Omit<CreateScanTaskParams, 'enabled'>[]> {
+    const configService = new ConfigService();
+    const repositories = await configService.getEnabledRepositories();
+    
+    // 为每个仓库生成一个手动任务
+    const repositoryTasks: Omit<CreateScanTaskParams, 'enabled'>[] = repositories.map(repo => ({
+      name: repo.name,
+      description: `手动同步仓库 ${repo.name} 的提交记录`,
+      taskType: 'manual',
+      scanRangeType: '7days', // 默认近1周
+      repositoryIds: [repo.id]
+    }));
+
+    // 保留原有的通用扫描任务
+    const commonTasks: Omit<CreateScanTaskParams, 'enabled'>[] = [
       {
         name: '扫描近2周代码提交数据',
         description: '扫描最近2周的代码提交记录',
@@ -213,6 +227,79 @@ export class ScanTaskService {
         scanRangeType: 'custom'
       }
     ];
+
+    // 先返回仓库任务，再返回通用任务
+    return [...repositoryTasks, ...commonTasks];
+  }
+
+  /**
+   * 同步默认任务到数据库（确保每个仓库都有对应的手动任务）
+   */
+  async syncDefaultRepositoryTasks(): Promise<void> {
+    const configService = new ConfigService();
+    const repositories = await configService.getEnabledRepositories();
+    
+    for (const repo of repositories) {
+      // 检查是否已存在该仓库的手动任务（通过 repositoryIds 匹配）
+      const existingTask = await prismaClient.scanTask.findFirst({
+        where: {
+          taskType: 'manual',
+          repositoryIds: JSON.stringify([repo.id])
+        }
+      });
+
+      if (!existingTask) {
+        // 如果不存在，创建默认任务
+        const now = BigInt(Date.now());
+        await prismaClient.scanTask.create({
+          data: {
+            name: repo.name,
+            description: `手动同步仓库 ${repo.name} 的提交记录`,
+            taskType: 'manual',
+            scanRangeType: '7days', // 默认近1周
+            repositoryIds: JSON.stringify([repo.id]),
+            enabled: true,
+            createdAt: now,
+            updatedAt: now
+          }
+        });
+      } else {
+        // 如果存在，更新任务名称和描述（仓库名称可能变化）
+        const now = BigInt(Date.now());
+        await prismaClient.scanTask.update({
+          where: { id: existingTask.id },
+          data: {
+            name: repo.name,
+            description: `手动同步仓库 ${repo.name} 的提交记录`,
+            updatedAt: now
+          }
+        });
+      }
+    }
+
+    // 清理已删除或禁用的仓库的任务
+    const allTasks = await prismaClient.scanTask.findMany({
+      where: {
+        taskType: 'manual',
+        repositoryIds: { not: null }
+      }
+    });
+
+    for (const task of allTasks) {
+      if (task.repositoryIds) {
+        const repoIds = JSON.parse(task.repositoryIds) as string[];
+        if (repoIds.length === 1) {
+          const repoId = repoIds[0];
+          const repoExists = repositories.some(r => r.id === repoId);
+          if (!repoExists) {
+            // 仓库已删除或禁用，删除对应的任务
+            await prismaClient.scanTask.delete({
+              where: { id: task.id }
+            });
+          }
+        }
+      }
+    }
   }
 
   /**

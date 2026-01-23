@@ -98,6 +98,12 @@ const TasksList: React.FC = () => {
   // 获取扫描范围显示文本
   const getScanRangeText = (task: ScanTask) => {
     switch (task.scanRangeType) {
+      case '1day':
+        return '近1天';
+      case '3days':
+        return '近3天';
+      case '7days':
+        return '近7天';
       case '2weeks':
         return '近2周';
       case '1month':

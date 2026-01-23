@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ConfigService } from '../services/ConfigService.js';
 import { RepositoryService } from '../services/RepositoryService.js';
 import { DataMetricsConfigService } from '../services/DataMetricsConfigService.js';
+import { ScanTaskService } from '../services/ScanTaskService.js';
 import { logger } from '../config/logger.js';
 import { restartScheduler } from '../jobs/scanScheduler.js';
 import type { WorkStatus } from '../config/workStatus.config.js';
@@ -13,6 +14,7 @@ const app = new Hono();
 const configService = new ConfigService();
 const repositoryService = new RepositoryService();
 const dataMetricsConfigService = new DataMetricsConfigService();
+const taskService = new ScanTaskService();
 
 // Schema 定义
 const CreateRepositorySchema = z.object({
@@ -63,6 +65,11 @@ app.post('/repositories', zValidator('json', CreateRepositorySchema), async (c) 
       enabled: data.enabled
     });
 
+    // 如果仓库启用，同步创建对应的默认手动任务
+    if (data.enabled) {
+      await taskService.syncDefaultRepositoryTasks();
+    }
+
     const config = await configService.getRepositoryConfig(data.id);
     return c.json({ data: config }, 201);
   } catch (error) {
@@ -87,6 +94,11 @@ app.put('/repositories/:id', zValidator('json', UpdateRepositorySchema), async (
         updatedAt: now
       }
     });
+
+    // 同步默认仓库任务（如果仓库名称或启用状态变化）
+    if (data.name !== undefined || data.enabled !== undefined) {
+      await taskService.syncDefaultRepositoryTasks();
+    }
 
     const config = await configService.getRepositoryConfig(repoId);
     return c.json({ data: config });

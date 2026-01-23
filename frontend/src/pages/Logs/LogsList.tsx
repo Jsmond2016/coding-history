@@ -28,7 +28,7 @@ const MODULE_OPTIONS = [
 ]
 
 const LogsList: React.FC = () => {
-  const [activeTab, setActiveTab] = React.useState("server")
+  const [activeTab, setActiveTab] = React.useState("request")
   const [loading, setLoading] = React.useState(false)
 
   // 服务器日志

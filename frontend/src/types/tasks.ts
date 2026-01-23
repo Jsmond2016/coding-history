@@ -1,5 +1,5 @@
 export type TaskType = 'manual' | 'scheduled';
-export type ScanRangeType = '2weeks' | '1month' | '3months' | '6months' | 'custom';
+export type ScanRangeType = '1day' | '3days' | '7days' | '2weeks' | '1month' | '3months' | '6months' | 'custom';
 
 export interface ScanTask {
   id: number;

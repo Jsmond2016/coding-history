@@ -11,6 +11,8 @@ const taskService = new ScanTaskService();
 // 获取所有任务列表
 app.get('/', async (c) => {
   try {
+    // 同步默认仓库任务（确保每个仓库都有对应的手动任务）
+    await taskService.syncDefaultRepositoryTasks();
     const tasks = await taskService.getAllTasks();
     return c.json(tasks);
   } catch (error) {
@@ -23,7 +25,7 @@ app.get('/', async (c) => {
 // 获取预定义默认任务列表
 app.get('/default', async (c) => {
   try {
-    const defaultTasks = taskService.getDefaultTasks();
+    const defaultTasks = await taskService.getDefaultTasks();
     return c.json(defaultTasks);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

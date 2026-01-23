@@ -49,7 +49,7 @@ export const CreateScanTaskSchema = z.object({
   taskType: z.enum(['manual', 'scheduled'], {
     errorMap: () => ({ message: '任务类型必须是 manual 或 scheduled' })
   }),
-  scanRangeType: z.enum(['2weeks', '1month', '3months', '6months', 'custom'], {
+  scanRangeType: z.enum(['1day', '3days', '7days', '2weeks', '1month', '3months', '6months', 'custom'], {
     errorMap: () => ({ message: '扫描范围类型无效' })
   }),
   startDate: z.number().optional(),
@@ -64,7 +64,7 @@ export const UpdateScanTaskSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   taskType: z.enum(['manual', 'scheduled']).optional(),
-  scanRangeType: z.enum(['2weeks', '1month', '3months', '6months', 'custom']).optional(),
+  scanRangeType: z.enum(['1day', '3days', '7days', '2weeks', '1month', '3months', '6months', 'custom']).optional(),
   startDate: z.number().optional(),
   endDate: z.number().optional(),
   cronExpression: z.string().optional(),
