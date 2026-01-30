@@ -2,6 +2,20 @@
 
 一个全栈 Web 应用，用于统计和展示多个本地 Git 仓库的提交记录。
 
+
+## 预览
+
+<table>
+  <tr>
+    <td><img src="./docs/imgs/image-1.png" alt="预览图1" /></td>
+    <td><img src="./docs/imgs/image-2.png" alt="预览图2" /></td>
+  </tr>
+  <tr>
+    <td><img src="./docs/imgs/image-3.png" alt="预览图3" /></td>
+    <td><img src="./docs/imgs/image-4.png" alt="预览图4" /></td>
+  </tr>
+</table>
+
 ## 技术栈
 
 ### 后端
