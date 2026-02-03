@@ -17,7 +17,7 @@ const columns: ColumnsType<Commit> = [
     title: '分支',
     dataIndex: 'branch',
     width: 120,
-    render: (branch: string) => branch ? <span style={{ color: '#1890ff' }}>{branch}</span> : '-'
+    render: (branch: string) => branch ? <span className="text-[#1890ff]">{branch}</span> : '-'
   },
   {
     title: '提交Hash',
@@ -49,14 +49,14 @@ const columns: ColumnsType<Commit> = [
     dataIndex: 'insertions',
     width: 100,
     align: 'right',
-    render: (val: number) => <span style={{ color: '#52c41a' }}>+{val}</span>
+    render: (val: number) => <span className="text-[#52c41a]">+{val}</span>
   },
   {
     title: '删除行数',
     dataIndex: 'deletions',
     width: 100,
     align: 'right',
-    render: (val: number) => <span style={{ color: '#ff4d4f' }}>-{val}</span>
+    render: (val: number) => <span className="text-[#ff4d4f]">-{val}</span>
   }
 ];
 

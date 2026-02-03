@@ -45,17 +45,17 @@ interface CommitsByDateListProps {
 
 export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, loading }) => {
   if (loading) {
-    return <div style={{ padding: 24, textAlign: 'center' }}>加载中...</div>;
+    return <div className="p-6 text-center">加载中...</div>;
   }
 
   if (!data || data.length === 0) {
-    return <div style={{ padding: 24, textAlign: 'center' }}>暂无数据</div>;
+    return <div className="p-6 text-center">暂无数据</div>;
   }
 
   return (
     <Collapse 
       defaultActiveKey={[data[0]?.date]} 
-      style={{ background: '#fff' }}
+      className="bg-white"
     >
       {data.map((dateGroup) => {
         const { date, commits, totalCommits, overtimeCount, latestOvertimeCommits, workStatus, hasRelease, repositories, branches } = dateGroup;
@@ -89,7 +89,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
             key={date}
             header={
               <Space size="large" wrap>
-                <Text strong style={{ fontSize: 16 }}>
+                <Text strong className="text-base">
                   {dayjs(date).format('YYYY年MM月DD日 dddd')}
                 </Text>
                 <Text type="secondary">
@@ -99,7 +99,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                 <Tooltip title={workStatusTips[workStatus]}>
                   <Tag color={workStatusColors[workStatus]}>
                     {workStatusLabels[workStatus]}
-                    <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 10 }} />
+                    <QuestionCircleOutlined className="ml-1 text-[10px]" />
                   </Tag>
                 </Tooltip>
                 {hasRelease && (
@@ -139,10 +139,10 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                   <Tooltip 
                     title={
                       <div>
-                        <div style={{ marginBottom: 8, fontWeight: 'bold' }}>加班提交时间：</div>
+                        <div className="mb-2 font-bold">加班提交时间：</div>
                         {latestOvertimeCommits && latestOvertimeCommits.length > 0 ? (
                           latestOvertimeCommits.map((time, idx) => (
-                            <div key={idx} style={{ marginBottom: 4 }}>• {time}</div>
+                            <div key={idx} className="mb-1">• {time}</div>
                           ))
                         ) : (
                           <div>暂无数据</div>
@@ -153,7 +153,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                     <Tag 
                       color="red" 
                       icon={<ClockCircleOutlined />}
-                      style={{ cursor: 'pointer' }}
+                      className="cursor-pointer"
                     >
                       又加班 ({overtimeCount}次)
                     </Tag>
@@ -163,7 +163,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
             }
           >
             {commits.length === 0 ? (
-              <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>
+              <div className="p-6 text-center text-gray-400">
                 该日期暂无提交记录
               </div>
             ) : (
@@ -179,7 +179,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                       tab={
                         <span>
                           {repoName}
-                          <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                          <Text type="secondary" className="ml-2 text-xs">
                             ({totalRepoCommits})
                           </Text>
                         </span>
@@ -191,7 +191,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                         defaultActiveKey={defaultBranchKey} 
                         type="line"
                         size="small"
-                        style={{ marginTop: 8 }}
+                        className="mt-2"
                       >
                         {branchNames.map((branch) => {
                           const branchCommits = repoBranches[branch];
@@ -203,30 +203,23 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                               tab={
                                 <span>
                                   🌿 {branchDisplayName}
-                                  <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                                  <Text type="secondary" className="ml-2 text-xs">
                                     ({branchCommits.length})
                                   </Text>
                                 </span>
                               }
                               key={branch}
                             >
-                              <div style={{ maxHeight: shouldScroll ? 500 : 'auto', overflowY: 'auto', marginTop: 8 }}>
+                              <div className={`${shouldScroll ? 'max-h-[500px] overflow-y-auto' : ''} mt-2`}>
                                 {branchCommits.map((commit) => (
                                   <div
                                     key={commit.id}
-                                    style={{
-                                      padding: '12px 16px',
-                                      marginLeft: 16,
-                                      borderLeft: '3px solid #1890ff',
-                                      marginBottom: 8,
-                                      backgroundColor: '#fafafa',
-                                      borderRadius: 4
-                                    }}
+                                    className="py-3 px-4 ml-4 border-l-[3px] border-l-[#1890ff] mb-2 bg-[#fafafa] rounded"
                                   >
                                     <Space direction="vertical" size={4} style={{ width: '100%' }}>
                                       <Space size="middle" wrap>
                                         <Text code>{commit.commitHash?.substring(0, 7) || '-'}</Text>
-                                        <Text style={{ color: '#1890ff', fontWeight: 500 }}>
+                                        <Text className="text-[#1890ff] font-medium">
                                           {dayjs(commit.commitDate).format('HH:mm:ss')}
                                         </Text>
                                         {commit.branch && (
@@ -237,16 +230,16 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                                         )}
                                       </Space>
                                       
-                                      <Text style={{ fontSize: 14 }}>{commit.message}</Text>
+                                      <Text className="text-sm">{commit.message}</Text>
                                       
                                       <Space size="large">
                                         <Text type="secondary">
                                           文件变更: {commit.filesChanged}
                                         </Text>
-                                        <Text style={{ color: '#52c41a', fontWeight: 500 }}>
+                                        <Text className="text-[#52c41a] font-medium">
                                           +{commit.insertions}
                                         </Text>
-                                        <Text style={{ color: '#ff4d4f', fontWeight: 500 }}>
+                                        <Text className="text-[#ff4d4f] font-medium">
                                           -{commit.deletions}
                                         </Text>
                                       </Space>

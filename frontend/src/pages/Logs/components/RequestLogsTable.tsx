@@ -127,7 +127,7 @@ const RequestLogsTable: React.FC<RequestLogsTableProps> = ({ data, loading, pagi
             <Popover
               title="请求体"
               content={
-                <pre style={{ maxWidth: 500, maxHeight: 300, overflow: 'auto', margin: 0 }}>
+                <pre className="max-w-[500px] max-h-[300px] overflow-auto m-0">
                   {record.requestBody}
                 </pre>
               }
@@ -140,7 +140,7 @@ const RequestLogsTable: React.FC<RequestLogsTableProps> = ({ data, loading, pagi
             <Popover
               title="响应体"
               content={
-                <pre style={{ maxWidth: 500, maxHeight: 300, overflow: 'auto', margin: 0 }}>
+                <pre className="max-w-[500px] max-h-[300px] overflow-auto m-0">
                   {record.responseBody}
                 </pre>
               }

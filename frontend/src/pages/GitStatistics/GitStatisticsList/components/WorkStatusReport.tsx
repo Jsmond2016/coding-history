@@ -45,7 +45,7 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
               <span>
                 轻松天数
                 <Tooltip title="当日提交次数 < 6 次，且无加班记录">
-                  <QuestionCircleOutlined style={{ marginLeft: 4, color: '#999', fontSize: 12 }} />
+                  <QuestionCircleOutlined className="ml-1 text-gray-400 text-xs" />
                 </Tooltip>
               </span>
             }
@@ -60,7 +60,7 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
               <span>
                 忙碌天数
                 <Tooltip title="当日提交次数 >= 10 次且 < 15 次，或 >= 15 次且 < 20 次（疯狂）">
-                  <QuestionCircleOutlined style={{ marginLeft: 4, color: '#999', fontSize: 12 }} />
+                  <QuestionCircleOutlined className="ml-1 text-gray-400 text-xs" />
                 </Tooltip>
               </span>
             }
@@ -86,8 +86,8 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
   // 如果没有数据，显示空状态
   if (!data || data.length === 0) {
     return (
-      <Card title="提交次数趋势" style={{ marginBottom: 24 }}>
-        <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>
+      <Card title="提交次数趋势" className="mb-6">
+        <div className="p-6 text-center text-gray-400">
           暂无数据
         </div>
       </Card>
@@ -147,8 +147,8 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
   };
 
   return (
-    <Card title="提交次数趋势" style={{ marginBottom: 24 }}>
-      <div style={{ height: 300 }}>
+    <Card title="提交次数趋势" className="mb-6">
+      <div className="h-[300px]">
         <Line {...commitsLineConfig} />
       </div>
     </Card>

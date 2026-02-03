@@ -21,7 +21,6 @@ import {
 import { gitStatisticsApi } from "../../../services/gitStatisticsApi"
 import type { CommitsByDate } from "../../../types/gitStatistics"
 import { ScanProvider } from "../../../biz/contexts/ScanContext"
-import { useLayoutContext } from "../../../biz/contexts/LayoutContext"
 import { useScan } from "../../../biz/hooks/useScan"
 
 const { Header } = Layout
@@ -34,7 +33,6 @@ const GitStatisticsList: React.FC = () => {
   const [hasSearched, setHasSearched] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
-  const { collapsed } = useLayoutContext()
   const { scanning, handleScan } = useScan()
 
   // 加载数据
@@ -100,46 +98,34 @@ const GitStatisticsList: React.FC = () => {
 
   return (
     <ScanProvider onScanComplete={handleSearch}>
-      <Header 
-        style={{ 
-          background: '#fff', 
-          padding: '0 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          position: 'fixed',
-          top: 0,
-          left: collapsed ? 80 : 200,
-          right: 0,
-          zIndex: 1000,
-          height: 64
-        }}
-      >
-        <ConfigProvider
-          theme={{
-            token: {
-              colorPrimary: '#ff9800',
-              colorPrimaryHover: '#f57c00',
-              colorPrimaryActive: '#e65100',
-            },
-          }}
+      <div className="h-full flex flex-col overflow-hidden">
+        <Header 
+          className="bg-white px-6 flex items-center justify-end shadow-sm sticky top-0 z-[1000] h-16 shrink-0"
         >
-          <Button 
-            type="primary"
-            icon={<ReloadOutlined />}
-            onClick={handleScan}
-            loading={scanning}
-            disabled={scanning}
+          <ConfigProvider
+            theme={{
+              token: {
+                colorPrimary: '#ff9800',
+                colorPrimaryHover: '#f57c00',
+                colorPrimaryActive: '#e65100',
+              },
+            }}
           >
-            手动扫描
-          </Button>
-        </ConfigProvider>
-      </Header>
-      <div style={{ padding: 24, paddingTop: 88 }}>
-        <Card style={{ marginBottom: 24 }}>
-          <StatisticsFilter onSearch={handleSearch} />
-        </Card>
+            <Button 
+              type="primary"
+              icon={<ReloadOutlined />}
+              onClick={handleScan}
+              loading={scanning}
+              disabled={scanning}
+            >
+              手动扫描
+            </Button>
+          </ConfigProvider>
+        </Header>
+        <div className="flex-1 overflow-auto p-6">
+          <Card className="mb-6">
+            <StatisticsFilter onSearch={handleSearch} />
+          </Card>
 
       {hasSearched ? (
         <>
@@ -168,6 +154,7 @@ const GitStatisticsList: React.FC = () => {
           <Empty description="请选择时间范围和仓库，然后点击搜索按钮查看统计数据" />
         </Card>
       )}
+        </div>
       </div>
     </ScanProvider>
   )

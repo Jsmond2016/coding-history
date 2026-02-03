@@ -204,7 +204,7 @@ const LogsList: React.FC = () => {
       label: "请求访问情况",
       children: (
         <div>
-          <Card style={{ marginBottom: 16 }}>
+          <Card className="mb-4">
             <Space>
               <RangePicker
                 value={requestLogsDateRange}
@@ -278,7 +278,7 @@ const LogsList: React.FC = () => {
       label: "服务器运行情况",
       children: (
         <div>
-          <Card style={{ marginBottom: 16 }}>
+          <Card className="mb-4">
             <Space>
               <RangePicker
                 value={serverLogsDateRange}
@@ -338,7 +338,7 @@ const LogsList: React.FC = () => {
       label: "定时任务执行情况",
       children: (
         <div>
-          <Card style={{ marginBottom: 16 }}>
+          <Card className="mb-4">
             <Space>
               <RangePicker
                 value={taskLogsDateRange}

@@ -7,7 +7,7 @@ export const StatisticsCards: React.FC = () => {
   const statistics = useAtomValue(statisticsAtom);
 
   return (
-    <Card title="代码提交数据" style={{ marginBottom: 24 }}>
+    <Card title="代码提交数据" className="mb-6">
       <Row gutter={16}>
         <Col span={6}>
           <Statistic

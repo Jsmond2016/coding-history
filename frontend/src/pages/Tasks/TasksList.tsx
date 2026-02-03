@@ -229,7 +229,7 @@ const TasksList: React.FC = () => {
 
   return (
     <div>
-      <Card style={{ marginBottom: 16 }}>
+      <Card className="mb-4">
         <Space>
           <Button
             type="primary"

@@ -66,7 +66,7 @@ const ScheduledTaskLogsTable: React.FC<ScheduledTaskLogsTableProps> = ({ data, l
         <Popover
           title="扫描的仓库"
           content={
-            <ul style={{ margin: 0, paddingLeft: 20 }}>
+            <ul className="m-0 pl-5">
               {repositories.map((repo, index) => (
                 <li key={index}>{repo}</li>
               ))}
@@ -112,7 +112,7 @@ const ScheduledTaskLogsTable: React.FC<ScheduledTaskLogsTableProps> = ({ data, l
             <Popover
               title="错误信息"
               content={
-                <pre style={{ maxWidth: 500, maxHeight: 300, overflow: 'auto', margin: 0 }}>
+                <pre className="max-w-[500px] max-h-[300px] overflow-auto m-0">
                   {record.errorMessage}
                 </pre>
               }
