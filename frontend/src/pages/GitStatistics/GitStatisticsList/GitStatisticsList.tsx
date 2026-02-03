@@ -1,7 +1,8 @@
 import React from "react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { useMount } from "ahooks"
-import { message, Empty, Spin } from "antd"
+import { message, Empty, Spin, Layout, Button, ConfigProvider } from "antd"
+import { ReloadOutlined } from "@ant-design/icons"
 import { Card } from "antd"
 import { StatisticsFilter } from "./components/StatisticsFilter"
 import { StatisticsCards } from "./components/StatisticsCards"
@@ -19,6 +20,11 @@ import {
 } from "../../../biz/atoms/gitStatistics.atom"
 import { gitStatisticsApi } from "../../../services/gitStatisticsApi"
 import type { CommitsByDate } from "../../../types/gitStatistics"
+import { ScanProvider } from "../../../biz/contexts/ScanContext"
+import { useLayoutContext } from "../../../biz/contexts/LayoutContext"
+import { useScan } from "../../../biz/hooks/useScan"
+
+const { Header } = Layout
 
 const GitStatisticsList: React.FC = () => {
   const filter = useAtomValue(filterAtom)
@@ -28,6 +34,8 @@ const GitStatisticsList: React.FC = () => {
   const [hasSearched, setHasSearched] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
+  const { collapsed } = useLayoutContext()
+  const { scanning, handleScan } = useScan()
 
   // 加载数据
   const handleSearch = React.useCallback(async (customFilter?: typeof filter) => {
@@ -91,10 +99,47 @@ const GitStatisticsList: React.FC = () => {
   })
 
   return (
-    <div style={{ padding: 24 }}>
-      <Card style={{ marginBottom: 24 }}>
-        <StatisticsFilter onSearch={handleSearch} />
-      </Card>
+    <ScanProvider onScanComplete={handleSearch}>
+      <Header 
+        style={{ 
+          background: '#fff', 
+          padding: '0 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          position: 'fixed',
+          top: 0,
+          left: collapsed ? 80 : 200,
+          right: 0,
+          zIndex: 1000,
+          height: 64
+        }}
+      >
+        <ConfigProvider
+          theme={{
+            token: {
+              colorPrimary: '#ff9800',
+              colorPrimaryHover: '#f57c00',
+              colorPrimaryActive: '#e65100',
+            },
+          }}
+        >
+          <Button 
+            type="primary"
+            icon={<ReloadOutlined />}
+            onClick={handleScan}
+            loading={scanning}
+            disabled={scanning}
+          >
+            手动扫描
+          </Button>
+        </ConfigProvider>
+      </Header>
+      <div style={{ padding: 24, paddingTop: 88 }}>
+        <Card style={{ marginBottom: 24 }}>
+          <StatisticsFilter onSearch={handleSearch} />
+        </Card>
 
       {hasSearched ? (
         <>
@@ -123,7 +168,8 @@ const GitStatisticsList: React.FC = () => {
           <Empty description="请选择时间范围和仓库，然后点击搜索按钮查看统计数据" />
         </Card>
       )}
-    </div>
+      </div>
+    </ScanProvider>
   )
 }
 
