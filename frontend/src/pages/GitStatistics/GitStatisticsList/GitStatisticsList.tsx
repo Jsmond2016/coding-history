@@ -100,7 +100,8 @@ const GitStatisticsList: React.FC = () => {
     <ScanProvider onScanComplete={handleSearch}>
       <div className="h-full flex flex-col overflow-hidden">
         <Header 
-          className="bg-white px-6 flex items-center justify-end shadow-sm sticky top-0 z-[1000] h-16 shrink-0"
+          className="flex px-0 items-center justify-end shadow-sm sticky top-0 z-[1000] h-16 shrink-0"
+          style={{ background: '#fff', paddingRight: '12px' }}
         >
           <ConfigProvider
             theme={{
@@ -122,13 +123,13 @@ const GitStatisticsList: React.FC = () => {
             </Button>
           </ConfigProvider>
         </Header>
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto py-3 mt-3">
           <Card className="mb-6">
             <StatisticsFilter onSearch={handleSearch} />
           </Card>
 
       {hasSearched ? (
-        <>
+        <div className='my-3'>
           {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
           <Row gutter={16}>
             <Col span={12}>
@@ -148,7 +149,7 @@ const GitStatisticsList: React.FC = () => {
               <CommitsByDateList data={commitsByDate} loading={loading} />
             </Spin>
           </Card>
-        </>
+        </div>
       ) : (
         <Card>
           <Empty description="请选择时间范围和仓库，然后点击搜索按钮查看统计数据" />

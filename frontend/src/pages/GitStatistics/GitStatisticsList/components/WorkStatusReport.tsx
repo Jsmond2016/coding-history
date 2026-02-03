@@ -86,7 +86,7 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
   // 如果没有数据，显示空状态
   if (!data || data.length === 0) {
     return (
-      <Card title="提交次数趋势" className="mb-6">
+      <Card title="提交次数趋势" className="my-3">
         <div className="p-6 text-center text-gray-400">
           暂无数据
         </div>
