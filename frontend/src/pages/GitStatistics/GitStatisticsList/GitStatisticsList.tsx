@@ -1,9 +1,8 @@
 import React from "react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { useMount } from "ahooks"
-import { message, Empty, Spin, Layout, Button, ConfigProvider } from "antd"
+import { message, Empty, Spin, Layout, Button, ConfigProvider, Card, Row, Col } from "antd"
 import { ReloadOutlined } from "@ant-design/icons"
-import { Card } from "antd"
 import { StatisticsFilter } from "./components/StatisticsFilter"
 import { StatisticsCards } from "./components/StatisticsCards"
 import {
@@ -11,7 +10,6 @@ import {
   WorkStatusCards,
 } from "./components/WorkStatusReport"
 import { CommitsByDateList } from "./components/CommitsByDateList"
-import { Row, Col } from "antd"
 import {
   filterAtom,
   statisticsAtom,
@@ -107,8 +105,7 @@ const GitStatisticsList: React.FC = () => {
     <ScanProvider onScanComplete={handleSearch}>
       <div className="h-full flex flex-col overflow-hidden">
         <Header
-          className="flex px-0 items-center justify-end shadow-sm sticky top-0 z-[1000] h-16 shrink-0"
-          style={{ background: "#fff", paddingRight: "12px" }}
+          className="flex items-center justify-end px-0 shadow-sm sticky top-0 z-[1000] h-16 shrink-0 bg-white pr-3"
         >
           <ConfigProvider
             theme={{
@@ -130,7 +127,7 @@ const GitStatisticsList: React.FC = () => {
             </Button>
           </ConfigProvider>
         </Header>
-        <div className="flex-1 overflow-auto py-3 mt-3">
+        <div className="flex-1 overflow-auto p-3 mt-3">
           <Card className="mb-6">
             <StatisticsFilter onSearch={handleSearch} />
           </Card>
@@ -138,11 +135,11 @@ const GitStatisticsList: React.FC = () => {
           {hasSearched ? (
             <div className="my-3">
               {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
-              <Row gutter={16} className="mb-3" style={{ marginLeft: 0, marginRight: 0 }}>
-                <Col span={12}>
+              <Row gutter={16} className="mb-3 !mx-0">
+                <Col span={12} className='!pl-0'>
                   <StatisticsCards />
                 </Col>
-                <Col span={12}>
+                <Col span={12} className='!pr-0'>
                   <WorkStatusCards data={commitsByDate} />
                 </Col>
               </Row>
@@ -151,7 +148,10 @@ const GitStatisticsList: React.FC = () => {
               <WorkStatusReport data={commitsByDate} />
 
               {/* 提交记录列表 */}
-              <Card title="提交记录（按日期分组）" styles={{ body: { padding: '12px' } }}>
+              <Card
+                title="提交记录（按日期分组）"
+                className="[&_.ant-card-body]:p-3"
+              >
                 <Spin spinning={loading}>
                   <CommitsByDateList data={commitsByDate} loading={loading} />
                 </Spin>

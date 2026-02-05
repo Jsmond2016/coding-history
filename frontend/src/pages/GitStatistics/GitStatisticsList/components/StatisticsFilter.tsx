@@ -1,10 +1,14 @@
-import React from 'react';
-import { Space, DatePicker, Select, Button, message } from 'antd';
-import { SearchOutlined, UndoOutlined } from '@ant-design/icons';
-import { useAtom } from 'jotai';
-import dayjs, { type Dayjs } from 'dayjs';
-import { filterAtom, repositoriesAtom, authorsAtom } from '../../../../biz/atoms/gitStatistics.atom';
-import type { Repository, Author } from '../../../../types/gitStatistics';
+import React from "react"
+import { Space, DatePicker, Select, Button, message } from "antd"
+import { SearchOutlined, UndoOutlined } from "@ant-design/icons"
+import { useAtom } from "jotai"
+import dayjs, { type Dayjs } from "dayjs"
+import {
+  filterAtom,
+  repositoriesAtom,
+  authorsAtom,
+} from "../../../../biz/atoms/gitStatistics.atom"
+import type { Repository, Author } from "../../../../types/gitStatistics"
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -21,9 +25,9 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
   const handleDateChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
     if (!dates || !dates[0] || !dates[1]) return;
     
-    const diffYears = dates[1].diff(dates[0], 'year', true);
+    const diffYears = dates[1].diff(dates[0], "year", true);
     if (diffYears > 2) {
-      message.error('时间范围不能超过2年');
+      message.error("时间范围不能超过2年");
       return;
     }
     
@@ -36,24 +40,24 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
   // 重置筛选条件
   const handleReset = () => {
     const resetFilter = {
-      dateRange: [dayjs().subtract(1, 'month'), dayjs()] as [Dayjs, Dayjs],
+      dateRange: [dayjs().subtract(1, "month"), dayjs()] as [Dayjs, Dayjs],
       repositoryIds: [] as string[],
       authorEmails: [] as string[],
       isOvertime: undefined as boolean | undefined
     };
     setFilter(resetFilter);
-    message.success('已重置筛选条件');
+    message.success("已重置筛选条件");
     // 重置后立即使用新的 filter 值触发搜索
     onSearch(resetFilter);
   };
 
   // DatePicker 预设范围
   const rangePresets = [
-    { label: '最近一周', value: [dayjs().subtract(7, 'day'), dayjs()] as [Dayjs, Dayjs] },
-    { label: '最近一个月', value: [dayjs().subtract(1, 'month'), dayjs()] as [Dayjs, Dayjs] },
-    { label: '最近三个月', value: [dayjs().subtract(3, 'month'), dayjs()] as [Dayjs, Dayjs] },
-    { label: '最近半年', value: [dayjs().subtract(6, 'month'), dayjs()] as [Dayjs, Dayjs] },
-    { label: '最近一年', value: [dayjs().subtract(1, 'year'), dayjs()] as [Dayjs, Dayjs] },
+    { label: "最近一周", value: [dayjs().subtract(7, "day"), dayjs()] as [Dayjs, Dayjs] },
+    { label: "最近一个月", value: [dayjs().subtract(1, "month"), dayjs()] as [Dayjs, Dayjs] },
+    { label: "最近三个月", value: [dayjs().subtract(3, "month"), dayjs()] as [Dayjs, Dayjs] },
+    { label: "最近半年", value: [dayjs().subtract(6, "month"), dayjs()] as [Dayjs, Dayjs] },
+    { label: "最近一年", value: [dayjs().subtract(1, "year"), dayjs()] as [Dayjs, Dayjs] },
   ];
 
   return (
@@ -64,7 +68,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         format="YYYY-MM-DD"
         allowClear={false}
         presets={rangePresets}
-        style={{ width: 280 }}
+        className="w-70"
       />
       
       <Select
@@ -72,7 +76,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         placeholder="选择仓库（默认全部）"
         value={filter.repositoryIds}
         onChange={(ids) => setFilter({ ...filter, repositoryIds: ids })}
-        style={{ minWidth: 240 }}
+        className="min-w-60"
         allowClear
         maxTagCount="responsive"
       >
@@ -88,7 +92,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         placeholder="选择作者（默认全部）"
         value={filter.authorEmails}
         onChange={(emails) => setFilter({ ...filter, authorEmails: emails })}
-        style={{ minWidth: 160 }}
+        className="min-w-40"
         allowClear
         maxTagCount="responsive"
       >
@@ -105,10 +109,10 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         onChange={(value) => {
           setFilter({
             ...filter,
-            isOvertime: value === null || value === undefined ? undefined : value
-          });
+            isOvertime: value === null || value === undefined ? undefined : value,
+          })
         }}
-        style={{ width: 150 }}
+        className="w-37.5"
         allowClear
       >
         <Option value={true}>仅加班</Option>

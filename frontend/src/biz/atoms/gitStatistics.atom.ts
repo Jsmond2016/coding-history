@@ -1,5 +1,12 @@
-import { atom } from 'jotai';
-import dayjs, { type Dayjs } from 'dayjs';
+import { atom } from "jotai"
+import dayjs, { type Dayjs } from "dayjs"
+import type {
+  Repository,
+  Author,
+  StatisticsByRepository,
+  StatisticsByDate,
+  Commit,
+} from "../../types/gitStatistics"
 
 export interface FilterState {
   dateRange: [Dayjs, Dayjs];
@@ -10,7 +17,7 @@ export interface FilterState {
 
 // 默认筛选条件：最近一个月
 export const defaultFilterState: FilterState = {
-  dateRange: [dayjs().subtract(1, 'month'), dayjs()],
+  dateRange: [dayjs().subtract(1, "month"), dayjs()],
   repositoryIds: [],
   authorEmails: [],
   isOvertime: undefined
@@ -19,13 +26,13 @@ export const defaultFilterState: FilterState = {
 export const filterAtom = atom<FilterState>(defaultFilterState);
 
 export interface CommitsTableState {
-  data: any[];
-  loading: boolean;
+  data: Commit[]
+  loading: boolean
   pagination: {
-    current: number;
-    pageSize: number;
-    total: number;
-  };
+    current: number
+    pageSize: number
+    total: number
+  }
 }
 
 export const commitsTableAtom = atom<CommitsTableState>({
@@ -39,12 +46,12 @@ export const commitsTableAtom = atom<CommitsTableState>({
 });
 
 export interface StatisticsState {
-  totalCommits: number;
-  totalInsertions: number;
-  totalDeletions: number;
-  totalFilesChanged: number;
-  byRepository: any[];
-  byDate: any[];
+  totalCommits: number
+  totalInsertions: number
+  totalDeletions: number
+  totalFilesChanged: number
+  byRepository: StatisticsByRepository[]
+  byDate: StatisticsByDate[]
 }
 
 export const statisticsAtom = atom<StatisticsState>({
@@ -56,7 +63,7 @@ export const statisticsAtom = atom<StatisticsState>({
   byDate: []
 });
 
-export const repositoriesAtom = atom<any[]>([]);
+export const repositoriesAtom = atom<Repository[]>([])
 
-export const authorsAtom = atom<any[]>([]);
+export const authorsAtom = atom<Author[]>([])
 

@@ -82,7 +82,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           />
         </Sider>
         <Layout className={"h-screen overflow-hidden"}>
-          <Content className="h-full overflow-auto px-3 bg-white">
+          <Content className="h-full overflow-auto bg-white">
             {children}
           </Content>
         </Layout>

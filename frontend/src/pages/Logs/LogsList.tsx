@@ -12,20 +12,19 @@ import type {
   RequestLog,
   ScheduledTaskLog,
   LogsQueryParams,
+  ServerLogType,
+  ScheduledTaskStatus,
 } from "../../types/logs"
+import {
+  MODULE_OPTIONS,
+  STATUS_CODE_OPTIONS,
+  LOG_TYPE_OPTIONS,
+  TASK_STATUS_OPTIONS,
+  PAGINATION,
+} from "../../config/constants"
 
 const { RangePicker } = DatePicker
 const { Option } = Select
-
-// 模块选项
-const MODULE_OPTIONS = [
-  { label: "repositories", value: "repositories" },
-  { label: "commits", value: "commits" },
-  { label: "logs", value: "logs" },
-  { label: "tasks", value: "tasks" },
-  { label: "config", value: "config" },
-  { label: "statistics", value: "statistics" },
-]
 
 const LogsList: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState("request")
@@ -35,9 +34,9 @@ const LogsList: React.FC = () => {
   const [serverLogs, setServerLogs] = React.useState<ServerLog[]>([])
   const [serverLogsTotal, setServerLogsTotal] = React.useState(0)
   const [serverLogsPage, setServerLogsPage] = React.useState(1)
-  const [serverLogsPageSize, setServerLogsPageSize] = React.useState(20)
+  const [serverLogsPageSize, setServerLogsPageSize] = React.useState(PAGINATION.DEFAULT_PAGE_SIZE)
   const [serverLogsType, setServerLogsType] = React.useState<
-    string | undefined
+    ServerLogType | undefined
   >()
   const [serverLogsDateRange, setServerLogsDateRange] = React.useState<
     [Dayjs, Dayjs] | null
@@ -47,7 +46,7 @@ const LogsList: React.FC = () => {
   const [requestLogs, setRequestLogs] = React.useState<RequestLog[]>([])
   const [requestLogsTotal, setRequestLogsTotal] = React.useState(0)
   const [requestLogsPage, setRequestLogsPage] = React.useState(1)
-  const [requestLogsPageSize, setRequestLogsPageSize] = React.useState(20)
+  const [requestLogsPageSize, setRequestLogsPageSize] = React.useState(PAGINATION.DEFAULT_PAGE_SIZE)
   const [requestLogsStatusCode, setRequestLogsStatusCode] = React.useState<
     number | undefined
   >()
@@ -62,16 +61,16 @@ const LogsList: React.FC = () => {
   const [taskLogs, setTaskLogs] = React.useState<ScheduledTaskLog[]>([])
   const [taskLogsTotal, setTaskLogsTotal] = React.useState(0)
   const [taskLogsPage, setTaskLogsPage] = React.useState(1)
-  const [taskLogsPageSize, setTaskLogsPageSize] = React.useState(20)
+  const [taskLogsPageSize, setTaskLogsPageSize] = React.useState(PAGINATION.DEFAULT_PAGE_SIZE)
   const [taskLogsStatus, setTaskLogsStatus] = React.useState<
-    string | undefined
+    ScheduledTaskStatus | undefined
   >()
   const [taskLogsDateRange, setTaskLogsDateRange] = React.useState<
     [Dayjs, Dayjs] | null
   >(null)
 
   // 加载服务器日志
-  const loadServerLogs = useMemoizedFn(async (page = 1, pageSize = 20) => {
+  const loadServerLogs = useMemoizedFn(async (page = PAGINATION.DEFAULT_PAGE, pageSize = PAGINATION.DEFAULT_PAGE_SIZE) => {
     setLoading(true)
     try {
       const params: LogsQueryParams = {
@@ -89,7 +88,7 @@ const LogsList: React.FC = () => {
       }
 
       if (serverLogsType) {
-        params.type = serverLogsType as any
+        params.type = serverLogsType
       }
 
       const result = await logsApi.getServerLogs(params)
@@ -106,7 +105,7 @@ const LogsList: React.FC = () => {
   })
 
   // 加载请求日志
-  const loadRequestLogs = useMemoizedFn(async (page = 1, pageSize = 20) => {
+  const loadRequestLogs = useMemoizedFn(async (page = PAGINATION.DEFAULT_PAGE, pageSize = PAGINATION.DEFAULT_PAGE_SIZE) => {
     setLoading(true)
     try {
       const params: LogsQueryParams = {
@@ -145,7 +144,7 @@ const LogsList: React.FC = () => {
   })
 
   // 加载定时任务日志
-  const loadTaskLogs = useMemoizedFn(async (page = 1, pageSize = 20) => {
+  const loadTaskLogs = useMemoizedFn(async (page = PAGINATION.DEFAULT_PAGE, pageSize = PAGINATION.DEFAULT_PAGE_SIZE) => {
     setLoading(true)
     try {
       const params: LogsQueryParams = {
@@ -159,7 +158,7 @@ const LogsList: React.FC = () => {
       }
 
       if (taskLogsStatus) {
-        params.status = taskLogsStatus as any
+        params.status = taskLogsStatus
       }
 
       const result = await logsApi.getScheduledTaskLogs(params)
@@ -215,7 +214,7 @@ const LogsList: React.FC = () => {
               />
               <Select
                 placeholder="选择模块"
-                style={{ width: 150 }}
+                className="w-37.5"
                 allowClear
                 value={requestLogsModule}
                 onChange={setRequestLogsModule}
@@ -228,16 +227,16 @@ const LogsList: React.FC = () => {
               </Select>
               <Select
                 placeholder="选择状态码"
-                style={{ width: 150 }}
+                className="w-37.5"
                 allowClear
                 value={requestLogsStatusCode}
                 onChange={setRequestLogsStatusCode}
               >
-                <Option value={200}>200 OK</Option>
-                <Option value={400}>400 Bad Request</Option>
-                <Option value={401}>401 Unauthorized</Option>
-                <Option value={404}>404 Not Found</Option>
-                <Option value={500}>500 Server Error</Option>
+                {STATUS_CODE_OPTIONS.map((option) => (
+                  <Option key={option.value} value={option.value}>
+                    {option.label}
+                  </Option>
+                ))}
               </Select>
               <Button
                 type="primary"
@@ -289,14 +288,16 @@ const LogsList: React.FC = () => {
               />
               <Select
                 placeholder="选择类型"
-                style={{ width: 150 }}
+                className="w-37.5"
                 allowClear
                 value={serverLogsType}
                 onChange={setServerLogsType}
               >
-                <Option value="start">启动</Option>
-                <Option value="stop">关闭</Option>
-                <Option value="error">异常</Option>
+                {LOG_TYPE_OPTIONS.map((option) => (
+                  <Option key={option.value} value={option.value}>
+                    {option.label}
+                  </Option>
+                ))}
               </Select>
               <Button
                 type="primary"
@@ -349,13 +350,16 @@ const LogsList: React.FC = () => {
               />
               <Select
                 placeholder="选择状态"
-                style={{ width: 150 }}
+                className="w-37.5"
                 allowClear
                 value={taskLogsStatus}
                 onChange={setTaskLogsStatus}
               >
-                <Option value="success">成功</Option>
-                <Option value="failed">失败</Option>
+                {TASK_STATUS_OPTIONS.map((option) => (
+                  <Option key={option.value} value={option.value}>
+                    {option.label}
+                  </Option>
+                ))}
               </Select>
               <Button
                 type="primary"
