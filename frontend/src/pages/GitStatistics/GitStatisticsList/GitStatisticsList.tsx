@@ -36,56 +36,63 @@ const GitStatisticsList: React.FC = () => {
   const { scanning, handleScan } = useScan()
 
   // 加载数据
-  const handleSearch = React.useCallback(async (customFilter?: typeof filter) => {
-    // 使用传入的 filter 或当前的 filter
-    const currentFilter = customFilter || filter;
-    // 开始时间设为当天的 0:00:00.000，结束时间设为当天的 23:59:59.999
-    // dayjs 的 startOf/endOf 使用本地时间，valueOf() 返回 UTC 时间戳
-    const startDate = currentFilter.dateRange[0].startOf("day").valueOf()
-    const endDate = currentFilter.dateRange[1].endOf("day").valueOf()
-    const repositoryIds =
-      currentFilter.repositoryIds.length > 0 ? currentFilter.repositoryIds : undefined
-    const authorEmails =
-      currentFilter.authorEmails.length > 0 ? currentFilter.authorEmails : undefined
-    const isOvertime = currentFilter.isOvertime
+  const handleSearch = React.useCallback(
+    async (customFilter?: typeof filter) => {
+      // 使用传入的 filter 或当前的 filter
+      const currentFilter = customFilter || filter
+      // 开始时间设为当天的 0:00:00.000，结束时间设为当天的 23:59:59.999
+      // dayjs 的 startOf/endOf 使用本地时间，valueOf() 返回 UTC 时间戳
+      const startDate = currentFilter.dateRange[0].startOf("day").valueOf()
+      const endDate = currentFilter.dateRange[1].endOf("day").valueOf()
+      const repositoryIds =
+        currentFilter.repositoryIds.length > 0
+          ? currentFilter.repositoryIds
+          : undefined
+      const authorEmails =
+        currentFilter.authorEmails.length > 0
+          ? currentFilter.authorEmails
+          : undefined
+      const isOvertime = currentFilter.isOvertime
 
-    setLoading(true)
-    setHasSearched(true)
+      setLoading(true)
+      setHasSearched(true)
 
-    try {
-      // 并行加载提交记录和统计数据
-      const [commitsByDateResult, statisticsResult] = await Promise.all([
-        gitStatisticsApi.getCommitsByDate({
-          startDate,
-          endDate,
-          repositoryIds,
-          authorEmails,
-          isOvertime,
-        }),
-        gitStatisticsApi.getStatistics({
-          startDate,
-          endDate,
-          repositoryIds,
-          authorEmails,
-        }),
-      ])
+      try {
+        // 并行加载提交记录和统计数据
+        const [commitsByDateResult, statisticsResult] = await Promise.all([
+          gitStatisticsApi.getCommitsByDate({
+            startDate,
+            endDate,
+            repositoryIds,
+            authorEmails,
+            isOvertime,
+          }),
+          gitStatisticsApi.getStatistics({
+            startDate,
+            endDate,
+            repositoryIds,
+            authorEmails,
+          }),
+        ])
 
-      setCommitsByDate(commitsByDateResult.data)
-      setStatistics(statisticsResult)
-    } catch (error) {
-      console.error("[Frontend] Search error:", error)
-      message.error("加载数据失败")
-    } finally {
-      setLoading(false)
-    }
-  }, [filter, setStatistics])
+        setCommitsByDate(commitsByDateResult.data)
+        setStatistics(statisticsResult)
+      } catch (error) {
+        console.error("[Frontend] Search error:", error)
+        message.error("加载数据失败")
+      } finally {
+        setLoading(false)
+      }
+    },
+    [filter, setStatistics]
+  )
 
   // 加载仓库列表和作者列表
   useMount(async () => {
     try {
       const [repos, authors] = await Promise.all([
         gitStatisticsApi.getRepositories(),
-        gitStatisticsApi.getAuthors()
+        gitStatisticsApi.getAuthors(),
       ])
       setRepositories(repos)
       setAuthors(authors)
@@ -99,20 +106,20 @@ const GitStatisticsList: React.FC = () => {
   return (
     <ScanProvider onScanComplete={handleSearch}>
       <div className="h-full flex flex-col overflow-hidden">
-        <Header 
+        <Header
           className="flex px-0 items-center justify-end shadow-sm sticky top-0 z-[1000] h-16 shrink-0"
-          style={{ background: '#fff', paddingRight: '12px' }}
+          style={{ background: "#fff", paddingRight: "12px" }}
         >
           <ConfigProvider
             theme={{
               token: {
-                colorPrimary: '#ff9800',
-                colorPrimaryHover: '#f57c00',
-                colorPrimaryActive: '#e65100',
+                colorPrimary: "#ff9800",
+                colorPrimaryHover: "#f57c00",
+                colorPrimaryActive: "#e65100",
               },
             }}
           >
-            <Button 
+            <Button
               type="primary"
               icon={<ReloadOutlined />}
               onClick={handleScan}
@@ -128,33 +135,33 @@ const GitStatisticsList: React.FC = () => {
             <StatisticsFilter onSearch={handleSearch} />
           </Card>
 
-      {hasSearched ? (
-        <div className='my-3'>
-          {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
-          <Row gutter={16}>
-            <Col span={12}>
-              <StatisticsCards />
-            </Col>
-            <Col span={12}>
-              <WorkStatusCards data={commitsByDate} />
-            </Col>
-          </Row>
+          {hasSearched ? (
+            <div className="my-3">
+              {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
+              <Row gutter={16} className="mb-3">
+                <Col span={12}>
+                  <StatisticsCards />
+                </Col>
+                <Col span={12}>
+                  <WorkStatusCards data={commitsByDate} />
+                </Col>
+              </Row>
 
-          {/* 提交次数趋势图 */}
-          <WorkStatusReport data={commitsByDate} />
+              {/* 提交次数趋势图 */}
+              <WorkStatusReport data={commitsByDate} />
 
-          {/* 提交记录列表 */}
-          <Card title="提交记录（按日期分组）">
-            <Spin spinning={loading}>
-              <CommitsByDateList data={commitsByDate} loading={loading} />
-            </Spin>
-          </Card>
-        </div>
-      ) : (
-        <Card>
-          <Empty description="请选择时间范围和仓库，然后点击搜索按钮查看统计数据" />
-        </Card>
-      )}
+              {/* 提交记录列表 */}
+              <Card title="提交记录（按日期分组）" styles={{ body: { padding: '12px' } }}>
+                <Spin spinning={loading}>
+                  <CommitsByDateList data={commitsByDate} loading={loading} />
+                </Spin>
+              </Card>
+            </div>
+          ) : (
+            <Card>
+              <Empty description="请选择时间范围和仓库，然后点击搜索按钮查看统计数据" />
+            </Card>
+          )}
         </div>
       </div>
     </ScanProvider>
