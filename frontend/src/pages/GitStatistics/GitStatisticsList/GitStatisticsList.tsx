@@ -138,7 +138,7 @@ const GitStatisticsList: React.FC = () => {
           {hasSearched ? (
             <div className="my-3">
               {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
-              <Row gutter={16} className="mb-3">
+              <Row gutter={16} className="mb-3" style={{ marginLeft: 0, marginRight: 0 }}>
                 <Col span={12}>
                   <StatisticsCards />
                 </Col>
