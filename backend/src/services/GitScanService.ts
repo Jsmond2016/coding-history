@@ -82,32 +82,33 @@ export class GitScanService {
   }
 
   /**
-   * 获取待扫描分支列表（过滤 + 顺序）：release 与 master 同时存在时只保留 release；
-   * 非 release 分支若 tip 已在 release 中则跳过；顺序：未上线分支先，release 最后。
+   * 获取待扫描分支列表：release 与 master 同时存在时以 release 为主（不扫 master）；
+   * 只有 master 没有 release 时以 master 为主。非主分支若 tip 已在主分支中则跳过。顺序：未上线分支先，主分支最后。
    */
   private async getBranchesToScan(): Promise<{ releaseRef: string | null; branchesToScan: string[] }> {
     const raw = await this.getAllBranches();
-    const hasRelease = raw.some(b => this.normalizeBranchNameForCompare(b) === 'release');
-    const hasMaster = raw.some(b => this.normalizeBranchNameForCompare(b) === 'master');
+    const releaseRef = raw.find(b => this.normalizeBranchNameForCompare(b) === 'release') ?? null;
+    const masterRef = raw.find(b => this.normalizeBranchNameForCompare(b) === 'master') ?? null;
 
+    const hasRelease = !!releaseRef;
+    const hasMaster = !!masterRef;
     let list = raw;
     if (hasRelease && hasMaster) {
       list = raw.filter(b => this.normalizeBranchNameForCompare(b) !== 'master');
     }
-
-    const releaseRef = list.find(b => this.normalizeBranchNameForCompare(b) === 'release') ?? null;
-    const others = list.filter(b => this.normalizeBranchNameForCompare(b) !== 'release');
+    const mainRef = releaseRef ?? masterRef;
+    const others = list.filter(b => b !== mainRef);
 
     const unreleased: string[] = [];
     for (const branch of others) {
-      if (!releaseRef) {
+      if (!mainRef) {
         unreleased.push(branch);
         continue;
       }
       try {
         const tip = await this.git.revparse([branch]);
         if (!tip || !tip.trim()) continue;
-        const isAncestor = await this.git.raw(['merge-base', '--is-ancestor', tip.trim(), releaseRef]).then(
+        const isAncestor = await this.git.raw(['merge-base', '--is-ancestor', tip.trim(), mainRef]).then(
           () => true,
           () => false
         );
@@ -120,7 +121,7 @@ export class GitScanService {
     }
 
     const branchesToScan = [...unreleased];
-    if (releaseRef) branchesToScan.push(releaseRef);
+    if (mainRef) branchesToScan.push(mainRef);
     return { releaseRef, branchesToScan };
   }
 
