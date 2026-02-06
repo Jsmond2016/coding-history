@@ -95,6 +95,16 @@ export const deleteRepository = async (repoId: string): Promise<void> => {
   await api.delete(`/config/repositories/${repoId}`);
 };
 
+/**
+ * 批量删除仓库配置
+ */
+export const batchDeleteRepositories = async (ids: string[]): Promise<{ success: boolean; deleted: number }> => {
+  const response = await api.post<{ success: boolean; deleted: number }>('/config/repositories/batch-delete', {
+    ids
+  });
+  return response.data;
+};
+
 export interface ScannedRepoItem {
   path: string;
   name: string;

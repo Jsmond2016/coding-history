@@ -123,6 +123,10 @@ const BatchCreateRepositoriesSchema = z.object({
   ignoredBranches: z.array(z.string()).optional()
 });
 
+const BatchDeleteRepositoriesSchema = z.object({
+  ids: z.array(z.string()).min(1, '请选择要删除的仓库')
+});
+
 // 扫描目录下的 Git 仓库
 app.post('/scan-directory', zValidator('json', ScanDirectorySchema), async (c) => {
   try {
@@ -262,15 +266,37 @@ app.put('/repositories/:id', zValidator('json', UpdateRepositorySchema), async (
   }
 });
 
-// 删除仓库配置
+// 批量删除仓库配置（先删该仓库下的提交记录，因 DB 中外键为 ON DELETE RESTRICT）
+app.post('/repositories/batch-delete', zValidator('json', BatchDeleteRepositoriesSchema), async (c) => {
+  try {
+    const { ids } = c.req.valid('json');
+    await prisma.commit.deleteMany({
+      where: { repoId: { in: ids } }
+    });
+    const result = await prisma.repository.deleteMany({
+      where: { id: { in: ids } }
+    });
+    await taskService.syncDefaultRepositoryTasks();
+    return c.json({ success: true, deleted: result.count });
+  } catch (error) {
+    logger.error('Failed to batch delete repositories:', error);
+    return c.json({ error: 'Failed to batch delete repositories' }, 500);
+  }
+});
+
+// 删除仓库配置（先删该仓库下的提交记录，因 DB 中外键为 ON DELETE RESTRICT）
 app.delete('/repositories/:id', async (c) => {
   try {
     const repoId = c.req.param('id');
 
     const { prisma } = await import('../db/client.js');
+    await prisma.commit.deleteMany({
+      where: { repoId }
+    });
     await prisma.repository.delete({
       where: { id: repoId }
     });
+    await taskService.syncDefaultRepositoryTasks();
 
     return c.json({ success: true });
   } catch (error) {

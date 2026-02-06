@@ -18,6 +18,7 @@ import {
   getRepositoriesConfig,
   updateRepository,
   deleteRepository,
+  batchDeleteRepositories,
   type RepositoryConfig
 } from '../../services/configApi';
 import RepositoryForm from './components/RepositoryForm';
@@ -91,10 +92,9 @@ const ConfigList: React.FC = () => {
     if (selectedRowKeys.length === 0) return;
     setDeleting(true);
     try {
-      for (const id of selectedRowKeys) {
-        await deleteRepository(String(id));
-      }
-      message.success(`已删除 ${selectedRowKeys.length} 个仓库`);
+      const ids = selectedRowKeys.map((k) => String(k));
+      await batchDeleteRepositories(ids);
+      message.success(`已删除 ${ids.length} 个仓库`);
       setSelectedRowKeys([]);
       loadRepositories();
     } catch (error) {

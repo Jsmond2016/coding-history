@@ -42,7 +42,7 @@ model Commit {
   branch       String? // 提交所在的分支
   createdAt    BigInt  @map("created_at")
 
-  repository Repository @relation(fields: [repoId], references: [id])
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
 
   @@unique([repoId, commitHash, branch]) // 允许同一个 commit 在不同分支中保存多条记录
   @@index([repoId, commitDate], name: "idx_commits_repo_date")
