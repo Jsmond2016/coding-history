@@ -214,7 +214,7 @@ cd backend
 pnpm dev
 ```
 
-后端服务将在 `http://localhost:3000` 启动。
+后端服务将在 `http://localhost:5188` 启动。
 
 **启动前端：**
 ```bash

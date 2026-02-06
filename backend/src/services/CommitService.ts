@@ -109,10 +109,9 @@ export class CommitService {
           filesChanged: commit.filesChanged,
           insertions: commit.insertions,
           deletions: commit.deletions,
-          branch: commit.branch || null, // 分支名称，如果为 undefined 则设为 null
+          branch: commit.branch || null,
           createdAt: now
-        })),
-        skipDuplicates: true // 跳过重复的记录（基于唯一约束）
+        }))
       });
     } catch (error) {
       // 如果批量插入失败（可能是唯一约束冲突），尝试逐个插入

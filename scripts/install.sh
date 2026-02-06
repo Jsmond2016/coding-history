@@ -43,8 +43,8 @@ case $REPLY in
             echo -e "${GREEN}✓ 安装成功!${NC}"
             echo ""
             echo -e "${GREEN}现在您可以在任何地方使用以下命令:${NC}"
-            echo -e "  ${YELLOW}findport 3000${NC}"
-            echo -e "  ${YELLOW}killport 3000${NC}"
+            echo -e "  ${YELLOW}findport 5188${NC}"
+            echo -e "  ${YELLOW}killport 5188${NC}"
         else
             echo -e "${RED}✗ 安装失败${NC}"
             exit 1
@@ -83,8 +83,8 @@ case $REPLY in
                 echo -e "${YELLOW}然后运行: source ~/.zshrc (或相应的配置文件)${NC}"
             else
                 echo -e "${GREEN}现在您可以在任何地方使用以下命令:${NC}"
-                echo -e "  ${YELLOW}findport 3000${NC}"
-                echo -e "  ${YELLOW}killport 3000${NC}"
+                echo -e "  ${YELLOW}findport 5188${NC}"
+                echo -e "  ${YELLOW}killport 5188${NC}"
             fi
         else
             echo -e "${RED}✗ 安装失败${NC}"
@@ -123,8 +123,8 @@ case $REPLY in
         echo -e "  ${GREEN}source $SHELL_CONFIG${NC}"
         echo ""
         echo -e "${GREEN}然后您就可以使用以下命令:${NC}"
-        echo -e "  ${YELLOW}findport 3000${NC}"
-        echo -e "  ${YELLOW}killport 3000${NC}"
+        echo -e "  ${YELLOW}findport 5188${NC}"
+        echo -e "  ${YELLOW}killport 5188${NC}"
         ;;
     
     4)

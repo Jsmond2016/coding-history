@@ -221,7 +221,7 @@ export const ScanRequestSchema = z.object({
       "repoId": "repo-1",
       "repoName": "项目A",
       "commits": 80,
-      "insertions": 3000,
+      "insertions": 5188,
       "deletions": 1200
     }
   ],
@@ -466,7 +466,7 @@ app.route('/api/v1/statistics', statisticsRoute);
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // 启动服务器
-const port = 3000;
+const port = 5188;
 console.log(`Server is running on port ${port}`);
 
 serve({
@@ -786,7 +786,7 @@ import axios from 'axios';
 import type { CommitsQuery, CommitsResponse, StatisticsResponse } from '../types/gitStatistics';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api/v1',
+  baseURL: 'http://localhost:5188/api/v1',
   timeout: 30000
 });
 
@@ -1004,7 +1004,7 @@ cd backend
 pnpm dev
 ```
 
-后端服务将在 `http://localhost:3000` 启动。
+后端服务将在 `http://localhost:5188` 启动。
 
 ### 9.4 启动前端
 

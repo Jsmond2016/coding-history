@@ -17,8 +17,8 @@ cd /Users/huangjing/Desktop/MyCode/temp/coding-history/scripts
 
 ```bash
 cd /Users/huangjing/Desktop/MyCode/temp/coding-history/scripts
-./findport 3000
-./killport 3000
+./findport 5188
+./killport 5188
 ```
 
 ### 2️⃣ 基本使用
@@ -26,19 +26,19 @@ cd /Users/huangjing/Desktop/MyCode/temp/coding-history/scripts
 #### 查找端口占用
 
 ```bash
-findport 3000
+findport 5188
 ```
 
 #### 关闭端口进程
 
 ```bash
-killport 3000
+killport 5188
 ```
 
 #### 强制关闭
 
 ```bash
-killport 3000 -f
+killport 5188 -f
 ```
 
 ### 3️⃣ 常见场景
@@ -47,10 +47,10 @@ killport 3000 -f
 
 ```bash
 # 步骤 1: 查看是什么占用了端口
-findport 3000
+findport 5188
 
 # 步骤 2: 关闭占用端口的进程
-killport 3000
+killport 5188
 
 # 步骤 3: 重新启动你的服务器
 npm run dev
@@ -60,7 +60,7 @@ npm run dev
 
 ```bash
 # React 前端
-killport 3000
+killport 5188
 
 # Node.js 后端
 killport 5000
@@ -73,9 +73,9 @@ killport 5432
 
 | 命令 | 说明 | 示例 |
 |------|------|------|
-| `findport <port>` | 查找端口占用 | `findport 3000` |
-| `killport <port>` | 关闭端口进程 | `killport 3000` |
-| `killport <port> -f` | 强制关闭 | `killport 3000 -f` |
+| `findport <port>` | 查找端口占用 | `findport 5188` |
+| `killport <port>` | 关闭端口进程 | `killport 5188` |
+| `killport <port> -f` | 强制关闭 | `killport 5188 -f` |
 
 ## ⚠️ 注意事项
 
@@ -98,8 +98,8 @@ alias kp='killport'
 
 ```bash
 source ~/.zshrc
-fp 3000
-kp 3000
+fp 5188
+kp 5188
 ```
 
 ### 技巧 2：一键重启服务
@@ -116,14 +116,14 @@ restart_port() {
 使用：
 
 ```bash
-restart_port 3000
+restart_port 5188
 ```
 
 ### 技巧 3：批量清理端口
 
 ```bash
 # 清理常用开发端口
-for port in 3000 5000 8080 8000; do
+for port in 5188 5000 8080 8000; do
     killport $port -f
 done
 ```
@@ -157,10 +157,10 @@ sudo killport 80
 
 ```bash
 # 使用 sudo 查看所有进程
-sudo findport 3000
+sudo findport 5188
 
 # 手动检查
-lsof -i :3000
+lsof -i :5188
 ```
 
 ## 📚 更多信息

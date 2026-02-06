@@ -156,7 +156,7 @@ async function migrateConfigToDb() {
             taskType: 'scheduled',
             scanRangeType: '2weeks', // 默认2周
             cronExpression: schedule.cron,
-            repositoryIds: null, // 所有仓库
+            repositoryIds: undefined, // 所有仓库
             enabled: true
           });
           logger.info(`[配置迁移] 创建定时任务: ${taskName} (${schedule.cron})`);

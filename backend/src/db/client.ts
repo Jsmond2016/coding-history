@@ -1,9 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client.js';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 
-// 创建 Prisma Client 实例
-// Prisma 7 会自动从 prisma.config.ts 读取配置
-export const prisma = new PrismaClient();
+const adapter = new PrismaBetterSqlite3({
+  url: process.env.DATABASE_URL || 'file:../database/coding-history.db',
+});
 
-// 导出 prisma 作为 db 的别名，保持向后兼容
+export const prisma = new PrismaClient({ adapter });
 export const db = prisma;
 

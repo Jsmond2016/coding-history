@@ -14,11 +14,11 @@ export class RepositoryService {
       id: repo.id,
       name: repo.name,
       path: repo.path,
-      lastScanTime: repo.lastScanTime ? Number(repo.lastScanTime) : null,
-      totalCommits: repo.totalCommits,
-      initialScanToDate: repo.initialScanToDate ? Number(repo.initialScanToDate) : null,
-      createdAt: Number(repo.createdAt),
-      updatedAt: Number(repo.updatedAt)
+      last_scan_time: repo.lastScanTime ? Number(repo.lastScanTime) : null,
+      total_commits: repo.totalCommits,
+      initial_scan_to_date: repo.initialScanToDate ? Number(repo.initialScanToDate) : null,
+      created_at: Number(repo.createdAt),
+      updated_at: Number(repo.updatedAt)
     }));
   }
 
@@ -36,11 +36,11 @@ export class RepositoryService {
       id: repo.id,
       name: repo.name,
       path: repo.path,
-      lastScanTime: repo.lastScanTime ? Number(repo.lastScanTime) : null,
-      totalCommits: repo.totalCommits,
-      initialScanToDate: repo.initialScanToDate ? Number(repo.initialScanToDate) : null,
-      createdAt: Number(repo.createdAt),
-      updatedAt: Number(repo.updatedAt)
+      last_scan_time: repo.lastScanTime ? Number(repo.lastScanTime) : null,
+      total_commits: repo.totalCommits,
+      initial_scan_to_date: repo.initialScanToDate ? Number(repo.initialScanToDate) : null,
+      created_at: Number(repo.createdAt),
+      updated_at: Number(repo.updatedAt)
     };
   }
 

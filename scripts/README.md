@@ -55,23 +55,23 @@ source ~/.zshrc
 查找占用指定端口的进程：
 
 ```bash
-findport 3000
+findport 5188
 ```
 
 **示例输出：**
 
 ```
-正在查找占用端口 3000 的进程...
+正在查找占用端口 5188 的进程...
 
 找到以下进程:
 
 COMMAND    PID      USER     FD       NAME                 NODE
 --------------------------------------------------------------------------------
-node       12345    user     23u      TCP *:3000          (LISTEN)
+node       12345    user     23u      TCP *:5188          (LISTEN)
 
-共找到 1 个进程占用端口 3000
+共找到 1 个进程占用端口 5188
 
-提示: 使用 'killport 3000' 可以关闭这些进程
+提示: 使用 'killport 5188' 可以关闭这些进程
 ```
 
 ### killport - 关闭端口进程
@@ -79,25 +79,25 @@ node       12345    user     23u      TCP *:3000          (LISTEN)
 关闭占用指定端口的进程：
 
 ```bash
-killport 3000
+killport 5188
 ```
 
 **强制关闭（使用 kill -9）：**
 
 ```bash
-killport 3000 -f
+killport 5188 -f
 # 或
-killport 3000 --force
+killport 5188 --force
 ```
 
 **示例输出：**
 
 ```
-正在关闭占用端口 3000 的进程...
+正在关闭占用端口 5188 的进程...
 
 找到以下进程:
 COMMAND    PID      USER     FD       NAME                 NODE
-node       12345    user     23u      TCP *:3000          (LISTEN)
+node       12345    user     23u      TCP *:5188          (LISTEN)
 
 即将关闭 1 个进程
 确认关闭? (y/N): y
@@ -105,7 +105,7 @@ node       12345    user     23u      TCP *:3000          (LISTEN)
 ✓ 成功关闭进程 PID: 12345 (node)
 
 成功关闭所有进程 (1/1)
-端口 3000 已成功释放
+端口 5188 已成功释放
 ```
 
 ## 命令参数
@@ -132,19 +132,19 @@ killport <端口号> [选项]
 ### 场景 1：开发服务器端口被占用
 
 ```bash
-# 查看是什么占用了 3000 端口
-findport 3000
+# 查看是什么占用了 5188 端口
+findport 5188
 
-# 关闭占用 3000 端口的进程
-killport 3000
+# 关闭占用 5188 端口的进程
+killport 5188
 ```
 
 ### 场景 2：多个端口需要清理
 
 ```bash
 # 查找并关闭多个端口
-findport 3000
-killport 3000
+findport 5188
+killport 5188
 
 findport 8080
 killport 8080
@@ -154,10 +154,10 @@ killport 8080
 
 ```bash
 # 尝试正常关闭
-killport 3000
+killport 5188
 
 # 如果失败，强制关闭
-killport 3000 -f
+killport 5188 -f
 ```
 
 ## 特性说明
@@ -231,12 +231,12 @@ sudo killport 80
 
 ```bash
 # 使用 netstat 或 ss 命令确认
-netstat -an | grep 3000
+netstat -an | grep 5188
 # 或
-lsof -i :3000
+lsof -i :5188
 
 # 可能需要 sudo 权限查看所有进程
-sudo findport 3000
+sudo findport 5188
 ```
 
 ## 卸载

@@ -39,8 +39,8 @@ if [ -z "$PORT" ]; then
     echo -e "${YELLOW}选项:${NC}"
     echo -e "${YELLOW}  -f, --force    强制关闭进程 (使用 kill -9)${NC}"
     echo -e "${YELLOW}示例:${NC}"
-    echo -e "${YELLOW}  killport 3000${NC}"
-    echo -e "${YELLOW}  killport 3000 -f${NC}"
+    echo -e "${YELLOW}  killport 5188${NC}"
+    echo -e "${YELLOW}  killport 5188 -f${NC}"
     exit 1
 fi
 

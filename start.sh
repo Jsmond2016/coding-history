@@ -75,7 +75,7 @@ cd ..
 echo ""
 echo "=========================================="
 echo "Git 统计系统已启动！"
-echo "后端服务: http://localhost:3000"
+echo "后端服务: http://localhost:5188"
 echo "前端应用: http://localhost:5173"
 echo "=========================================="
 echo ""

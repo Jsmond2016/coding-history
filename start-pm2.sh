@@ -61,7 +61,7 @@ if [ $? -eq 0 ]; then
     echo "=========================================="
     echo ""
     echo "📊 服务信息:"
-    echo "  后端服务: http://localhost:3000"
+    echo "  后端服务: http://localhost:5188"
     echo "  前端应用: http://localhost:5173"
     echo ""
     echo "📝 常用命令:"
