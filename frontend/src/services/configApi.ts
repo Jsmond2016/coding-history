@@ -64,6 +64,22 @@ export const createRepository = async (params: CreateRepositoryParams): Promise<
   return response.data.data;
 };
 
+export interface BatchCreateRepositoriesParams {
+  repositories: Array<{ id: string; name: string; path: string; enabled?: boolean }>;
+  author?: { name: string; email: string };
+  ignoredBranches?: string[];
+}
+
+/**
+ * 批量创建仓库配置（可同时为所有仓库设置默认作者与忽略分支）
+ */
+export const batchCreateRepositories = async (
+  params: BatchCreateRepositoriesParams
+): Promise<RepositoryConfig[]> => {
+  const response = await api.post<{ data: RepositoryConfig[] }>('/config/repositories/batch', params);
+  return response.data.data;
+};
+
 /**
  * 更新仓库配置
  */

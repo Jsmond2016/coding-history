@@ -11,13 +11,13 @@ import {
   Select
 } from 'antd';
 import { FolderOpenOutlined, SearchOutlined, DeleteOutlined, ArrowLeftOutlined, UserOutlined } from '@ant-design/icons';
+import { useAtom, useStore } from 'jotai';
 import {
   scanDirectoryForRepos,
-  createRepository,
-  createAuthor,
-  createIgnoredBranch,
+  batchCreateRepositories,
   type ScannedRepoItem
 } from '../../../services/configApi';
+import { scannedReposListAtom, type EditableScanItem } from '../../../biz/atoms/scanRepos.atom';
 
 const DEFAULT_IGNORED_BRANCHES = ['develop', 'uat', 'release', 'master'];
 
@@ -27,10 +27,6 @@ interface ScanReposModalProps {
   onSuccess: () => void;
 }
 
-interface EditableScanItem extends ScannedRepoItem {
-  key: string;
-}
-
 type StepType = 'input' | 'preview' | 'settings';
 
 const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSuccess }) => {
@@ -38,7 +34,8 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
   const [step, setStep] = React.useState<StepType>('input');
   const [loading, setLoading] = React.useState(false);
   const [scanning, setScanning] = React.useState(false);
-  const [list, setList] = React.useState<EditableScanItem[]>([]);
+  const [list, setList] = useAtom(scannedReposListAtom);
+  const store = useStore();
   const [form] = Form.useForm<{ authorName: string; authorEmail: string; ignoredBranches: string[] }>();
 
   const handleClose = () => {
@@ -56,7 +53,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
       return;
     }
     setScanning(true);
-    setList([]); // 每次重新扫描前清空上一次结果
+    setList([]);
     try {
       const repos = await scanDirectoryForRepos(path);
       if (repos.length === 0) {
@@ -88,13 +85,14 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
     setList((prev) => prev.filter((item) => item.key !== key));
   };
 
-  /** 从预览进入批量设置步骤 */
+  /** 从预览进入批量设置步骤：校验后进入，保存时从 store 读取当前列表（即用户筛选后的数据） */
   const handleGoToSettings = () => {
-    if (list.length === 0) {
+    const currentList = store.get(scannedReposListAtom);
+    if (currentList.length === 0) {
       message.warning('没有可保存的仓库');
       return;
     }
-    const ids = list.map((r) => r.id);
+    const ids = currentList.map((r) => r.id);
     const uniqueIds = new Set(ids);
     if (uniqueIds.size !== ids.length) {
       message.error('存在重复的仓库 ID，请修改后再保存');
@@ -115,29 +113,27 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
     const branches = Array.isArray(ignoredBranches) && ignoredBranches.length > 0
       ? ignoredBranches
       : DEFAULT_IGNORED_BRANCHES;
+    const currentList = store.get(scannedReposListAtom);
+    if (currentList.length === 0) {
+      message.warning('没有可保存的仓库，请返回预览步骤确认列表');
+      return;
+    }
+
+    const repositories = currentList.map((item) => ({
+      id: item.id,
+      name: item.name,
+      path: item.path,
+      enabled: true
+    }));
 
     setLoading(true);
     try {
-      for (const item of list) {
-        await createRepository({
-          id: item.id,
-          name: item.name,
-          path: item.path,
-          enabled: true
-        });
-        if (authorName?.trim() && authorEmail?.trim()) {
-          await createAuthor(item.id, {
-            name: authorName.trim(),
-            email: authorEmail.trim(),
-            isDefault: true
-          });
-        }
-        for (const branchName of branches) {
-          const name = typeof branchName === 'string' ? branchName.trim() : '';
-          if (name) await createIgnoredBranch(item.id, { branchName: name });
-        }
-      }
-      message.success(`已添加 ${list.length} 个仓库并应用批量设置`);
+      await batchCreateRepositories({
+        repositories,
+        author: { name: authorName, email: authorEmail },
+        ignoredBranches: branches
+      });
+      message.success(`已添加 ${currentList.length} 个仓库并应用批量设置`);
       handleClose();
       onSuccess();
     } catch (e) {
@@ -272,7 +268,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
       {isSettings && (
         <div>
           <Typography.Paragraph type="secondary" className="mb-4">
-            以下设置将应用到本次添加的 {list.length} 个仓库。作者信息可选；忽略分支将默认排除这些分支的提交统计。
+            以下设置将应用到本次添加的 {list.length} 个仓库。作者信息需与 Git 提交一致；忽略分支将默认排除这些分支的提交统计。
           </Typography.Paragraph>
           <Form
             form={form}
@@ -286,20 +282,32 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
             <Form.Item
               label="作者姓名"
               name="authorName"
-              extra="可选，与 Git 提交中的作者一致时用于过滤统计"
+              normalize={(v) => (typeof v === 'string' ? v.trim() : v)}
+              rules={[{ required: true, message: '请输入作者姓名' }]}
+              extra="与 Git 提交中的作者一致时用于过滤统计"
             >
               <Input prefix={<UserOutlined />} placeholder="例如：张三" />
             </Form.Item>
             <Form.Item
               label="作者邮箱"
               name="authorEmail"
-              extra="可选，需与 Git 提交记录中的邮箱一致"
+              normalize={(v) => (typeof v === 'string' ? v.trim() : v)}
+              rules={[
+                { required: true, message: '请输入作者邮箱' },
+                { type: 'email', message: '请输入有效的邮箱格式' }
+              ]}
+              extra="需与 Git 提交记录中的邮箱一致"
             >
               <Input type="email" placeholder="例如：zhangsan@example.com" />
             </Form.Item>
             <Form.Item
               label="忽略分支"
               name="ignoredBranches"
+              normalize={(v) =>
+                Array.isArray(v)
+                  ? v.map((b) => String(b).trim()).filter(Boolean)
+                  : v
+              }
               rules={[{ required: true, message: '请至少保留一个忽略分支' }]}
               extra="这些分支的提交将不参与统计，可增删"
             >

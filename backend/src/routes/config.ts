@@ -105,6 +105,24 @@ const ScanDirectorySchema = z.object({
   rootPath: z.string().min(1, '请输入根目录路径')
 });
 
+const BatchAuthorSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email()
+});
+
+const BatchCreateRepositoriesSchema = z.object({
+  repositories: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      path: z.string(),
+      enabled: z.boolean().default(true)
+    })
+  ),
+  author: BatchAuthorSchema.optional(),
+  ignoredBranches: z.array(z.string()).optional()
+});
+
 // 扫描目录下的 Git 仓库
 app.post('/scan-directory', zValidator('json', ScanDirectorySchema), async (c) => {
   try {
@@ -125,6 +143,65 @@ app.get('/repositories', async (c) => {
   } catch (error) {
     logger.error('Failed to get repositories config:', error);
     return c.json({ error: 'Failed to get repositories config' }, 500);
+  }
+});
+
+// 批量创建仓库配置（支持批量作者与忽略分支，用于扫描仓库后一键保存）
+app.post('/repositories/batch', zValidator('json', BatchCreateRepositoriesSchema), async (c) => {
+  try {
+    const { repositories, author, ignoredBranches } = c.req.valid('json');
+    if (repositories.length === 0) {
+      return c.json({ error: 'repositories 不能为空' }, 400);
+    }
+    const now = BigInt(Date.now());
+
+    for (const repo of repositories) {
+      await repositoryService.upsertRepository({
+        id: repo.id,
+        name: repo.name,
+        path: repo.path,
+        enabled: repo.enabled
+      });
+      if (author?.name && author?.email) {
+        await prisma.author.create({
+          data: {
+            repoId: repo.id,
+            name: author.name.trim(),
+            email: author.email.trim(),
+            isDefault: true,
+            createdAt: now,
+            updatedAt: now
+          }
+        }).catch((err: unknown) => {
+          if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') return;
+          throw err;
+        });
+      }
+      if (Array.isArray(ignoredBranches) && ignoredBranches.length > 0) {
+        for (const branchName of ignoredBranches) {
+          const name = typeof branchName === 'string' ? branchName.trim() : '';
+          if (!name) continue;
+          await prisma.ignoredBranch.create({
+            data: {
+              repoId: repo.id,
+              branchName: name,
+              createdAt: now
+            }
+          }).catch((err: unknown) => {
+            if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') return;
+            throw err;
+          });
+        }
+      }
+    }
+
+    await taskService.syncDefaultRepositoryTasks();
+
+    const configs = await configService.getAllRepositoriesConfig();
+    return c.json({ data: configs }, 201);
+  } catch (error) {
+    logger.error('Failed to batch create repositories:', error);
+    return c.json({ error: 'Failed to batch create repositories' }, 500);
   }
 });
 
