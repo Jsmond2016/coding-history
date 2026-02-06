@@ -1,14 +1,14 @@
 /**
  * 配置迁移脚本
- * 将 repositories.json 配置文件中的数据迁移到数据库
+ * 若存在 config/repositories.json，则将其中的仓库、作者、忽略分支、定时任务迁移到数据库；
+ * 若文件不存在则跳过，可通过前端「配置管理」添加仓库。
  */
 
 import 'dotenv/config';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { prisma } from '../db/client.js';
-import { ConfigService } from '../services/ConfigService.js';
 import { ScanTaskService } from '../services/ScanTaskService.js';
 import { logger } from '../config/logger.js';
 import type { Config } from '../schemas/config.schema.js';
@@ -16,14 +16,18 @@ import type { Config } from '../schemas/config.schema.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const CONFIG_PATH = path.join(__dirname, '../../config/repositories.json');
+
 /**
- * 加载配置文件
+ * 加载配置文件（文件不存在时返回 null）
  */
-function loadConfig(): Config {
-  const configPath = path.join(__dirname, '../../config/repositories.json');
+function loadConfig(): Config | null {
+  if (!existsSync(CONFIG_PATH)) {
+    return null;
+  }
   try {
-    const configContent = readFileSync(configPath, 'utf-8');
-    return JSON.parse(configContent);
+    const configContent = readFileSync(CONFIG_PATH, 'utf-8');
+    return JSON.parse(configContent) as Config;
   } catch (error) {
     logger.error('Failed to load config file:', error);
     throw error;
@@ -48,7 +52,11 @@ async function migrateConfigToDb() {
     logger.info('[配置迁移] 开始迁移配置到数据库...');
 
     const config = loadConfig();
-    const configService = new ConfigService();
+    if (!config) {
+      logger.info('[配置迁移] 配置文件 config/repositories.json 不存在，跳过迁移。可通过前端「配置管理」添加仓库。');
+      return;
+    }
+
     const taskService = new ScanTaskService();
     const now = BigInt(Date.now());
 
