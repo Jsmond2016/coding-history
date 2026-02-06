@@ -122,6 +122,7 @@ const GitStatisticsList: React.FC = () => {
               onClick={handleScan}
               loading={scanning}
               disabled={scanning}
+              className="[&.ant-btn-loading]:!bg-[#ff9800] [&.ant-btn-loading]:!border-[#ff9800] [&.ant-btn-loading]:!opacity-100"
             >
               手动扫描
             </Button>
