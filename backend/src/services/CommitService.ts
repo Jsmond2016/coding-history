@@ -56,50 +56,40 @@ export class CommitService {
   }
 
   /**
-   * 批量插入提交记录（带去重）
-   * 注意：同一个 commit hash 在同一个仓库的同一个分支中只会记录一次（基于 [repoId, commitHash, branch] 唯一约束）
-   * 允许同一个 commit 在不同分支中保存多条记录
+   * 批量插入提交记录（按 repoId + commitHash 去重，同一 commit 只插一次）
+   * 来自未上线分支的写 branch=分支名，来自 release 的写 branch=null
    */
   async batchInsertCommits(repoId: string, commits: ScannedCommit[]): Promise<{ inserted: number; skipped: number }> {
     if (commits.length === 0) return { inserted: 0, skipped: 0 };
 
     const now = BigInt(Date.now());
-    
-    // 查询已存在的 commit（基于 repoId, commitHash 和 branch 去重）
-    // 构建 OR 条件查询所有可能的 commitHash:branch 组合
-    const existingCommits = await prisma.commit.findMany({
-      where: {
-        repoId,
-        OR: commits.map(c => ({
-          commitHash: c.hash,
-          branch: c.branch || null
-        }))
-      },
-      select: {
-        commitHash: true,
-        branch: true
-      }
-    });
+    const uniqueHashes = [...new Set(commits.map(c => c.hash))];
 
-    // 创建已存在的 commit 键集合（repoId:commitHash:branch）
-    const existingKeys = new Set(
-      existingCommits.map(c => `${c.commitHash}:${c.branch || ''}`)
-    );
-    
-    // 过滤出新的提交（基于 commitHash 和 branch 组合）
-    const newCommits = commits.filter(commit => {
-      const key = `${commit.hash}:${commit.branch || ''}`;
-      return !existingKeys.has(key);
+    const existing = await prisma.commit.findMany({
+      where: { repoId, commitHash: { in: uniqueHashes } },
+      select: { commitHash: true }
     });
-    
+    const existingSet = new Set(existing.map(c => c.commitHash));
+    const newCommits = commits.filter(c => !existingSet.has(c.hash));
     if (newCommits.length === 0) {
       return { inserted: 0, skipped: commits.length };
     }
 
-    // 批量插入新提交（允许同一个 commit 在不同分支中保存多条记录）
+    // 同一 hash 可能有多条（来自不同分支），只插一条：取第一条（扫描层已按「优先未上线分支」去重）
+    const byHash = new Map<string, ScannedCommit>();
+    for (const c of newCommits) {
+      if (!byHash.has(c.hash)) byHash.set(c.hash, c);
+    }
+    const toInsert = Array.from(byHash.values());
+
+    const branchForDb = (branch: string | undefined): string | null => {
+      if (!branch || branch === 'release' || branch === 'master') return null;
+      return branch;
+    };
+
     try {
       await prisma.commit.createMany({
-        data: newCommits.map(commit => ({
+        data: toInsert.map(commit => ({
           repoId,
           commitHash: commit.hash,
           authorName: commit.authorName,
@@ -109,15 +99,14 @@ export class CommitService {
           filesChanged: commit.filesChanged,
           insertions: commit.insertions,
           deletions: commit.deletions,
-          branch: commit.branch || null,
+          branch: branchForDb(commit.branch),
           createdAt: now
         }))
       });
     } catch (error) {
-      // 如果批量插入失败（可能是唯一约束冲突），尝试逐个插入
       logger.warn('Batch insert failed, trying individual inserts:', error);
       let inserted = 0;
-      for (const commit of newCommits) {
+      for (const commit of toInsert) {
         try {
           await prisma.commit.create({
             data: {
@@ -130,25 +119,21 @@ export class CommitService {
               filesChanged: commit.filesChanged,
               insertions: commit.insertions,
               deletions: commit.deletions,
-              branch: commit.branch || null,
+              branch: branchForDb(commit.branch),
               createdAt: now
             }
           });
           inserted++;
-        } catch (insertError) {
-          // 忽略重复记录错误
-          logger.debug(`Skipped duplicate commit ${commit.hash} in branch ${commit.branch}`);
+        } catch {
+          logger.debug(`Skipped duplicate commit ${commit.hash}`);
         }
       }
-      return {
-        inserted,
-        skipped: commits.length - inserted
-      };
+      return { inserted, skipped: commits.length - inserted };
     }
 
     return {
-      inserted: newCommits.length,
-      skipped: commits.length - newCommits.length
+      inserted: toInsert.length,
+      skipped: commits.length - toInsert.length
     };
   }
 

@@ -27,7 +27,7 @@ export interface Commit {
   filesChanged: number;
   insertions: number;
   deletions: number;
-  branch?: string; // 提交所在的分支
+  branch?: string | null; // 未上线分支名；null/空表示已上线或来自 release
   createdAt: number;
   isOvertime?: boolean; // 是否加班
   overtimeCommitTimes?: string[]; // 加班提交时间点

@@ -2,6 +2,7 @@ import simpleGit, { SimpleGit } from 'simple-git';
 import * as R from 'ramda';
 import { logger } from '../config/logger.js';
 
+/** 提交时间 date 使用 author date，用于展示与统计的真实提交时间 */
 export interface ScannedCommit {
   hash: string;
   message: string;
@@ -22,27 +23,24 @@ export class GitScanService {
   }
 
   /**
-   * 扫描仓库提交记录（按分支分别扫描，确保多分支提交都能被记录）
+   * 扫描仓库提交记录（按分支分别扫描；先扫未上线分支再扫 release，按 commitHash 去重且优先保留未上线分支名）
    * @param fromDate 起始日期，用于增量扫描
    * @param toDate 结束日期，可选
    * @param authorEmails 作者邮箱数组，用于过滤（支持多个作者）
    */
   async scanRepository(fromDate?: Date, toDate?: Date, authorEmails?: string[]): Promise<ScannedCommit[]> {
     try {
-      // 检查是否为有效的 Git 仓库
       const isRepo = await this.git.checkIsRepo();
       if (!isRepo) {
         throw new Error(`${this.repoPath} is not a valid git repository`);
       }
 
-      // 获取所有本地和远程分支
-      const allBranches = await this.getAllBranches();
-      logger.info(`Found ${allBranches.length} branches in ${this.repoPath}`);
+      const { branchesToScan } = await this.getBranchesToScan();
+      logger.info(`Found ${branchesToScan.length} branches to scan in ${this.repoPath}`);
 
       const allCommits: ScannedCommit[] = [];
 
-      // 为每个分支单独扫描提交
-      for (const branchName of allBranches) {
+      for (const branchName of branchesToScan) {
         try {
           const branchCommits = await this.scanBranch(branchName, fromDate, toDate, authorEmails);
           allCommits.push(...branchCommits);
@@ -50,21 +48,24 @@ export class GitScanService {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           logger.warn(`Failed to scan branch ${branchName}: ${errorMessage}`);
-          // 继续扫描其他分支，不中断整个流程
         }
       }
 
-      // 去重：同一个 commit hash 在同一个分支中只保留一条记录
+      // 按 commitHash 去重，同一 hash 只保留一条；优先保留带「未上线分支」名的条（branch 有值且非 release）
       const uniqueCommitsMap = new Map<string, ScannedCommit>();
       for (const commit of allCommits) {
-        const key = `${commit.hash}:${commit.branch}`;
-        if (!uniqueCommitsMap.has(key)) {
+        const key = commit.hash;
+        const existing = uniqueCommitsMap.get(key);
+        const currentIsUnreleased = commit.branch && commit.branch !== 'release' && commit.branch !== 'master';
+        if (!existing) {
+          uniqueCommitsMap.set(key, commit);
+        } else if (currentIsUnreleased && (!existing.branch || existing.branch === 'release' || existing.branch === 'master')) {
           uniqueCommitsMap.set(key, commit);
         }
       }
 
       const uniqueCommits = Array.from(uniqueCommitsMap.values());
-      logger.info(`Found ${uniqueCommits.length} unique commits (across ${allBranches.length} branches)`);
+      logger.info(`Found ${uniqueCommits.length} unique commits (across ${branchesToScan.length} branches)`);
 
       return uniqueCommits;
     } catch (error) {
@@ -81,6 +82,54 @@ export class GitScanService {
   }
 
   /**
+   * 获取待扫描分支列表（过滤 + 顺序）：release 与 master 同时存在时只保留 release；
+   * 非 release 分支若 tip 已在 release 中则跳过；顺序：未上线分支先，release 最后。
+   */
+  private async getBranchesToScan(): Promise<{ releaseRef: string | null; branchesToScan: string[] }> {
+    const raw = await this.getAllBranches();
+    const hasRelease = raw.some(b => this.normalizeBranchNameForCompare(b) === 'release');
+    const hasMaster = raw.some(b => this.normalizeBranchNameForCompare(b) === 'master');
+
+    let list = raw;
+    if (hasRelease && hasMaster) {
+      list = raw.filter(b => this.normalizeBranchNameForCompare(b) !== 'master');
+    }
+
+    const releaseRef = list.find(b => this.normalizeBranchNameForCompare(b) === 'release') ?? null;
+    const others = list.filter(b => this.normalizeBranchNameForCompare(b) !== 'release');
+
+    const unreleased: string[] = [];
+    for (const branch of others) {
+      if (!releaseRef) {
+        unreleased.push(branch);
+        continue;
+      }
+      try {
+        const tip = await this.git.revparse([branch]);
+        if (!tip || !tip.trim()) continue;
+        const isAncestor = await this.git.raw(['merge-base', '--is-ancestor', tip.trim(), releaseRef]).then(
+          () => true,
+          () => false
+        );
+        if (!isAncestor) {
+          unreleased.push(branch);
+        }
+      } catch {
+        unreleased.push(branch);
+      }
+    }
+
+    const branchesToScan = [...unreleased];
+    if (releaseRef) branchesToScan.push(releaseRef);
+    return { releaseRef, branchesToScan };
+  }
+
+  /** 用于比较的分支名：去掉 origin/ 前缀，便于判断 release/master */
+  private normalizeBranchNameForCompare(branchName: string): string {
+    return branchName.replace(/^origin\//, '').trim();
+  }
+
+  /**
    * 获取所有分支（本地和远程）
    * 返回格式：本地分支直接返回名称，远程分支返回 origin/branchName 格式
    */
@@ -88,37 +137,22 @@ export class GitScanService {
     try {
       const localBranches = await this.git.branchLocal();
       const remoteBranches = await this.git.branch(['-r']);
-      
       const branches = new Set<string>();
-      
-      // 添加本地分支
+
       for (const branch of localBranches.all) {
         if (!branch.includes('HEAD') && !branch.includes('->')) {
           branches.add(branch);
         }
       }
-      
-      // 添加远程分支（保留 origin/branchName 格式，以便直接扫描）
       for (const branch of remoteBranches.all) {
         if (!branch.includes('HEAD') && !branch.includes('->')) {
-          // 规范化远程分支名称：remotes/origin/feature/xxx -> origin/feature/xxx
-          const normalized = branch
-            .replace(/^remotes\//, ''); // 只移除 remotes/ 前缀，保留 origin/
+          const normalized = branch.replace(/^remotes\//, '');
           branches.add(normalized);
-          
-          // 同时添加简化名称（用于显示和存储）
-          const simpleName = normalized.replace(/^origin\//, '');
-          if (simpleName !== normalized) {
-            // 如果简化名称与本地分支不同，也添加（用于存储）
-            // 注意：这里不直接添加到 branches Set，因为我们需要用 origin/xxx 格式来扫描
-          }
         }
       }
-      
       return Array.from(branches);
     } catch (error) {
       logger.warn(`Failed to get all branches: ${error}`);
-      // 如果获取分支失败，尝试使用当前分支
       try {
         const currentBranch = await this.git.branch();
         return currentBranch.current ? [currentBranch.current] : [];

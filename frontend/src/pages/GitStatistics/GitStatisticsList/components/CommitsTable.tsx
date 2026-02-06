@@ -1,9 +1,9 @@
 import React from 'react';
 import { Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom } from 'jotai';
 import dayjs from 'dayjs';
-import { commitsTableAtom, filterAtom } from '../../../../biz/atoms/gitStatistics.atom';
+import { commitsTableAtom } from '../../../../biz/atoms/gitStatistics.atom';
 import type { Commit } from '../../../../types/gitStatistics';
 
 const columns: ColumnsType<Commit> = [
@@ -17,7 +17,8 @@ const columns: ColumnsType<Commit> = [
     title: '分支',
     dataIndex: 'branch',
     width: 120,
-    render: (branch: string) => branch ? <span className="text-[#1890ff]">{branch}</span> : '-'
+    render: (branch: string | null | undefined) =>
+      branch ? <span className="text-[#1890ff]">{branch}</span> : <span className="text-gray-400">已上线</span>
   },
   {
     title: '提交Hash',

@@ -39,12 +39,12 @@ model Commit {
   filesChanged Int     @default(0) @map("files_changed")
   insertions   Int     @default(0)
   deletions    Int     @default(0)
-  branch       String? // 提交所在的分支
+  branch       String? // 未上线分支名（仅当 commit 来自未上线分支时写入；来自 release 为 null）
   createdAt    BigInt  @map("created_at")
 
   repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
 
-  @@unique([repoId, commitHash, branch]) // 允许同一个 commit 在不同分支中保存多条记录
+  @@unique([repoId, commitHash]) // 同一 commit 只存一行；branch 仅对未上线分支写入
   @@index([repoId, commitDate], name: "idx_commits_repo_date")
   @@index([authorEmail, commitDate], name: "idx_commits_author")
   @@index([commitDate], name: "idx_commits_date")
