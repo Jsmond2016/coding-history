@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import fs from 'node:fs';
+import path from 'node:path';
 import { ConfigService } from '../services/ConfigService.js';
 import { RepositoryService } from '../services/RepositoryService.js';
 import { DataMetricsConfigService } from '../services/DataMetricsConfigService.js';
@@ -9,6 +11,65 @@ import { logger } from '../config/logger.js';
 import { restartScheduler } from '../jobs/scanScheduler.js';
 import type { WorkStatus } from '../config/workStatus.config.js';
 import { prisma } from '../db/client.js';
+
+const MAX_SCAN_DEPTH = 10;
+
+/** 将字符串转为 kebab-case，用于仓库 id */
+function toKebabId(name: string): string {
+  return name
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .toLowerCase()
+    .replace(/^-|-$/g, '') || 'repo';
+}
+
+/** 判断目录是否为 Git 仓库（包含 .git 且为目录） */
+function isGitRepository(dirPath: string): boolean {
+  try {
+    const gitPath = path.join(dirPath, '.git');
+    return fs.existsSync(gitPath) && fs.statSync(gitPath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** 扫描目录下所有 Git 仓库（递归子目录，限制深度） */
+function scanDirectoryForGitRepos(rootPath: string): { path: string; name: string; id: string }[] {
+  const resolvedRoot = path.resolve(rootPath);
+  if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) {
+    return [];
+  }
+  const results: { path: string; name: string; id: string }[] = [];
+
+  function walk(currentPath: string, depth: number): void {
+    if (depth > MAX_SCAN_DEPTH) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(currentPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      const fullPath = path.join(currentPath, entry.name);
+      if (isGitRepository(fullPath)) {
+        results.push({
+          path: fullPath,
+          name: entry.name,
+          id: toKebabId(entry.name)
+        });
+        // 已是 Git 仓库，不再深入其内部
+      } else {
+        // 非 Git 仓库，递归扫描子目录
+        walk(fullPath, depth + 1);
+      }
+    }
+  }
+
+  walk(resolvedRoot, 0);
+  return results;
+}
 
 const app = new Hono();
 const configService = new ConfigService();
@@ -38,6 +99,22 @@ const CreateAuthorSchema = z.object({
 
 const CreateIgnoredBranchSchema = z.object({
   branchName: z.string()
+});
+
+const ScanDirectorySchema = z.object({
+  rootPath: z.string().min(1, '请输入根目录路径')
+});
+
+// 扫描目录下的 Git 仓库
+app.post('/scan-directory', zValidator('json', ScanDirectorySchema), async (c) => {
+  try {
+    const { rootPath } = c.req.valid('json');
+    const repos = scanDirectoryForGitRepos(rootPath);
+    return c.json({ data: repos });
+  } catch (error) {
+    logger.error('Failed to scan directory:', error);
+    return c.json({ error: '扫描目录失败' }, 500);
+  }
 });
 
 // 获取所有仓库配置

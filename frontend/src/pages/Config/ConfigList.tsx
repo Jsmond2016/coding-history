@@ -8,7 +8,8 @@ import {
   ReloadOutlined,
   DatabaseOutlined,
   BarChartOutlined,
-  SyncOutlined
+  SyncOutlined,
+  FolderOpenOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -24,6 +25,7 @@ import AuthorsManager from './components/AuthorsManager';
 import IgnoredBranchesManager from './components/IgnoredBranchesManager';
 import DataMetricsConfig from './components/DataMetricsConfig';
 import ManualSyncModal from './components/ManualSyncModal';
+import ScanReposModal from './components/ScanReposModal';
 
 const { Panel } = Collapse;
 
@@ -36,6 +38,7 @@ const ConfigList: React.FC = () => {
   const [authorsModalOpen, setAuthorsModalOpen] = React.useState(false);
   const [branchesModalOpen, setBranchesModalOpen] = React.useState(false);
   const [syncModalOpen, setSyncModalOpen] = React.useState(false);
+  const [scanReposModalOpen, setScanReposModalOpen] = React.useState(false);
   const [editingRepoForAuthors, setEditingRepoForAuthors] = React.useState<RepositoryConfig | undefined>();
   const [editingRepoForBranches, setEditingRepoForBranches] = React.useState<RepositoryConfig | undefined>();
   const [syncingRepo, setSyncingRepo] = React.useState<RepositoryConfig | undefined>();
@@ -282,6 +285,12 @@ const ConfigList: React.FC = () => {
                 刷新
               </Button>
               <Button
+                icon={<FolderOpenOutlined />}
+                onClick={() => setScanReposModalOpen(true)}
+              >
+                扫描仓库
+              </Button>
+              <Button
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={handleCreate}
@@ -415,6 +424,13 @@ const ConfigList: React.FC = () => {
           }}
         />
       )}
+
+      {/* 扫描仓库弹窗 */}
+      <ScanReposModal
+        open={scanReposModalOpen}
+        onClose={() => setScanReposModalOpen(false)}
+        onSuccess={loadRepositories}
+      />
     </div>
   );
 };

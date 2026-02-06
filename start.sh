@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # Git 统计系统启动脚本
+# 启用 job control，使后台任务拥有独立进程组，便于 Ctrl+C 时一并退出
+set -m
 
 echo "正在启动 Git 统计系统..."
 
@@ -34,19 +36,22 @@ else
     echo ""
 fi
 
-# 清理函数：确保所有子进程都被终止
+# 清理函数：向进程组发送 SIGTERM，确保前后端及其子进程一并退出
 cleanup() {
   echo ""
   echo "正在停止服务..."
-  if [ ! -z "$BACKEND_PID" ]; then
-    # 终止后端进程及其所有子进程
-    pkill -P $BACKEND_PID 2>/dev/null
-    kill $BACKEND_PID 2>/dev/null
+  if [ -n "$BACKEND_PID" ]; then
+    kill -TERM -"$BACKEND_PID" 2>/dev/null || kill -TERM "$BACKEND_PID" 2>/dev/null
   fi
-  if [ ! -z "$FRONTEND_PID" ]; then
-    # 终止前端进程及其所有子进程
-    pkill -P $FRONTEND_PID 2>/dev/null
-    kill $FRONTEND_PID 2>/dev/null
+  if [ -n "$FRONTEND_PID" ]; then
+    kill -TERM -"$FRONTEND_PID" 2>/dev/null || kill -TERM "$FRONTEND_PID" 2>/dev/null
+  fi
+  sleep 1
+  if [ -n "$BACKEND_PID" ]; then
+    kill -9 -"$BACKEND_PID" 2>/dev/null || kill -9 "$BACKEND_PID" 2>/dev/null
+  fi
+  if [ -n "$FRONTEND_PID" ]; then
+    kill -9 -"$FRONTEND_PID" 2>/dev/null || kill -9 "$FRONTEND_PID" 2>/dev/null
   fi
   echo "服务已停止"
   exit 0

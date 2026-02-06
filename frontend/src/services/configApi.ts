@@ -79,6 +79,20 @@ export const deleteRepository = async (repoId: string): Promise<void> => {
   await api.delete(`/config/repositories/${repoId}`);
 };
 
+export interface ScannedRepoItem {
+  path: string;
+  name: string;
+  id: string;
+}
+
+/**
+ * 扫描目录下的 Git 仓库
+ */
+export const scanDirectoryForRepos = async (rootPath: string): Promise<ScannedRepoItem[]> => {
+  const response = await api.post<{ data: ScannedRepoItem[] }>('/config/scan-directory', { rootPath });
+  return response.data.data;
+};
+
 /**
  * 获取仓库作者列表
  */
