@@ -42,6 +42,8 @@ const ConfigList: React.FC = () => {
   const [editingRepoForAuthors, setEditingRepoForAuthors] = React.useState<RepositoryConfig | undefined>();
   const [editingRepoForBranches, setEditingRepoForBranches] = React.useState<RepositoryConfig | undefined>();
   const [syncingRepo, setSyncingRepo] = React.useState<RepositoryConfig | undefined>();
+  const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([]);
+  const [deleting, setDeleting] = React.useState(false);
 
   // 加载仓库配置列表
   const loadRepositories = React.useCallback(async () => {
@@ -81,6 +83,24 @@ const ConfigList: React.FC = () => {
       loadRepositories();
     } catch (error) {
       message.error('删除仓库失败');
+    }
+  };
+
+  // 批量删除选中的仓库
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) return;
+    setDeleting(true);
+    try {
+      for (const id of selectedRowKeys) {
+        await deleteRepository(String(id));
+      }
+      message.success(`已删除 ${selectedRowKeys.length} 个仓库`);
+      setSelectedRowKeys([]);
+      loadRepositories();
+    } catch (error) {
+      message.error('批量删除失败');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -277,6 +297,23 @@ const ConfigList: React.FC = () => {
               仓库配置
             </Title>
             <Space>
+              <Popconfirm
+                title={`确定要删除选中的 ${selectedRowKeys.length} 个仓库吗？`}
+                description="删除后相关提交记录仍保留在数据库中，仅移除仓库配置。"
+                onConfirm={handleBatchDelete}
+                okText="确定删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+              >
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={deleting}
+                  disabled={selectedRowKeys.length === 0}
+                >
+                  删除仓库{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ''}
+                </Button>
+              </Popconfirm>
               <Button
                 icon={<ReloadOutlined />}
                 onClick={loadRepositories}
@@ -301,6 +338,10 @@ const ConfigList: React.FC = () => {
           </Flex>
 
           <Table
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys)
+            }}
             columns={columns}
             dataSource={repositories}
             loading={loading}
