@@ -203,27 +203,22 @@ pnpm migrate-config
 
 ```bash
 # 启动服务（后台运行）
-./start-pm2.sh
-# 或
 pnpm start
 
 # 查看服务状态
 pnpm status
-# 或
-pm2 status
 
 # 查看日志
 pnpm logs
-# 或
-pm2 logs
 
 # 停止服务
-./stop-pm2.sh
-# 或
 pnpm stop
 
 # 重启服务
 pnpm restart
+
+# 删除进程
+pnpm delete
 ```
 
 **PM2 启动的优势：**
@@ -422,7 +417,8 @@ cd backend && pnpm clean-logs
 - **数据库文件**: `backend/database/coding-history.db`
 - **日志文件**: `backend/logs/` 和 `frontend/logs/`
 - **PM2 配置**: `ecosystem.config.cjs`
-- **启动脚本**: `start-pm2.sh`, `stop-pm2.sh`, `scripts/pm2-*.sh`
+- **PM2 配置**: `ecosystem.config.cjs`
+- **PM2 管理脚本**: `scripts/pm2-*.sh`
 
 ## 功能特性
 
