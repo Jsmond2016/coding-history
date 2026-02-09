@@ -11,12 +11,15 @@
     "init-scan": "pnpm --filter coding-history-backend init-scan",
     "start": "ENABLE_STARTUP_SCAN=false bash start.sh",
     "start:with-scan": "ENABLE_STARTUP_SCAN=true bash start.sh",
+    "start:bg": "bash start-background.sh",
+    "stop:bg": "bash stop-background.sh",
     "start:pm2": "pm2 start ecosystem.config.cjs",
     "stop:pm2": "pm2 stop ecosystem.config.cjs",
     "restart:pm2": "pm2 restart ecosystem.config.cjs",
     "delete:pm2": "pm2 delete ecosystem.config.cjs",
     "logs:pm2": "pm2 logs",
-    "status:pm2": "pm2 status"
+    "status:pm2": "pm2 status",
+    "reset:pm2": "pm2 kill"
   }
 }
 

@@ -6,5 +6,6 @@ backend/database/*.db
 backend/database/*.db-shm
 backend/database/*.db-wal
 backend/logs/
+.start.pid
 .env
 
