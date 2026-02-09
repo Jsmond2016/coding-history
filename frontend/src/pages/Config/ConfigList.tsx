@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Switch, Modal, Typography, Flex, Tabs } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   PlusOutlined,
@@ -8,7 +8,6 @@ import {
   ReloadOutlined,
   DatabaseOutlined,
   BarChartOutlined,
-  SyncOutlined,
   FolderOpenOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -16,7 +15,6 @@ import dayjs from 'dayjs';
 const { Title } = Typography;
 import {
   getRepositoriesConfig,
-  updateRepository,
   deleteRepository,
   batchDeleteRepositories,
   type RepositoryConfig
@@ -25,7 +23,7 @@ import RepositoryForm from './components/RepositoryForm';
 import AuthorsManager from './components/AuthorsManager';
 import IgnoredBranchesManager from './components/IgnoredBranchesManager';
 import DataMetricsConfig from './components/DataMetricsConfig';
-import ManualSyncModal from './components/ManualSyncModal';
+
 import ScanReposModal from './components/ScanReposModal';
 
 const { Panel } = Collapse;
@@ -38,11 +36,9 @@ const ConfigList: React.FC = () => {
   const [expandedKeys, setExpandedKeys] = React.useState<string[]>([]);
   const [authorsModalOpen, setAuthorsModalOpen] = React.useState(false);
   const [branchesModalOpen, setBranchesModalOpen] = React.useState(false);
-  const [syncModalOpen, setSyncModalOpen] = React.useState(false);
   const [scanReposModalOpen, setScanReposModalOpen] = React.useState(false);
   const [editingRepoForAuthors, setEditingRepoForAuthors] = React.useState<RepositoryConfig | undefined>();
   const [editingRepoForBranches, setEditingRepoForBranches] = React.useState<RepositoryConfig | undefined>();
-  const [syncingRepo, setSyncingRepo] = React.useState<RepositoryConfig | undefined>();
   const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([]);
   const [deleting, setDeleting] = React.useState(false);
 
@@ -104,16 +100,7 @@ const ConfigList: React.FC = () => {
     }
   };
 
-  // 处理启用/禁用仓库
-  const handleToggleEnabled = async (repo: RepositoryConfig) => {
-    try {
-      await updateRepository(repo.id, { enabled: !repo.enabled });
-      message.success(`仓库已${repo.enabled ? '禁用' : '启用'}`);
-      loadRepositories();
-    } catch (error) {
-      message.error('操作失败');
-    }
-  };
+  
 
   // 处理编辑作者
   const handleEditAuthors = (repo: RepositoryConfig) => {
@@ -127,11 +114,7 @@ const ConfigList: React.FC = () => {
     setBranchesModalOpen(true);
   };
 
-  // 处理手动同步
-  const handleManualSync = (repo: RepositoryConfig) => {
-    setSyncingRepo(repo);
-    setSyncModalOpen(true);
-  };
+  
 
   // 表格列定义
   const columns: ColumnsType<RepositoryConfig> = [
@@ -235,19 +218,10 @@ const ConfigList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 280,
+      width: 180,
       fixed: 'right',
       render: (_: any, record: RepositoryConfig) => (
         <Space>
-          <Button
-            type="link"
-            size="small"
-            icon={<SyncOutlined />}
-            onClick={() => handleManualSync(record)}
-            disabled={!record.enabled}
-          >
-            同步
-          </Button>
           <Button
             type="link"
             size="small"
@@ -256,11 +230,6 @@ const ConfigList: React.FC = () => {
           >
             编辑
           </Button>
-          <Switch
-            checked={record.enabled}
-            size="small"
-            onChange={() => handleToggleEnabled(record)}
-          />
           <Popconfirm
             title="确定要删除这个仓库吗？"
             onConfirm={() => handleDelete(record.id)}
@@ -450,21 +419,7 @@ const ConfigList: React.FC = () => {
         )}
       </Modal>
 
-      {/* 手动同步弹窗 */}
-      {syncingRepo && (
-        <ManualSyncModal
-          open={syncModalOpen}
-          repositoryId={syncingRepo.id}
-          repositoryName={syncingRepo.name}
-          onClose={() => {
-            setSyncModalOpen(false);
-            setSyncingRepo(undefined);
-          }}
-          onSuccess={() => {
-            loadRepositories();
-          }}
-        />
-      )}
+      
 
       {/* 扫描仓库弹窗 */}
       <ScanReposModal
