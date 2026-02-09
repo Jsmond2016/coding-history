@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Git 统计系统启动脚本
+# Git 统计系统开发启动脚本
 # 启用 job control，使后台任务拥有独立进程组，便于 Ctrl+C 时一并退出
 set -m
 
-echo "正在启动 Git 统计系统..."
+echo "正在启动 Git 统计系统（开发模式）..."
 
 # 检查 pnpm 是否安装
 if ! command -v pnpm &> /dev/null; then
@@ -79,7 +79,7 @@ cd ..
 
 echo ""
 echo "=========================================="
-echo "Git 统计系统已启动！"
+echo "Git 统计系统已启动！（开发模式）"
 echo "后端服务: http://localhost:5188"
 echo "前端应用: http://localhost:5173"
 echo "=========================================="
@@ -88,4 +88,3 @@ echo "按 Ctrl+C 停止服务"
 
 # 等待所有后台进程，直到收到中断信号
 wait
-

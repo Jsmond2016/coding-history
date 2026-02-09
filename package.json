@@ -5,26 +5,22 @@
   "description": "Git commit statistics application",
   "volta": {
     "node": "20.19.6",
-    "pnpm": "10.15.0",
-    "pm2": "5.4.2"
+    "pnpm": "10.15.0"
   },
   "scripts": {
+    "dev": "ENABLE_STARTUP_SCAN=false bash dev.sh",
     "dev:backend": "pnpm --filter coding-history-backend dev",
     "dev:frontend": "pnpm --filter coding-history-frontend dev",
     "build:backend": "pnpm --filter coding-history-backend build",
     "build:frontend": "pnpm --filter coding-history-frontend build",
     "init-scan": "pnpm --filter coding-history-backend init-scan",
-    "start": "ENABLE_STARTUP_SCAN=false bash start.sh",
-    "start:with-scan": "ENABLE_STARTUP_SCAN=true bash start.sh",
-    "start:bg": "bash start-background.sh",
-    "stop:bg": "bash stop-background.sh",
-    "start:pm2": "pnpm exec pm2 start ecosystem.config.cjs",
-    "stop:pm2": "pnpm exec pm2 stop ecosystem.config.cjs",
-    "restart:pm2": "pnpm exec pm2 restart ecosystem.config.cjs",
-    "delete:pm2": "pnpm exec pm2 delete ecosystem.config.cjs",
-    "logs:pm2": "pnpm exec pm2 logs",
-    "status:pm2": "pnpm exec pm2 status",
-    "reset:pm2": "pnpm exec pm2 kill"
+    "start": "pnpm exec pm2 start ecosystem.config.cjs",
+    "stop": "pnpm exec pm2 stop ecosystem.config.cjs",
+    "restart": "pnpm exec pm2 restart ecosystem.config.cjs",
+    "delete": "pnpm exec pm2 delete ecosystem.config.cjs",
+    "logs": "pnpm exec pm2 logs",
+    "status": "pnpm exec pm2 status",
+    "reset": "pnpm exec pm2 kill"
   },
   "devDependencies": {
     "pm2": "^6.0.14"

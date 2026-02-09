@@ -69,7 +69,6 @@ coding-history/
 - **Node.js**: 20.19.6 (通过 volta 自动管理)
 - **pnpm**: 10.15.0 (通过 volta 自动管理)
 - **Git**: 用于仓库扫描
-- **PM2**: 5.4.2 (通过 volta 自动管理)
 
 #### 安装 Volta 和工具链
 ```bash
@@ -79,7 +78,6 @@ curl https://get.volta.sh | bash
 # 安装项目所需的工具链 (volta 会自动切换到正确版本)
 volta install node@20.19.6
 volta install pnpm@10.15.0
-volta install pm2@5.4.2
 
 # 或者直接在项目目录下运行 (volta 会自动读取 .volta.json 配置)
 volta install
@@ -139,26 +137,7 @@ ENABLE_STARTUP_SCAN=true
   - 设置为 `true`（默认）：如果当前时间匹配定时任务的 cron 表达式，会在启动时立即执行一次扫描
   - 设置为 `false`：只启动定时任务调度器，不会在启动时立即执行扫描，定时任务会按计划执行
 
-#### 启动脚本环境变量
 
-如果使用 `start.sh` 脚本启动项目，可以通过环境变量控制是否执行初始化扫描：
-
-```bash
-# 默认行为：不执行初始化扫描（ENABLE_STARTUP_SCAN 默认为 false）
-./start.sh
-
-# 启用启动时初始化扫描
-ENABLE_STARTUP_SCAN=true ./start.sh
-
-# 或者导出环境变量后启动
-export ENABLE_STARTUP_SCAN=true
-./start.sh
-```
-
-**说明**：
-- `ENABLE_STARTUP_SCAN`: 控制 `start.sh` 脚本是否在启动时执行初始化扫描（`pnpm init-scan`）
-  - 设置为 `true`：启动时会自动执行初始化扫描，同步最近3个月的代码记录
-  - 设置为 `false`（默认）：跳过启动时的初始化扫描，可以稍后手动执行 `pnpm init-scan`
 
 ### 3. 配置仓库
 
@@ -220,33 +199,31 @@ pnpm migrate-config
 
 ### 4. 启动服务
 
-#### 方式一：PM2 后台启动（推荐）
-
 使用 PM2 在后台启动服务，不占用终端窗口：
 
 ```bash
 # 启动服务（后台运行）
 ./start-pm2.sh
 # 或
-pnpm start:pm2
+pnpm start
 
 # 查看服务状态
-pnpm status:pm2
+pnpm status
 # 或
 pm2 status
 
 # 查看日志
-pnpm logs:pm2
+pnpm logs
 # 或
 pm2 logs
 
 # 停止服务
 ./stop-pm2.sh
 # 或
-pnpm stop:pm2
+pnpm stop
 
 # 重启服务
-pnpm restart:pm2
+pnpm restart
 ```
 
 **PM2 启动的优势：**
@@ -254,26 +231,6 @@ pnpm restart:pm2
 - 自动重启（进程崩溃时）
 - 日志管理（输出到文件）
 - 进程监控和管理
-
-#### 方式二：传统方式启动
-
-如果需要在前台运行查看实时日志：
-
-**启动后端：**
-```bash
-cd backend
-pnpm dev
-```
-
-后端服务将在 `http://localhost:5188` 启动。
-
-**启动前端：**
-```bash
-cd frontend
-pnpm dev
-```
-
-前端应用将在 `http://localhost:5173` 启动。
 
 ### 5. 首次使用
 
@@ -307,7 +264,6 @@ cd coding-history
 # 检查工具版本 (volta 会自动管理)
 node --version    # 应该显示 20.19.6
 pnpm --version    # 应该显示 10.15.0
-pm2 --version     # 应该显示 5.4.2
 ```
 
 如果版本不符合要求，请安装 volta 并设置工具链：
@@ -354,14 +310,14 @@ cd ..
 
 #### ✅ 步骤 5: 启动服务
 ```bash
-# 使用 PM2 后台启动（推荐）
-pnpm start:pm2
+# 使用 PM2 后台启动
+pnpm start
 
 # 检查服务状态
-pnpm status:pm2
+pnpm status
 
 # 查看日志确认无错误
-pnpm logs:pm2
+pnpm logs
 ```
 
 #### ✅ 步骤 6: 验证服务
@@ -440,19 +396,19 @@ ENABLE_STARTUP_SCAN=true
 
 ```bash
 # 启动服务
-pnpm start:pm2
+pnpm start
 
 # 停止服务
-pnpm stop:pm2
+pnpm stop
 
 # 重启服务
-pnpm restart:pm2
+pnpm restart
 
 # 查看状态
-pnpm status:pm2
+pnpm status
 
 # 查看日志
-pnpm logs:pm2
+pnpm logs
 
 # 手动扫描
 pnpm init-scan
@@ -466,7 +422,7 @@ cd backend && pnpm clean-logs
 - **数据库文件**: `backend/database/coding-history.db`
 - **日志文件**: `backend/logs/` 和 `frontend/logs/`
 - **PM2 配置**: `ecosystem.config.cjs`
-- **启动脚本**: `start.sh`, `scripts/pm2-*.sh`
+- **启动脚本**: `start-pm2.sh`, `stop-pm2.sh`, `scripts/pm2-*.sh`
 
 ## 功能特性
 
