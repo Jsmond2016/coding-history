@@ -63,12 +63,63 @@ coding-history/
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 环境准备
 
+#### 系统要求
+- **Node.js**: 20.19.6 (通过 volta 自动管理)
+- **pnpm**: 10.15.0 (通过 volta 自动管理)
+- **Git**: 用于仓库扫描
+- **PM2**: 5.4.2 (通过 volta 自动管理)
+
+#### 安装 Volta 和工具链
 ```bash
-# 在项目根目录
+# 安装 Volta (如果还没有安装)
+curl https://get.volta.sh | bash
+
+# 安装项目所需的工具链 (volta 会自动切换到正确版本)
+volta install node@20.19.6
+volta install pnpm@10.15.0
+volta install pm2@5.4.2
+
+# 或者直接在项目目录下运行 (volta 会自动读取 .volta.json 配置)
+volta install
+```
+
+**Volta 的优势：**
+- 🚀 自动切换到项目所需的 Node.js 版本
+- 📦 项目级别的工具版本管理
+- ⚡ 快速版本切换，无需手动操作
+- 🔒 确保团队成员使用相同的工具版本
+
+### 2. 项目初始化
+
+#### 克隆项目
+```bash
+git clone <repository-url>
+cd coding-history
+```
+
+#### 安装依赖
+```bash
+# 在项目根目录安装所有依赖
 pnpm install
 ```
+
+#### 重要：处理二进制模块兼容性
+如果遇到 `better-sqlite3` 模块版本不匹配问题，请执行：
+
+```bash
+# 方式一：重新编译二进制模块
+pnpm rebuild better-sqlite3
+
+# 方式二：完全重新安装后端依赖（推荐）
+cd backend
+rm -rf node_modules
+pnpm install
+cd ..
+```
+
+**说明**：better-sqlite3 是包含 C++ 代码的二进制模块，当 Node.js 版本变化时需要重新编译。
 
 ### 2. 环境变量配置（可选）
 
@@ -167,7 +218,7 @@ pnpm migrate-config
 }
 ```
 
-### 3. 启动服务
+### 4. 启动服务
 
 #### 方式一：PM2 后台启动（推荐）
 
@@ -242,6 +293,181 @@ pnpm dev
    - 访问 Git 数据看板页面
    - 通过时间范围和仓库筛选查看统计数据
 
+## 新维护人员快速上手指南
+
+### 🚀 首次启动检查清单
+
+在首次启动项目前，请按以下步骤操作：
+
+#### ✅ 步骤 1: 环境检查
+```bash
+# 进入项目目录 (volta 会自动切换到正确版本)
+cd coding-history
+
+# 检查工具版本 (volta 会自动管理)
+node --version    # 应该显示 20.19.6
+pnpm --version    # 应该显示 10.15.0
+pm2 --version     # 应该显示 5.4.2
+```
+
+如果版本不符合要求，请安装 volta 并设置工具链：
+```bash
+# 安装 volta (如果还没有)
+curl https://get.volta.sh | bash
+
+# 重新加载 shell 配置
+source ~/.bashrc  # 或 ~/.zshrc
+
+# 在项目目录下安装正确版本的工具
+volta install
+```
+
+#### ✅ 步骤 2: 依赖安装
+```bash
+# 在项目根目录
+pnpm install
+```
+
+#### ✅ 步骤 3: 二进制模块处理
+```bash
+# 检查 better-sqlite3 是否正常
+cd backend
+node -e "require('better-sqlite3'); console.log('✅ better-sqlite3 正常')"
+
+# 如果报错，执行以下命令之一：
+# 方式一：重新编译
+pnpm rebuild better-sqlite3
+
+# 方式二：完全重新安装（推荐）
+rm -rf node_modules
+pnpm install
+cd ..
+```
+
+#### ✅ 步骤 4: 数据库初始化
+```bash
+# Prisma 会自动生成客户端，但可以手动执行
+cd backend
+pnpm postinstall
+cd ..
+```
+
+#### ✅ 步骤 5: 启动服务
+```bash
+# 使用 PM2 后台启动（推荐）
+pnpm start:pm2
+
+# 检查服务状态
+pnpm status:pm2
+
+# 查看日志确认无错误
+pnpm logs:pm2
+```
+
+#### ✅ 步骤 6: 验证服务
+```bash
+# 检查后端健康状态
+curl http://localhost:5188/health
+
+# 检查前端是否可访问
+curl -I http://localhost:5173
+```
+
+### 🐛 常见问题解决
+
+#### 问题 1: better-sqlite3 版本不匹配
+**错误信息**: `NODE_MODULE_VERSION 115. This version of Node.js requires NODE_MODULE_VERSION 127`
+
+**解决方案**:
+```bash
+cd backend
+rm -rf node_modules
+pnpm install
+```
+
+#### 问题 2: 端口被占用
+**错误信息**: `Port 5173 is in use` 或 `Port 5188 is in use`
+
+**解决方案**:
+```bash
+# 查找占用端口的进程
+lsof -i :5173
+lsof -i :5188
+
+# 停止占用进程或修改端口配置
+```
+
+#### 问题 3: PM2 启动失败
+**错误信息**: `App [coding-history-backend] exited with code [1]`
+
+**解决方案**:
+```bash
+# 查看详细日志
+pm2 logs coding-history-backend
+
+# 重新安装依赖后重启
+cd backend && rm -rf node_modules && pnpm install && cd ..
+pm2 restart all
+```
+
+#### 问题 4: Git 仓库权限问题
+**错误信息**: `Permission denied` 或 `fatal: not a git repository`
+
+**解决方案**:
+```bash
+# 确保仓库路径正确且有读取权限
+ls -la /path/to/your/repository
+git status /path/to/your/repository
+```
+
+### 📝 开发环境配置
+
+#### VSCode 推荐插件
+- TypeScript
+- Prettier
+- ESLint
+- GitLens
+- Prisma
+
+#### 环境变量配置
+创建 `backend/.env` 文件：
+```bash
+# 控制启动时是否立即执行定时任务扫描
+ENABLE_STARTUP_SCAN=true
+```
+
+### 🔄 日常维护命令
+
+```bash
+# 启动服务
+pnpm start:pm2
+
+# 停止服务
+pnpm stop:pm2
+
+# 重启服务
+pnpm restart:pm2
+
+# 查看状态
+pnpm status:pm2
+
+# 查看日志
+pnpm logs:pm2
+
+# 手动扫描
+pnpm init-scan
+
+# 清理日志
+cd backend && pnpm clean-logs
+```
+
+### 📁 重要文件位置
+
+- **数据库文件**: `backend/database/coding-history.db`
+- **日志文件**: `backend/logs/` 和 `frontend/logs/`
+- **PM2 配置**: `ecosystem.config.cjs`
+- **启动脚本**: `start.sh`, `scripts/pm2-*.sh`
+
 ## 功能特性
 
 - ✅ 多仓库支持
@@ -307,6 +533,37 @@ pnpm build
 2. **首次扫描**: 对于大型仓库，首次扫描可能需要较长时间
 3. **数据备份**: 定期备份 SQLite 数据库文件（`backend/database/coding-history.db`）
 4. **时区处理**: 确保前后端时区一致
+5. **Node.js 版本**: 使用 volta 自动管理版本，确保团队环境一致性
+6. **二进制模块**: 升级 Node.js 后必须重新编译 better-sqlite3 模块
+6. **PM2 管理**: 使用 PM2 后台运行时，通过 `pnpm status:pm2` 监控服务状态
+
+## 故障排除
+
+### 🔍 服务无法启动
+
+1. **检查 Node.js 版本**: `node --version` (需要 20.19.6，volta 自动管理)
+2. **重新安装依赖**: `rm -rf node_modules && pnpm install`
+3. **检查端口占用**: `lsof -i :5173` 和 `lsof -i :5188`
+4. **查看详细日志**: `pm2 logs` 或 `pnpm logs:pm2`
+
+### 🔍 数据库问题
+
+1. **检查数据库文件**: `ls -la backend/database/`
+2. **重新生成 Prisma 客户端**: `cd backend && pnpm postinstall`
+3. **数据库迁移**: `cd backend && pnpm migrate-config`
+
+### 🔍 PM2 问题
+
+1. **重置 PM2**: `pm2 kill && pm2 start ecosystem.config.cjs`
+2. **删除并重建**: `pnpm delete:pm2 && pnpm start:pm2`
+3. **检查配置文件**: `cat ecosystem.config.cjs`
+
+## 📚 相关文档
+
+- [快速上手指南](./QUICKSTART.md) - 新维护人员详细指南
+- [Volta 配置说明](./VOLTA.md) - 工具版本管理
+- [使用指引](./使用指引.md) - 功能使用说明
+- [Prisma 数据库迁移文档](./prisma数据库迁移同步流程文档.md) - 数据库相关
 
 ## 许可证
 

@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "description": "Git commit statistics application",
+  "volta": {
+    "node": "20.19.6",
+    "pnpm": "10.15.0",
+    "pm2": "5.4.2"
+  },
   "scripts": {
     "dev:backend": "pnpm --filter coding-history-backend dev",
     "dev:frontend": "pnpm --filter coding-history-frontend dev",
