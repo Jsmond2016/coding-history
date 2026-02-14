@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  tslib: ^2.6.0
+
 importers:
 
   .:
@@ -3261,12 +3264,6 @@ packages:
   ts-toolbelt@9.6.0:
     resolution: {integrity: sha512-nsZd8ZeNUzukXPlJmTBwUAuABDe/9qtVDelJeT/qW0ow3ZS3BsQJtNkan1802aM9Uf68/Y8ljw86Hu0h5IUW3w==}
 
-  tslib@1.9.3:
-    resolution: {integrity: sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==}
-
-  tslib@2.6.2:
-    resolution: {integrity: sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q==}
-
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
@@ -4259,7 +4256,7 @@ snapshots:
       semver: 7.5.4
       shimmer: 1.2.1
       signal-exit: 3.0.7
-      tslib: 1.9.3
+      tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
@@ -6772,7 +6769,7 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       shallowequal: 1.1.0
       stylis: 4.3.2
-      tslib: 2.6.2
+      tslib: 2.8.1
 
   stylis@4.3.2: {}
 
@@ -6843,10 +6840,6 @@ snapshots:
   toggle-selection@1.0.6: {}
 
   ts-toolbelt@9.6.0: {}
-
-  tslib@1.9.3: {}
-
-  tslib@2.6.2: {}
 
   tslib@2.8.1: {}
 

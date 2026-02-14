@@ -3,12 +3,17 @@
   "version": "1.0.0",
   "private": true,
   "description": "Git commit statistics application",
+  "pnpm": {
+    "overrides": {
+      "tslib": "^2.6.0"
+    }
+  },
   "volta": {
     "node": "20.19.6",
     "pnpm": "10.15.0"
   },
   "scripts": {
-    "dev": "ENABLE_STARTUP_SCAN=false bash dev.sh",
+    "dev": "ENABLE_STARTUP_SCAN=false pnpm --filter coding-history-backend --filter coding-history-frontend run --parallel dev",
     "dev:backend": "pnpm --filter coding-history-backend dev",
     "dev:frontend": "pnpm --filter coding-history-frontend dev",
     "build:backend": "pnpm --filter coding-history-backend build",

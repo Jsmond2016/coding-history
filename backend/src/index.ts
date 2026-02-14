@@ -99,6 +99,14 @@ app.use('/api/v1/*', async (c, next) => {
   });
 });
 
+// 全局错误处理：将未捕获的异常转为 500 JSON，便于排查
+app.onError((err, c) => {
+  const message = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error ? err.stack : undefined;
+  logger.error({ msg: 'Route error', error: message, stack });
+  return c.json({ error: message }, 500);
+});
+
 // 路由注册
 app.route('/api/v1/repositories', repositoriesRoute);
 app.route('/api/v1/commits', commitsRoute);
