@@ -101,7 +101,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
     form.setFieldsValue({
       authorName: form.getFieldValue('authorName') ?? '',
       authorEmail: form.getFieldValue('authorEmail') ?? '',
-      ignoredBranches: form.getFieldValue('ignoredBranches') ?? DEFAULT_IGNORED_BRANCHES
+      ignoredBranches: form.getFieldValue('ignoredBranches') ?? []
     });
     setStep('settings');
   };
@@ -110,9 +110,9 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
     const values = await form.validateFields().catch(() => null);
     if (values === null) return;
     const { authorName, authorEmail, ignoredBranches } = values;
-    const branches = Array.isArray(ignoredBranches) && ignoredBranches.length > 0
-      ? ignoredBranches
-      : DEFAULT_IGNORED_BRANCHES;
+    const branches = Array.isArray(ignoredBranches)
+      ? ignoredBranches.map((b) => String(b).trim()).filter(Boolean)
+      : [];
     const currentList = store.get(scannedReposListAtom);
     if (currentList.length === 0) {
       message.warning('没有可保存的仓库，请返回预览步骤确认列表');
@@ -268,7 +268,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
       {isSettings && (
         <div>
           <Typography.Paragraph type="secondary" className="mb-4">
-            以下设置将应用到本次添加的 {list.length} 个仓库。作者信息需与 Git 提交一致；忽略分支将默认排除这些分支的提交统计。
+            以下设置将应用到本次添加的 {list.length} 个仓库。作者信息需与 Git 提交一致。统计已不按「忽略分支」过滤；下方分支列表可选，仅写入配置库作兼容，一般可留空。
           </Typography.Paragraph>
           <Form
             form={form}
@@ -276,7 +276,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
             initialValues={{
               authorName: '',
               authorEmail: '',
-              ignoredBranches: DEFAULT_IGNORED_BRANCHES
+              ignoredBranches: []
             }}
           >
             <Form.Item
@@ -301,20 +301,20 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
               <Input type="email" placeholder="例如：zhangsan@example.com" />
             </Form.Item>
             <Form.Item
-              label="忽略分支"
+              label="忽略分支（可选，已不影响统计）"
               name="ignoredBranches"
               normalize={(v) =>
                 Array.isArray(v)
                   ? v.map((b) => String(b).trim()).filter(Boolean)
                   : v
               }
-              rules={[{ required: true, message: '请至少保留一个忽略分支' }]}
-              extra="这些分支的提交将不参与统计，可增删"
+              extra="可留空。若填写会写入数据库，仅作历史兼容，不再用于隐藏提交。"
             >
               <Select
                 mode="tags"
-                placeholder="输入分支名回车添加"
+                placeholder="一般留空即可"
                 tokenSeparators={[',', ' ']}
+                allowClear
                 options={DEFAULT_IGNORED_BRANCHES.map((b) => ({ label: b, value: b }))}
               />
             </Form.Item>

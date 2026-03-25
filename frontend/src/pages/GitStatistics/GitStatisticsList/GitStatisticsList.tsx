@@ -13,7 +13,8 @@ import {
   Col,
   Dropdown,
   Modal,
-  Checkbox
+  Radio,
+  Space
 } from "antd"
 import type { MenuProps } from "antd"
 import { ReloadOutlined, DownOutlined, CalendarOutlined } from "@ant-design/icons"
@@ -38,7 +39,7 @@ import {
   type ScanTimePresetKey,
   SCAN_TIME_PRESET_OPTIONS,
   getPresetRange,
-  mergeMsRanges,
+  getScanPresetLabel,
   MAX_SCAN_SPAN_MS
 } from "../../../utils/scanTimeRange"
 
@@ -53,28 +54,24 @@ const GitStatisticsList: React.FC = () => {
   const [loading, setLoading] = React.useState(false)
   const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
   const { scanning, handleScan } = useScan()
-  const [scanTimePresets, setScanTimePresets] = React.useState<ScanTimePresetKey[]>([
-    "two_weeks"
-  ])
+  const [scanTimePreset, setScanTimePreset] =
+    React.useState<ScanTimePresetKey>("two_weeks")
   const [scanConfigOpen, setScanConfigOpen] = React.useState(false)
-  const [draftPresets, setDraftPresets] = React.useState<ScanTimePresetKey[]>([
-    "two_weeks"
-  ])
+  const [draftPreset, setDraftPreset] =
+    React.useState<ScanTimePresetKey>("two_weeks")
+
+  const scanButtonLabel = `手动扫描-${getScanPresetLabel(scanTimePreset)}`
 
   const openScanConfigModal = React.useCallback(() => {
-    setDraftPresets(
-      scanTimePresets.length > 0 ? [...scanTimePresets] : ["two_weeks"]
-    )
+    setDraftPreset(scanTimePreset)
     setScanConfigOpen(true)
-  }, [scanTimePresets])
+  }, [scanTimePreset])
 
   const saveScanConfig = React.useCallback(() => {
-    const next: ScanTimePresetKey[] =
-      draftPresets.length > 0 ? draftPresets : ["two_weeks"]
-    setScanTimePresets(next)
+    setScanTimePreset(draftPreset)
     setScanConfigOpen(false)
     message.success("扫描时间范围已保存")
-  }, [draftPresets])
+  }, [draftPreset])
 
   const scanMenuItems: MenuProps["items"] = [
     {
@@ -89,17 +86,15 @@ const GitStatisticsList: React.FC = () => {
   }
 
   const handleManualScan = React.useCallback(() => {
-    const keys = scanTimePresets.length > 0 ? scanTimePresets : (["two_weeks"] as ScanTimePresetKey[])
-    const pieces = keys.map((k) => getPresetRange(k, filter.dateRange))
-    const [startDate, endDate] = mergeMsRanges(pieces)
+    const [startDate, endDate] = getPresetRange(scanTimePreset, filter.dateRange)
 
     if (startDate >= endDate) {
-      message.error("合并后的扫描时间范围无效，请检查所选日期")
+      message.error("当前扫描时间范围无效，请检查所选预设或筛选日期")
       return
     }
     if (endDate - startDate > MAX_SCAN_SPAN_MS) {
       message.error(
-        "所选范围合并后超过 186 天，请减少选项或缩小筛选日期后再扫描"
+        "所选范围超过 186 天，请换更短预设或缩小筛选日期后再扫描"
       )
       return
     }
@@ -107,7 +102,7 @@ const GitStatisticsList: React.FC = () => {
     const repositoryIds =
       filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined
     void handleScan({ startDate, endDate, repositoryIds })
-  }, [scanTimePresets, filter.dateRange, filter.repositoryIds, handleScan])
+  }, [scanTimePreset, filter.dateRange, filter.repositoryIds, handleScan])
 
   // 加载数据
   const handleSearch = React.useCallback(
@@ -181,7 +176,7 @@ const GitStatisticsList: React.FC = () => {
     <ScanProvider onScanComplete={handleSearch}>
       <div className="h-full flex flex-col overflow-hidden">
         <Header
-          className="flex items-center justify-end px-0 shadow-sm sticky top-0 z-[1000] h-16 shrink-0 bg-white pr-3"
+          className="flex w-full min-w-0 items-center justify-end shadow-sm sticky top-0 z-[1000] h-16 shrink-0 bg-white px-3"
         >
           <ConfigProvider
             theme={{
@@ -203,7 +198,7 @@ const GitStatisticsList: React.FC = () => {
             >
               <span className="inline-flex items-center gap-1.5">
                 <ReloadOutlined />
-                手动扫描
+                {scanButtonLabel}
               </span>
             </Dropdown.Button>
           </ConfigProvider>
@@ -224,20 +219,23 @@ const GitStatisticsList: React.FC = () => {
           width={420}
         >
           <p className="text-neutral-500 text-sm mb-3">
-            可多选；合并为「最早起点～最晚终点」一段区间再扫描入库。默认「近 2
-            周」。合并后总跨度不能超过 186 天。
+            单选一项作为手动扫描的时间窗口；保存后主按钮会显示「手动扫描-」加选项名称（如
+            2 周内）。跨度不能超过 186 天（选「当前筛选日期」时请留意筛选区间）。
           </p>
-          <Checkbox.Group
-            value={draftPresets}
-            onChange={(v) => setDraftPresets(v as ScanTimePresetKey[])}
-            className="flex flex-col gap-2"
+          <Radio.Group
+            value={draftPreset}
+            onChange={(e) =>
+              setDraftPreset(e.target.value as ScanTimePresetKey)
+            }
           >
-            {SCAN_TIME_PRESET_OPTIONS.map((opt) => (
-              <Checkbox key={opt.value} value={opt.value}>
-                {opt.label}
-              </Checkbox>
-            ))}
-          </Checkbox.Group>
+            <Space direction="vertical" size={10} className="w-full">
+              {SCAN_TIME_PRESET_OPTIONS.map((opt) => (
+                <Radio key={opt.value} value={opt.value} className="!mr-0">
+                  {opt.label}
+                </Radio>
+              ))}
+            </Space>
+          </Radio.Group>
         </Modal>
         <div className="flex-1 overflow-auto p-3 mt-3">
           <Card className="mb-6">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   PlusOutlined,
@@ -174,7 +174,7 @@ const ConfigList: React.FC = () => {
       )
     },
     {
-      title: '忽略分支',
+      title: '忽略分支(兼容)',
       key: 'ignoredBranches',
       width: 200,
       render: (_: any, record: RepositoryConfig) => (
@@ -329,7 +329,7 @@ const ConfigList: React.FC = () => {
                         onUpdate={loadRepositories}
                       />
                     </Panel>
-                    <Panel header={`忽略分支配置 (${record.ignoredBranches.length})`} key="branches">
+                    <Panel header={`忽略分支（已不影响统计，${record.ignoredBranches.length} 条）`} key="branches">
                       <IgnoredBranchesManager
                         repoId={record.id}
                         branches={record.ignoredBranches}
@@ -362,6 +362,13 @@ const ConfigList: React.FC = () => {
         <Title level={2} className="mb-4">
           配置管理
         </Title>
+        <Alert
+          type="info"
+          showIcon
+          className="mb-4"
+          message="忽略分支配置已不影响 Git 统计汇总"
+          description="扫描使用全引用 `git log --all` 与按 commit 去重；列表与图表不再按忽略分支过滤。展开仓库后「忽略分支」面板仅作兼容与数据清理。"
+        />
         <Tabs items={tabItems} />
       </Card>
 

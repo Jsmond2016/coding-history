@@ -1,8 +1,6 @@
 import { prisma } from '../db/client.js';
-import type { Commit } from '../schemas/database.schema.js';
 import type { ScannedCommit } from './GitScanService.js';
 import { calculateWorkStatus, type WorkStatus, type WorkStatusConfig } from '../config/workStatus.config.js';
-import { ConfigService } from './ConfigService.js';
 import { DataMetricsConfigService } from './DataMetricsConfigService.js';
 import { logger } from '../config/logger.js';
 
@@ -70,11 +68,9 @@ export interface CommitsByDate {
 }
 
 export class CommitService {
-  private configService: ConfigService;
   private dataMetricsConfigService: DataMetricsConfigService;
 
   constructor() {
-    this.configService = new ConfigService();
     this.dataMetricsConfigService = new DataMetricsConfigService();
   }
 
@@ -88,13 +84,6 @@ export class CommitService {
     });
     const v = row._max.commitDate;
     return v == null ? null : Number(v);
-  }
-
-  /**
-   * 获取所有仓库的忽略分支列表（合并去重）
-   */
-  private async getAllIgnoredBranches(): Promise<string[]> {
-    return await this.configService.getAllIgnoredBranches();
   }
 
   /**
@@ -229,9 +218,6 @@ export class CommitService {
       orderBy: { commitDate: 'desc' }
     });
 
-    // 获取忽略的分支列表
-    const ignoredBranches = await this.getAllIgnoredBranches();
-
     // 获取数据指标配置
     const dataMetricsConfig = await this.dataMetricsConfigService.getConfig();
     const workStatusConfig: WorkStatusConfig = {
@@ -239,17 +225,8 @@ export class CommitService {
       overtimeHour: dataMetricsConfig.overtimeHour
     };
 
-    // 转换为带加班信息的提交记录，并过滤忽略的分支
     const commitsWithOvertime: CommitWithOvertime[] = await Promise.all(
-      commits
-        .filter(commit => {
-          // 过滤掉忽略分支的提交
-          if (commit.branch && ignoredBranches.includes(commit.branch)) {
-            return false;
-          }
-          return true;
-        })
-        .map(async (commit) => {
+      commits.map(async (commit) => {
           const commitDate = Number(commit.commitDate);
           const isOvertimeCommit = await this.isOvertimeCommit(commitDate);
 
@@ -410,24 +387,10 @@ export class CommitService {
       ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {})
     };
 
-    // 获取忽略的分支列表，用于过滤查询
-    const ignoredBranches = await this.getAllIgnoredBranches();
-    
-    // 添加分支过滤条件：排除忽略分支，但保留 branch 为 null 的记录
-    const whereWithBranchFilter: any = {
-      ...where,
-      OR: [
-        { branch: null },
-        { branch: { notIn: ignoredBranches } }
-      ]
-    };
+    const total = await prisma.commit.count({ where });
 
-    // 查询总数（已过滤忽略分支）
-    const total = await prisma.commit.count({ where: whereWithBranchFilter });
-
-    // 查询数据（已过滤忽略分支）
     const commits = await prisma.commit.findMany({
-      where: whereWithBranchFilter,
+      where,
       include: {
         repository: {
           select: { name: true }
@@ -438,7 +401,6 @@ export class CommitService {
       take: pageSize
     });
 
-    // 数据已经在数据库查询时过滤了忽略分支，这里直接映射即可
     const data: CommitWithRepoName[] = commits.map(commit => ({
       id: commit.id,
       repoId: commit.repoId,
@@ -487,23 +449,13 @@ export class CommitService {
   }> {
     const { startDate, endDate, repositoryIds, authorEmails } = params;
 
-    // 获取忽略的分支列表
-    const ignoredBranches = await this.getAllIgnoredBranches();
-
-    // 构建 where 条件，正确处理忽略分支的过滤
-    // 需要排除 branch 在忽略列表中的记录，但保留 branch 为 null 的记录
     const where: any = {
       commitDate: {
         gte: BigInt(startDate),
         lte: BigInt(endDate)
       },
       ...(repositoryIds && repositoryIds.length > 0 ? { repoId: { in: repositoryIds } } : {}),
-      ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {}),
-      // 过滤掉忽略分支的提交：branch 为 null 或 branch 不在忽略列表中
-      OR: [
-        { branch: null },
-        { branch: { notIn: ignoredBranches } }
-      ]
+      ...(authorEmails && authorEmails.length > 0 ? { authorEmail: { in: authorEmails } } : {})
     };
 
     // 总体统计
@@ -567,13 +519,6 @@ export class CommitService {
       const placeholders = authorEmails.map(() => '?').join(',');
       byDateQuery += ` AND author_email IN (${placeholders})`;
       queryParams.push(...authorEmails);
-    }
-
-    // 过滤忽略的分支
-    if (ignoredBranches.length > 0) {
-      const branchPlaceholders = ignoredBranches.map(() => '?').join(',');
-      byDateQuery += ` AND (branch IS NULL OR branch NOT IN (${branchPlaceholders}))`;
-      queryParams.push(...ignoredBranches);
     }
 
     byDateQuery += ` GROUP BY date ORDER BY date DESC`;

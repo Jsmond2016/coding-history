@@ -23,7 +23,52 @@ export class GitScanService {
   }
 
   /**
+   * 全图单次扫描：`git log --all` 跨所有 ref，每个 commit hash 至多出现一次（含 merge commit，不设 --no-merges）。
+   * 不按分支写 `branch` 字段，入库多为 `branch=null`，与「时间窗内多仓库汇总、查询不再按忽略分支过滤」一致。
+   */
+  async scanRepositoryFlat(fromDate?: Date, toDate?: Date, authorEmails?: string[]): Promise<ScannedCommit[]> {
+    const isRepo = await this.git.checkIsRepo();
+    if (!isRepo) {
+      throw new Error(`${this.repoPath} is not a valid git repository`);
+    }
+
+    const logOptions: string[] = ['--all'];
+    if (fromDate) {
+      logOptions.push('--since', fromDate.toISOString());
+    }
+    if (toDate) {
+      logOptions.push('--until', toDate.toISOString());
+    }
+    if (authorEmails && authorEmails.length > 0) {
+      const authorPattern = authorEmails
+        .map(email => email.replace(/[.*+?^${}()[\]\\]/g, '\\$&'))
+        .join('|');
+      logOptions.push('--perl-regexp', '--author', authorPattern);
+    }
+
+    try {
+      const logs = await this.git.log(logOptions);
+      const commits = await Promise.all(
+        R.map((commit) => this.mapLogEntryToScanned(commit, undefined), logs.all)
+      );
+      logger.info(`Flat scan (--all): ${commits.length} unique commits in ${this.repoPath}`);
+      return commits;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error({
+        msg: `Error flat-scanning repository ${this.repoPath}`,
+        error: errorMessage,
+        stack: errorStack,
+        repoPath: this.repoPath
+      });
+      throw error;
+    }
+  }
+
+  /**
    * 扫描仓库提交记录（按分支分别扫描；先扫未上线分支再扫 release，按 commitHash 去重且优先保留未上线分支名）
+   * 保留作兼容；日常入库请使用 {@link scanRepositoryFlat}（由 {@link incrementalScan} 调用）。
    * @param fromDate 起始日期，用于增量扫描
    * @param toDate 结束日期，可选
    * @param authorEmails 作者邮箱数组，用于过滤（支持多个作者）
@@ -211,41 +256,8 @@ export class GitScanService {
       // 获取该分支的提交日志
       const logs = await this.git.log(logOptions);
 
-      // 处理提交数据
       const commits = await Promise.all(
-        R.map(async (commit) => {
-          try {
-            // 获取每个提交的 diff 统计
-            const diff = await this.git.diffSummary([`${commit.hash}^`, commit.hash]);
-
-            return {
-              hash: commit.hash,
-              message: commit.message,
-              date: new Date(commit.date).getTime(),
-              authorName: commit.author_name,
-              authorEmail: commit.author_email,
-              filesChanged: diff.files.length,
-              insertions: diff.insertions,
-              deletions: diff.deletions,
-              branch: storageBranchName || undefined // 使用存储用的分支名称（去掉 origin/ 前缀）
-            };
-          } catch (error) {
-            // 第一个提交没有父提交，使用默认值
-            logger.debug(`Failed to get diff for commit ${commit.hash} in branch ${storageBranchName}: ${error}`);
-            
-            return {
-              hash: commit.hash,
-              message: commit.message,
-              date: new Date(commit.date).getTime(),
-              authorName: commit.author_name,
-              authorEmail: commit.author_email,
-              filesChanged: 0,
-              insertions: 0,
-              deletions: 0,
-              branch: storageBranchName || undefined // 使用存储用的分支名称（去掉 origin/ 前缀）
-            };
-          }
-        }, logs.all)
+        R.map((commit) => this.mapLogEntryToScanned(commit, storageBranchName || undefined), logs.all)
       );
 
       return commits;
@@ -260,13 +272,49 @@ export class GitScanService {
   }
 
   /**
-   * 增量扫描：只扫描指定日期之后的提交
+   * 将 simple-git 单条 log 转为 ScannedCommit（含 diff 统计；根提交无父时 stats 为 0）
+   */
+  private async mapLogEntryToScanned(
+    commit: { hash: string; message: string; date: string; author_name: string; author_email: string },
+    branch: string | undefined
+  ): Promise<ScannedCommit> {
+    try {
+      const diff = await this.git.diffSummary([`${commit.hash}^`, commit.hash]);
+      return {
+        hash: commit.hash,
+        message: commit.message,
+        date: new Date(commit.date).getTime(),
+        authorName: commit.author_name,
+        authorEmail: commit.author_email,
+        filesChanged: diff.files.length,
+        insertions: diff.insertions,
+        deletions: diff.deletions,
+        branch
+      };
+    } catch (error) {
+      logger.debug(`Failed to get diff for commit ${commit.hash}: ${error}`);
+      return {
+        hash: commit.hash,
+        message: commit.message,
+        date: new Date(commit.date).getTime(),
+        authorName: commit.author_name,
+        authorEmail: commit.author_email,
+        filesChanged: 0,
+        insertions: 0,
+        deletions: 0,
+        branch
+      };
+    }
+  }
+
+  /**
+   * 增量扫描：只扫描指定日期之后的提交（全图 `--all`，含 merge）
    * @param lastScanDate 起始日期
    * @param authorEmails 作者邮箱数组，可选（支持多个作者）
    * @param toDate 结束日期，可选
    */
   async incrementalScan(lastScanDate: Date, authorEmails?: string[], toDate?: Date): Promise<ScannedCommit[]> {
-    logger.info(`Incremental scan from ${lastScanDate.toISOString()}${toDate ? ` to ${toDate.toISOString()}` : ''}`);
-    return this.scanRepository(lastScanDate, toDate, authorEmails);
+    logger.info(`Incremental flat scan from ${lastScanDate.toISOString()}${toDate ? ` to ${toDate.toISOString()}` : ''}`);
+    return this.scanRepositoryFlat(lastScanDate, toDate, authorEmails);
   }
 }

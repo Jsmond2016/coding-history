@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, Button, Popconfirm, message, Form, Input, Modal, Tag } from 'antd';
+import { Table, Button, Popconfirm, message, Form, Input, Modal, Tag, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import {
@@ -113,6 +113,13 @@ const IgnoredBranchesManager: React.FC<IgnoredBranchesManagerProps> = ({
 
   return (
     <div>
+      <Alert
+        type="info"
+        showIcon
+        className="mb-4"
+        message="忽略分支已不再影响统计与列表"
+        description="当前版本使用全仓库 `git log --all` 扫描并按 commit 去重；列表与图表不再按「忽略分支」隐藏提交。此处数据仅作历史兼容保留，可逐步清空。"
+      />
       <div className="mb-4">
         <Button
           type="primary"

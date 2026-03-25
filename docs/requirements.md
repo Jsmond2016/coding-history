@@ -1,9 +1,9 @@
 # Git 提交记录统计系统 - 需求文档
 
 ## 版本信息
-- **文档版本**: v1.2
+- **文档版本**: v1.3
 - **创建日期**: 2025-11-21
-- **最后更新**: 2026-03-24
+- **最后更新**: 2026-03-26
 
 ---
 
@@ -13,9 +13,9 @@
 开发一个 Git 提交记录统计系统，用于追踪和分析多个 Git 仓库的提交记录，帮助开发者了解自己的编码工作状态和加班情况。
 
 ### 1.2 核心功能
-- 多仓库 Git 提交记录扫描与入库（手动扫描、定时/手动任务）
-- 仓库与作者、忽略分支等配置管理（数据库存储）
-- 按日期分组展示提交记录（受筛选与忽略分支规则影响）
+- 多仓库 Git 提交记录扫描与入库（手动扫描、定时/手动任务；全引用 `git log --all`、按 commit 去重，**含 merge commit**）
+- 仓库与作者等配置管理；**忽略分支**仅存库兼容，**不再影响**列表与统计汇总
+- 按日期分组展示提交记录（受日期/仓库/作者/加班等筛选影响）
 - 工作状态自动判断（阈值可配置）
 - 加班记录识别和统计
 - 工作状态统计报表（图表展示）
@@ -328,14 +328,13 @@ YYYY年MM月DD日
 - 使用 **Dropdown.Button**：
   - **主按钮**：使用当前已保存的「扫描时间范围」配置执行一次入库扫描
   - **下拉菜单**：提供「**配置扫描时间范围**」项，打开 **Modal**
-- **Modal** 内使用多选（Checkbox 组）选择时间维度，点击「**保存**」后写入配置并关闭
-  - **默认勾选**：仅「近 2 周」
-  - 若用户清空所有勾选，回退为默认「近 2 周」
+- **Modal** 内使用**单选**（Radio）选择一项扫描时间维度，点击「**保存**」后写入配置并关闭
+  - **默认**：「2 周内」
 - **可选时间维度**（均为本地日边界起算，「当前筛选日期」与统计区日期范围一致）：
-  - 近 2 周、近 1 个月、近 3 个月、近 6 个月（相对「今天」）
+  - 2 周内、1 个月内、3 个月内、6 个月内（相对「今天」）
   - **当前筛选日期**（与 §2.4.1 中统计用 `dateRange` 一致）
-- **合并规则**：多选项各自对应一段闭区间，合并为**并集**（最早起点～最晚终点），再作为一次扫描请求发送
-- **跨度上限**：合并后的区间长度不得超过 **186 天**（与后端校验一致）；超出时前端提示用户缩小选项或筛选日期
+- **主按钮文案**：保存后，主按钮显示为「**手动扫描-**」加上所选维度名称（如「手动扫描-2 周内」「手动扫描-当前筛选日期」）
+- **跨度上限**：所选维度对应的闭区间长度不得超过 **186 天**（与后端校验一致）；超出时前端提示用户更换预设或缩小筛选日期
 
 #### 2.7.3 扫描仓库范围
 **需求描述**：
@@ -367,46 +366,42 @@ YYYY年MM月DD日
 ```
 - 校验：`startDate < endDate`，且 `endDate - startDate` 不超过约 186 天对应的毫秒上限
 
-#### 2.7.7 分支、去重与忽略分支（需求说明）
+#### 2.7.7 扫描去重、merge commit 与 `branch` 字段
 
-**数据流（入库与展示分离）**：
+**扫描策略**：
+- 对每个仓库使用 **`git log --all`**（跨所有 ref 单次遍历），在**时间窗**内按**配置作者**过滤；**不设 `--no-merges`**，**merge commit 纳入**汇总（合并亦耗费时间，便于工时推算与回溯）。
+- Git 保证同一 `commitHash` 在结果中**至多出现一次**；入库仍受 **`repoId + commitHash` 唯一约束**。
+
+**数据流**：
 
 ```mermaid
 flowchart LR
   subgraph ingest [扫描入库]
-    GitLog["git log 多分支"]
-    Dedup["repoId+hash 唯一"]
-    DB[(commits.branch)]
+    GitLog["git log --all"]
+    Dedup["repoId加hash唯一"]
+    DB[(commits)]
   end
   subgraph query [统计查询]
-    Filter[忽略分支过滤]
+    Filter[日期仓库作者等筛选]
     UI[列表与图表]
   end
   GitLog --> Dedup --> DB
   DB --> Filter --> UI
 ```
 
-**入库与去重**：
-- 同一仓库、同一 `commitHash` 在数据库中**仅保留一行**（唯一约束）
-- 单次扫描跨多分支时，内存合并策略倾向于保留**更具未上线分支语义**的那条记录，再写入 `branch` 字段（实现见 `GitScanService`）
+**`branch` 字段**：
+- 新扫描路径**不写**分支名时，入库多为 **`branch = null`**（`branch` 仅作可选元数据；旧数据可能仍带历史分支名）。
+- 查询与统计**不再**按「忽略分支」配置过滤 `branch`，凡在时间窗与作者等条件下命中的提交均参与展示。
 
-**`branch` 字段语义**：
-- 来自 `release` / `master` 主干的记录在库中通常记为 **`branch = null`**
-- 其他分支记为具体分支名（如 `develop`、`feature/...`）
-
-**忽略分支**：
-- 在**各仓库**配置中维护忽略分支列表；统计查询时使用**全局合并**后的分支名列表过滤
-- **含义**：被忽略的 `branch` 值在**列表与统计接口中不展示**，**不表示**扫描时丢弃这些分支上的提交（提交仍可能已写入数据库）
-
-**已知限制（产品/实现）**：
-- 若某提交**首次**以忽略分支名（如 `develop`）入库，之后同一 hash 已出现在 `release` 上，当前实现因**去重不会更新**已有行的 `branch` 字段，则该记录在统计中**仍可能**被忽略分支规则隐藏。业务上「已上线应在 release 体现」的直觉与此不完全一致，可作为后续优化项（例如合入 release 后降级或清空 `branch`）。
+**忽略分支配置**：
+- 仍可在配置界面维护，**仅作数据兼容**；**不得**再用于隐藏列表或统计中的提交。
 
 ---
 
 ### 2.8 配置与扫描任务（概要）
 
 **需求描述**：
-- **配置管理**：维护仓库（ID、名称、本地路径、是否启用）、每仓库**作者**、**忽略分支**等；支持批量扫描目录添加仓库等能力（以实际界面为准）
+- **配置管理**：维护仓库（ID、名称、本地路径、是否启用）、每仓库**作者**；**忽略分支**可选且不影响统计（以实际界面为准）
 - **任务管理**：支持**手动任务**与**定时任务**（Cron），按任务配置的扫描时间范围与可选仓库列表执行扫描入库；与统计页「手动扫描」共用同一套 Git 扫描与入库逻辑（区间计算、作者过滤等以服务端实现为准）
 - 初始化或大批量历史补数据可使用命令行脚本（如 `pnpm init-scan`），不在本需求文档展开
 
@@ -458,19 +453,18 @@ flowchart LR
 3. 根据配置的阈值和加班情况，计算工作状态
 4. 返回工作状态标识
 
-**查询侧过滤**：同一服务在聚合前会按**忽略分支**（各仓库配置合并）与 **authorEmails** 等条件过滤提交，与 §2.7.7 一致。
+**查询侧过滤**：按 **authorEmails**、日期、仓库、加班等条件过滤；**不再**按忽略分支过滤，与 §2.7.7 一致。
 
 #### 3.1.3 扫描与入库
 **相关文件**：
 - 路由与扫描状态：`backend/src/routes/repositories.ts`（`POST /scan`、`GET /scan/status`、扫描僵死超时等）
-- 扫描核心：`backend/src/services/GitScanService.ts`（`git pull`、`git log`、多分支合并、`branch` 写入）
+- 扫描核心：`backend/src/services/GitScanService.ts`（`git pull`、`scanRepositoryFlat`：`git log --all`、作者与时间窗、**含 merge**；`incrementalScan` 走该路径）
 - 任务执行：`backend/src/services/ScanTaskExecutor.ts`（定时/手动任务与手动扫描共用区间解析、可选 `resolveScanFromDateWithGapFill` 等逻辑）
 
 #### 3.1.4 数据去重与 `branch`
 **需求描述**：
-- 数据库层：同一 `repoId` + `commitHash` **唯一**，重复插入由合并策略或 upsert 消化
-- 扫描层：单次扫描多分支结果在内存中合并，优先保留更符合「未上线分支」语义的 `branch` 再落库
-- **已知限制**：已存在行不会因后续扫描到 `release`/`master` 而自动把 `branch` 从分支名改为 `null`，详见 §2.7.7
+- 数据库层：同一 `repoId` + `commitHash` **唯一**
+- 扫描层：`--all` 遍历下每 hash 天然唯一；新入库记录 `branch` 多为 `null`
 
 ---
 
@@ -554,7 +548,7 @@ interface Commit {
   insertions: number;
   deletions: number;
   createdAt: number;
-  branch?: string | null;    // 分支名；release/master 多为 null，见 §2.7.7
+  branch?: string | null;    // 可选元数据；新扫描多为 null，见 §2.7.7
   isOvertime?: boolean;       // 是否加班
   overtimeCommitTimes?: string[]; // 加班时间点
 }
@@ -646,10 +640,10 @@ type WorkStatus =
 - [ ] 折线图 Y 轴显示正确（轻松、正常、忙碌、加班、疯狂）
 - [ ] 折线图 Tooltip 显示正确（日期、工作状态、提交次数）
 - [ ] 筛选条件变化时统计报表同步更新
-- [ ] 手动扫描：配置扫描时间 Modal、多选预设保存与默认「近 2 周」回退
-- [ ] 手动扫描：多预设合并为并集、合并跨度超过 186 天时的提示或拦截
+- [ ] 手动扫描：配置 Modal 单选预设、保存后主按钮为「手动扫描-{范围名}」
+- [ ] 手动扫描：单预设跨度超过 186 天时的提示或拦截
 - [ ] 扫描状态轮询与 30 秒防抖
-- [ ] 忽略分支配置下列表/统计的展示行为（可选：覆盖先 develop 后 release 的已知限制场景）
+- [ ] 全图扫描后列表/统计含 merge commit、且不因旧「忽略分支」配置丢行
 
 ### 7.2 边界测试
 - [ ] 无数据时显示提示
@@ -663,7 +657,7 @@ type WorkStatus =
 
 ### 8.1 功能扩展
 - ✅ 支持自定义工作状态阈值配置（前端配置界面）- **已实现**
-- 去重后若同一 commit 已出现在 release，可考虑更新或清空 `branch`，消除 §2.7.7 所述展示盲区
+- 若需区分「编码提交」与「merge 提交」，可在展示层增加标签或独立统计维度
 - 支持导出统计数据
 - 支持更多图表类型（柱状图、饼图等）
 - 支持图表数据导出（PNG、PDF）
@@ -686,14 +680,14 @@ type WorkStatus =
 ### 9.1 相关文件
 - 后端工作状态配置（默认值）：`backend/src/config/workStatus.config.ts`
 - 后端数据指标配置服务：`backend/src/services/DataMetricsConfigService.ts`
-- 后端提交查询与忽略分支过滤：`backend/src/services/CommitService.ts`
+- 后端提交查询与聚合：`backend/src/services/CommitService.ts`
 - 后端 Git 扫描入库：`backend/src/services/GitScanService.ts`
 - 后端扫描任务执行：`backend/src/services/ScanTaskExecutor.ts`
 - 后端配置路由：`backend/src/routes/config.ts`
 - 后端仓库与扫描路由：`backend/src/routes/repositories.ts`
 - 前端类型定义：`frontend/src/types/gitStatistics.ts`
 - 前端工具函数：`frontend/src/utils/workStatus.ts`
-- 前端扫描时间预设与区间合并：`frontend/src/utils/scanTimeRange.ts`
+- 前端扫描时间预设：`frontend/src/utils/scanTimeRange.ts`
 - 前端扫描状态与请求封装：`frontend/src/biz/hooks/useScan.ts`
 - 前端配置 API：`frontend/src/services/configApi.ts`
 - 前端配置管理页面：`frontend/src/pages/Config/ConfigList.tsx`

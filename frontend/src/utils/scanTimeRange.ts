@@ -1,6 +1,6 @@
 import dayjs, { type Dayjs } from 'dayjs'
 
-/** 手动扫描可选的时间范围维度（多选后取并集） */
+/** 手动扫描可选的时间范围维度（单选） */
 export type ScanTimePresetKey =
   | 'two_weeks'
   | 'one_month'
@@ -8,13 +8,18 @@ export type ScanTimePresetKey =
   | 'six_months'
   | 'filter_range'
 
+/** 用于 Modal 与主按钮后缀「手动扫描-{label}」 */
 export const SCAN_TIME_PRESET_OPTIONS: { value: ScanTimePresetKey; label: string }[] = [
-  { value: 'two_weeks', label: '近 2 周' },
-  { value: 'one_month', label: '近 1 个月' },
-  { value: 'three_months', label: '近 3 个月' },
-  { value: 'six_months', label: '近 6 个月' },
+  { value: 'two_weeks', label: '2 周内' },
+  { value: 'one_month', label: '1 个月内' },
+  { value: 'three_months', label: '3 个月内' },
+  { value: 'six_months', label: '6 个月内' },
   { value: 'filter_range', label: '当前筛选日期' }
 ]
+
+export function getScanPresetLabel(key: ScanTimePresetKey): string {
+  return SCAN_TIME_PRESET_OPTIONS.find((o) => o.value === key)?.label ?? key
+}
 
 /** 与 backend ScanRequestSchema 一致 */
 export const MAX_SCAN_SPAN_MS = 186 * 24 * 60 * 60 * 1000
