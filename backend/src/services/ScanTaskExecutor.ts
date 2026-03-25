@@ -3,7 +3,7 @@ import type { ScanTask, ScanRangeType } from './ScanTaskService.js';
 import { RepositoryService } from './RepositoryService.js';
 import { ConfigService } from './ConfigService.js';
 import { GitScanService } from './GitScanService.js';
-import { CommitService } from './CommitService.js';
+import { CommitService, resolveScanFromDateWithGapFill } from './CommitService.js';
 import { LogService } from './LogService.js';
 import { logger } from '../config/logger.js';
 
@@ -220,12 +220,16 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
     : allRepos;
 
   if (repositoriesToScan.length === 0) {
-    logger.warn('[任务执行] 没有可扫描的仓库');
+    const hadSelection = Boolean(task.repositoryIds && task.repositoryIds.length > 0);
+    const errorMessage = hadSelection
+      ? '没有可扫描的仓库：任务指定的仓库可能已全部禁用，或仓库 ID 与当前启用列表不匹配'
+      : '没有可扫描的仓库（请检查是否至少启用了一个仓库）';
+    logger.warn(`[任务执行] ${errorMessage}`);
     return {
       success: false,
       scannedRepositories: [],
       totalCommits: 0,
-      errorMessage: '没有可扫描的仓库'
+      errorMessage
     };
   }
 
@@ -244,9 +248,18 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
       // 先更新仓库代码到最新
       await pullRepository(repo.path, repo.name);
 
+      const dbTip = await commitService.getMaxCommitDateMsForRepo(repo.id);
+      const effectiveFrom = resolveScanFromDateWithGapFill(fromDate, dbTip);
+      if (dbTip != null && effectiveFrom.getTime() < fromDate.getTime()) {
+        logger.info(
+          `[任务执行] ${repo.name} 库内最新早于任务窗口起点，前推 --since: ` +
+            `${fromDate.toISOString()} → ${effectiveFrom.toISOString()}`
+        );
+      }
+
       // 执行扫描
       const scanner = new GitScanService(repo.path);
-      const commits = await scanner.incrementalScan(fromDate, authorEmails, toDate);
+      const commits = await scanner.incrementalScan(effectiveFrom, authorEmails, toDate);
 
       logger.info(`[任务执行] 发现 ${commits.length} 个提交记录`);
 

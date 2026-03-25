@@ -13,11 +13,16 @@ const repositoryService = new RepositoryService();
 const configService = new ConfigService();
 const commitService = new CommitService();
 
+/** 超过该时间仍为「扫描中」则允许再次同步（应略大于前端轮询超时 5 分钟，避免僵死 finished=1） */
+const SCAN_STALE_MS = 6 * 60 * 1000;
+
 // 扫描状态管理（内存存储）
 let scanStatus: {
   finished: 0 | 1 | 2; // 0=未开始, 1=扫描中, 2=已完成
   scannedCount: number;
   error?: string;
+  /** 进入扫描中的时间戳（毫秒），用于检测僵死 */
+  startedAt?: number;
 } = {
   finished: 0,
   scannedCount: 0
@@ -65,56 +70,54 @@ async function pullRepository(repoPath: string, repoName: string): Promise<boole
 }
 
 /**
- * 异步扫描仓库（扫描最近2周的数据）
+ * 按筛选日期范围扫描并入库（git --since / --until）
  */
-async function scanRepositoriesAsync(repositoryIds?: string[]) {
+async function scanRepositoriesDateRangeAsync(
+  startMs: number,
+  endMs: number,
+  repositoryIds?: string[]
+) {
   let scannedCount = 0;
 
-  // 计算2周前的日期
-  const twoWeeksAgo = new Date();
-  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-  const fromDate = twoWeeksAgo;
+  // 直接使用客户端传入的毫秒区间（请用当天 startOf/endOf('day')），避免服务端 setHours 与客户端时区不一致
+  const fromDate = new Date(startMs);
+  const toDate = new Date(endMs);
 
-  logger.info(`[手动扫描] 开始扫描最近2周的提交数据（从 ${fromDate.toISOString()} 开始）`);
+  if (fromDate.getTime() >= toDate.getTime()) {
+    throw new Error('扫描开始时间必须早于结束时间');
+  }
 
-  // 获取要扫描的仓库列表
+  logger.info(`[手动扫描] 日期范围 ${fromDate.toISOString()} ~ ${toDate.toISOString()}`);
+
   const allRepos = await configService.getEnabledRepositories();
-  const reposToScan = repositoryIds && repositoryIds.length > 0
-    ? allRepos.filter(repo => repositoryIds.includes(repo.id))
-    : allRepos;
+  const reposToScan =
+    repositoryIds && repositoryIds.length > 0
+      ? allRepos.filter((repo) => repositoryIds.includes(repo.id))
+      : allRepos;
 
   for (const repo of reposToScan) {
     try {
-      logger.info(`[扫描开始] 仓库: ${repo.name}, 路径: ${repo.path}`);
+      logger.info(`[手动扫描] 仓库: ${repo.name}, 路径: ${repo.path}`);
 
-      // 获取该仓库的作者邮箱列表
       const authorEmails = await configService.getAuthorEmailsByRepoId(repo.id);
       if (authorEmails.length === 0) {
-        logger.warn(`[跳过] 仓库 ${repo.name} 没有配置作者，跳过`);
+        logger.warn(`[手动扫描] 跳过 ${repo.name}：未配置作者`);
         continue;
       }
 
-      logger.info(`[手动扫描] 作者邮箱: ${authorEmails.join(', ')}`);
-
-      // 先更新仓库代码到最新
       await pullRepository(repo.path, repo.name);
 
-      // 执行扫描（最近2周，使用该仓库配置的作者邮箱）
       const scanner = new GitScanService(repo.path);
-      const commits = await scanner.incrementalScan(fromDate, authorEmails, new Date());
+      const commits = await scanner.incrementalScan(fromDate, authorEmails, toDate);
 
-      logger.info(`[扫描完成] 发现 ${commits.length} 个提交记录`);
-      if (commits.length > 0) {
-        logger.info(`[提交样本] 第一个: ${commits[0].hash} - ${commits[0].authorEmail} - ${new Date(commits[0].date).toISOString()}`);
-      }
+      logger.info(`[手动扫描] ${repo.name} 范围内共 ${commits.length} 条提交`);
 
       if (commits.length > 0) {
-        // 保存提交记录（带去重）
         const insertResult = await commitService.batchInsertCommits(repo.id, commits);
+        logger.info(
+          `[手动扫描] ${repo.name} 入库 新增 ${insertResult.inserted} 条, 跳过重复 ${insertResult.skipped} 条`
+        );
 
-        logger.info(`[数据入库] 新增: ${insertResult.inserted} 条, 跳过重复: ${insertResult.skipped} 条`);
-
-        // 更新仓库信息
         const result = await commitService.getCommits({
           startDate: 0,
           endDate: Date.now(),
@@ -122,28 +125,18 @@ async function scanRepositoriesAsync(repositoryIds?: string[]) {
           page: 1,
           pageSize: 1
         });
-        const totalCommits = result.total;
 
-        await repositoryService.updateRepositoryScanInfo(
-          repo.id,
-          Date.now(),
-          totalCommits
-        );
-
-        logger.info(`[仓库更新] ${repo.name} 总计 ${totalCommits} 条提交记录`);
+        await repositoryService.updateRepositoryScanInfo(repo.id, Date.now(), result.total);
         scannedCount++;
-      } else {
-        logger.info(`[无新数据] ${repo.name} 没有新的提交记录`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error({
-        msg: `Failed to scan repository ${repo.name}`,
+        msg: `[手动扫描失败] ${repo.name}`,
         error: errorMessage,
         stack: errorStack,
-        repositoryId: repo.id,
-        repositoryPath: repo.path
+        repositoryId: repo.id
       });
     }
   }
@@ -188,40 +181,51 @@ app.get('/:id', async (c) => {
   return c.json(repository);
 });
 
-// 手动触发扫描（异步）
+// 手动触发扫描（异步）：按请求体中的日期范围 + 可选仓库列表入库（与统计页筛选一致）
 app.post('/scan', zValidator('json', ScanRequestSchema), async (c) => {
-  const { repositoryIds } = c.req.valid('json');
+  const { startDate, endDate, repositoryIds } = c.req.valid('json');
   
-  // 如果已经在扫描中，返回当前状态
+  // 若仍处于「扫描中」：可能是上一次卡住未收尾，超时后允许发起新扫描（无 startedAt 的旧状态一律视为可覆盖）
   if (scanStatus.finished === 1) {
-    return c.json({ 
-      finished: scanStatus.finished, 
-      scannedCount: scanStatus.scannedCount 
-    });
+    const started = scanStatus.startedAt;
+    if (started != null && Date.now() - started < SCAN_STALE_MS) {
+      return c.json({
+        finished: scanStatus.finished,
+        scannedCount: scanStatus.scannedCount,
+        stale: false
+      });
+    }
+    logger.warn(
+      started == null
+        ? '[手动扫描] 扫描状态异常（无开始时间），将重新启动'
+        : `[手动扫描] 上次扫描仍为进行中已超过 ${SCAN_STALE_MS / 60000} 分钟，视为僵死并重新启动`
+    );
   }
 
-  // 重置状态并开始扫描（允许重新开始）
+  // 重置状态并开始扫描
   scanStatus = {
     finished: 1, // 扫描中
     scannedCount: 0,
-    error: undefined
+    error: undefined,
+    startedAt: Date.now()
   };
 
-  // 异步执行扫描
-  scanRepositoriesAsync(repositoryIds)
+  scanRepositoriesDateRangeAsync(startDate, endDate, repositoryIds)
     .then((scannedCount) => {
       scanStatus = {
         finished: 2, // 已完成
-        scannedCount
+        scannedCount,
+        startedAt: undefined
       };
-      logger.info(`[手动扫描] 完成，共扫描 ${scannedCount} 个仓库`);
+      logger.info(`[手动扫描] 完成，共 ${scannedCount} 个仓库有新增入库`);
     })
     .catch((error) => {
       const errorMessage = error instanceof Error ? error.message : String(error);
       scanStatus = {
         finished: 2, // 已完成（失败）
         scannedCount: 0,
-        error: errorMessage
+        error: errorMessage,
+        startedAt: undefined
       };
       logger.error('[手动扫描] 失败:', error);
     });
@@ -238,7 +242,9 @@ app.get('/scan/status', async (c) => {
   return c.json({
     finished: scanStatus.finished,
     scannedCount: scanStatus.scannedCount,
-    error: scanStatus.error
+    error: scanStatus.error,
+    startedAt: scanStatus.startedAt,
+    staleThresholdMs: SCAN_STALE_MS
   });
 });
 

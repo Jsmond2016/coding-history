@@ -6,6 +6,36 @@ import { ConfigService } from './ConfigService.js';
 import { DataMetricsConfigService } from './DataMetricsConfigService.js';
 import { logger } from '../config/logger.js';
 
+/**
+ * 扫描入库的「时间起点」补洞：
+ * 若仅用「最近 N 天」作为 git --since，一旦中间几天同步失败，窗口会向前滑，
+ * 库内最新提交若早于窗口起点，则 3-10～窗口起点之间的提交永远不会再被扫到。
+ * 当库内最新提交早于 plannedRangeStart 时，将起点前推到「最新提交日前 2 天 0 点」（且不低于 maxLookbackDays）。
+ */
+export function resolveScanFromDateWithGapFill(
+  plannedRangeStart: Date,
+  dbLatestCommitMs: number | null,
+  maxLookbackDays = 365
+): Date {
+  const floor = new Date();
+  floor.setDate(floor.getDate() - maxLookbackDays);
+  floor.setHours(0, 0, 0, 0);
+
+  if (plannedRangeStart.getTime() < floor.getTime()) {
+    return floor;
+  }
+
+  if (dbLatestCommitMs == null || dbLatestCommitMs >= plannedRangeStart.getTime()) {
+    return plannedRangeStart;
+  }
+
+  const extended = new Date(dbLatestCommitMs);
+  extended.setDate(extended.getDate() - 2);
+  extended.setHours(0, 0, 0, 0);
+
+  return extended.getTime() < floor.getTime() ? floor : extended;
+}
+
 export interface CommitWithRepoName {
   id: number;
   repoId: string;
@@ -46,6 +76,18 @@ export class CommitService {
   constructor() {
     this.configService = new ConfigService();
     this.dataMetricsConfigService = new DataMetricsConfigService();
+  }
+
+  /**
+   * 某仓库在库中的最新提交时间（毫秒），无记录时为 null
+   */
+  async getMaxCommitDateMsForRepo(repoId: string): Promise<number | null> {
+    const row = await prisma.commit.aggregate({
+      where: { repoId },
+      _max: { commitDate: true }
+    });
+    const v = row._max.commitDate;
+    return v == null ? null : Number(v);
   }
 
   /**

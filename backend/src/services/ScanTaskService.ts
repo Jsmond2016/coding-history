@@ -190,7 +190,7 @@ export class ScanTaskService {
       name: repo.name,
       description: `手动同步仓库 ${repo.name} 的提交记录`,
       taskType: 'manual',
-      scanRangeType: '7days', // 默认近1周
+      scanRangeType: '2weeks', // 与统计页「同步」、迁移脚本默认一致（近 2 周）
       repositoryIds: [repo.id]
     }));
 
@@ -256,7 +256,7 @@ export class ScanTaskService {
             name: repo.name,
             description: `手动同步仓库 ${repo.name} 的提交记录`,
             taskType: 'manual',
-            scanRangeType: '7days', // 默认近1周
+            scanRangeType: '2weeks', // 与统计页「同步」一致（近 2 周）
             repositoryIds: JSON.stringify([repo.id]),
             enabled: true,
             createdAt: now,
