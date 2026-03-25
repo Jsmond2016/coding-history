@@ -43,6 +43,50 @@ interface CommitsByDateListProps {
   loading: boolean;
 }
 
+const OVERVIEW_TAB_KEY = '__overview__';
+
+function renderCommitBlock(commit: Commit, options?: { showRepo?: boolean }) {
+  const { showRepo } = options ?? {};
+  return (
+    <div
+      key={commit.id}
+      className="py-3 px-4 ml-4 border-l-[3px] border-l-[#1890ff] mb-2 bg-[#fafafa] rounded"
+    >
+      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        <Space size="middle" wrap>
+          {showRepo && (
+            <Tag color="processing">{commit.repoName}</Tag>
+          )}
+          <Text code>{commit.commitHash?.substring(0, 7) || '-'}</Text>
+          <Text className="text-[#1890ff] font-medium">
+            {dayjs(commit.commitDate).format('HH:mm:ss')}
+          </Text>
+          {commit.branch && (
+            <Tag color="geekblue">🌿 {commit.branch}</Tag>
+          )}
+          {commit.isOvertime && (
+            <Tag color="red">加班</Tag>
+          )}
+        </Space>
+
+        <Text className="text-sm">{commit.message}</Text>
+
+        <Space size="large">
+          <Text type="secondary">
+            文件变更: {commit.filesChanged}
+          </Text>
+          <Text className="text-[#52c41a] font-medium">
+            +{commit.insertions}
+          </Text>
+          <Text className="text-[#ff4d4f] font-medium">
+            -{commit.deletions}
+          </Text>
+        </Space>
+      </Space>
+    </div>
+  );
+}
+
 export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, loading }) => {
   if (loading) {
     return <div className="p-6 text-center">加载中...</div>;
@@ -80,9 +124,10 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
           });
         });
 
-        // 获取仓库列表（用于 Tabs）
+        // 获取仓库列表（用于 Tabs）；首项为「全览」按时间线从早到晚
         const repoNames = Object.keys(commitsByRepoAndBranch);
-        const defaultActiveKey = repoNames[0] || '';
+        const timelineCommits = [...commits].sort((a, b) => a.commitDate - b.commitDate);
+        const defaultActiveKey = OVERVIEW_TAB_KEY;
 
         return (
           <Panel
@@ -168,6 +213,30 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
               </div>
             ) : (
               <Tabs defaultActiveKey={defaultActiveKey} type="card">
+                <TabPane
+                  tab={
+                    <span>
+                      全览
+                      <Text type="secondary" className="ml-2 text-xs">
+                        ({totalCommits})
+                      </Text>
+                    </span>
+                  }
+                  key={OVERVIEW_TAB_KEY}
+                >
+                  <p className="mb-3 text-sm text-neutral-500">
+                    按提交时间从早到晚排列，便于查看当日跨仓库的工作顺序。
+                  </p>
+                  <div
+                    className={
+                      timelineCommits.length > 10
+                        ? 'max-h-[500px] overflow-y-auto'
+                        : ''
+                    }
+                  >
+                    {timelineCommits.map((c) => renderCommitBlock(c, { showRepo: true }))}
+                  </div>
+                </TabPane>
                 {repoNames.map((repoName) => {
                   const repoBranches = commitsByRepoAndBranch[repoName];
                   const branchNames = Object.keys(repoBranches);
@@ -211,41 +280,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                               key={branch}
                             >
                               <div className={`${shouldScroll ? 'max-h-[500px] overflow-y-auto' : ''} mt-2`}>
-                                {branchCommits.map((commit) => (
-                                  <div
-                                    key={commit.id}
-                                    className="py-3 px-4 ml-4 border-l-[3px] border-l-[#1890ff] mb-2 bg-[#fafafa] rounded"
-                                  >
-                                    <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                                      <Space size="middle" wrap>
-                                        <Text code>{commit.commitHash?.substring(0, 7) || '-'}</Text>
-                                        <Text className="text-[#1890ff] font-medium">
-                                          {dayjs(commit.commitDate).format('HH:mm:ss')}
-                                        </Text>
-                                        {commit.branch && (
-                                          <Tag color="geekblue">🌿 {commit.branch}</Tag>
-                                        )}
-                                        {commit.isOvertime && (
-                                          <Tag color="red">加班</Tag>
-                                        )}
-                                      </Space>
-                                      
-                                      <Text className="text-sm">{commit.message}</Text>
-                                      
-                                      <Space size="large">
-                                        <Text type="secondary">
-                                          文件变更: {commit.filesChanged}
-                                        </Text>
-                                        <Text className="text-[#52c41a] font-medium">
-                                          +{commit.insertions}
-                                        </Text>
-                                        <Text className="text-[#ff4d4f] font-medium">
-                                          -{commit.deletions}
-                                        </Text>
-                                      </Space>
-                                    </Space>
-                                  </div>
-                                ))}
+                                {branchCommits.map((commit) => renderCommitBlock(commit))}
                               </div>
                             </TabPane>
                           );
