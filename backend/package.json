@@ -27,6 +27,7 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.0.0",
     "@types/node-cron": "^3.0.0",
     "@types/ramda": "^0.29.0",
