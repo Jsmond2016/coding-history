@@ -13,7 +13,7 @@ import tasksRoute from './routes/tasks.js';
 import configRoute from './routes/config.js';
 import { startScheduler, restartScheduler } from './jobs/scanScheduler.js';
 import { startDbBackupScheduler, stopDbBackupScheduler } from './jobs/dbBackupScheduler.js';
-import { logger } from './config/logger.js';
+import { logger, getCurrentResolvedLogPaths } from './config/logger.js';
 import { LogService } from './services/LogService.js';
 import { DataMetricsConfigService } from './services/DataMetricsConfigService.js';
 
@@ -161,6 +161,16 @@ async function startServer() {
     // 系统级数据库文件定时备份（仅日志提示，见 DB_BACKUP_CRON）
     startDbBackupScheduler();
 
+    {
+      const lp = getCurrentResolvedLogPaths();
+      logger.info({
+        msg: '[日志] 文件日志目录（JSON 行、按本地自然日滚动）',
+        logDir: lp.dir,
+        appLog: lp.app,
+        errorLog: lp.error,
+        rotation: lp.rotation
+      });
+    }
     logger.info(`[服务就绪] 服务器运行在端口 ${port}`);
     logger.info('[提示] 如需初始化历史数据，请运行: pnpm init-scan');
     logger.info('[提示] 配置已迁移到数据库，请使用配置管理功能进行管理');
