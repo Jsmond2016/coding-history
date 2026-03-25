@@ -1,9 +1,9 @@
 # Git 提交记录统计系统 - 需求文档
 
 ## 版本信息
-- **文档版本**: v1.1
+- **文档版本**: v1.2
 - **创建日期**: 2025-11-21
-- **最后更新**: 2025-01-21
+- **最后更新**: 2026-03-24
 
 ---
 
@@ -13,11 +13,13 @@
 开发一个 Git 提交记录统计系统，用于追踪和分析多个 Git 仓库的提交记录，帮助开发者了解自己的编码工作状态和加班情况。
 
 ### 1.2 核心功能
-- 多仓库 Git 提交记录扫描和存储
-- 按日期分组展示提交记录
-- 工作状态自动判断
+- 多仓库 Git 提交记录扫描与入库（手动扫描、定时/手动任务）
+- 仓库与作者、忽略分支等配置管理（数据库存储）
+- 按日期分组展示提交记录（受筛选与忽略分支规则影响）
+- 工作状态自动判断（阈值可配置）
 - 加班记录识别和统计
 - 工作状态统计报表（图表展示）
+- 请求与任务执行等日志查询（辅助运维）
 
 ---
 
@@ -185,7 +187,13 @@ Hover 提示：
 - 默认选择全部仓库
 - 下拉框支持搜索和清除
 
-#### 2.4.3 加班筛选
+#### 2.4.3 作者筛选（统计查询）
+**需求描述**：
+- 支持按**作者邮箱**多选筛选（仅影响列表与统计接口的查询结果）
+- 默认不选表示**全部作者**
+- **说明**：此筛选与「扫描入库」时使用的作者规则**相互独立**——入库仅认各仓库在配置中维护的作者邮箱（见 §2.7）
+
+#### 2.4.4 加班筛选
 **需求描述**：
 - 支持按是否加班进行筛选
 - 选项：
@@ -193,12 +201,13 @@ Hover 提示：
   - 仅加班：只显示 19:00 后的提交
   - 非加班：只显示 19:00 前的提交
 
-#### 2.4.4 重置功能
+#### 2.4.5 重置功能
 **需求描述**：
 - 提供"重置"按钮
 - 点击后恢复默认筛选条件：
   - 日期范围：最近一个月
   - 仓库：全部
+  - 作者：全部
   - 加班筛选：全部
 - 重置后自动触发搜索
 
@@ -281,27 +290,125 @@ YYYY年MM月DD日
 - 统计报表数据根据筛选条件动态更新
 - 每次点击"搜索"按钮时，统计报表和折线图同步更新
 - 统计范围：筛选条件指定的时间范围
-- 统计依据：筛选条件指定的仓库范围
+- 统计依据：筛选条件指定的仓库、作者、加班等范围
 
 **更新时机**：
+- **进入 Git 统计页首次加载**：自动执行一次查询（与当前实现一致）
 - 用户点击"搜索"按钮
 - 用户点击"重置"按钮（重置后自动搜索）
-- 页面首次加载（自动执行一次搜索）
+- 手动扫描入库成功后的刷新回调（若实现为重新查询）
 
 ---
 
 ### 2.6 搜索功能
 
-#### 2.5.1 手动搜索
+#### 2.6.1 手动搜索
 **需求描述**：
 - 提供"搜索"按钮
 - 点击后根据当前筛选条件查询数据
-- 页面加载时不自动搜索，需要手动点击
+- 除首次进入页面自动查询外，变更筛选后需用户点击「搜索」以更新结果（与 §2.5.3 一致）
 
-#### 2.5.2 数据加载状态
+#### 2.6.2 数据加载状态
 **需求描述**：
 - 搜索时显示加载状态
 - 无数据时显示"暂无数据"提示
+
+---
+
+### 2.7 Git 扫描与数据入库
+
+#### 2.7.1 功能目标
+**需求描述**：
+- 从本地已配置的 Git 仓库拉取最新代码（`git pull`，无远程或失败时仍尝试扫描）
+- 在指定**时间区间**内，按**各仓库配置的作者邮箱**过滤提交，写入数据库
+- 与统计页的「手动扫描」入口联动，支持配置扫描时间维度后重复执行
+
+#### 2.7.2 手动扫描交互（Git 统计页顶栏）
+**需求描述**：
+- 使用 **Dropdown.Button**：
+  - **主按钮**：使用当前已保存的「扫描时间范围」配置执行一次入库扫描
+  - **下拉菜单**：提供「**配置扫描时间范围**」项，打开 **Modal**
+- **Modal** 内使用多选（Checkbox 组）选择时间维度，点击「**保存**」后写入配置并关闭
+  - **默认勾选**：仅「近 2 周」
+  - 若用户清空所有勾选，回退为默认「近 2 周」
+- **可选时间维度**（均为本地日边界起算，「当前筛选日期」与统计区日期范围一致）：
+  - 近 2 周、近 1 个月、近 3 个月、近 6 个月（相对「今天」）
+  - **当前筛选日期**（与 §2.4.1 中统计用 `dateRange` 一致）
+- **合并规则**：多选项各自对应一段闭区间，合并为**并集**（最早起点～最晚终点），再作为一次扫描请求发送
+- **跨度上限**：合并后的区间长度不得超过 **186 天**（与后端校验一致）；超出时前端提示用户缩小选项或筛选日期
+
+#### 2.7.3 扫描仓库范围
+**需求描述**：
+- 与统计筛选中的**仓库多选**一致：
+  - 未选择仓库：扫描当前**全部已启用**仓库
+  - 已多选：仅扫描选中仓库
+
+#### 2.7.4 作者过滤（扫描侧）
+**需求描述**：
+- **仅**使用「配置管理」中为**该仓库**维护的**作者邮箱**列表
+- Git 使用作者过滤匹配上述邮箱；与 §2.4.3 统计侧「作者筛选」**无关**
+
+#### 2.7.5 防抖与异步状态
+**需求描述**：
+- 两次触发扫描请求间隔不少于 **30 秒**（前端防抖提示）
+- 扫描在服务端**异步**执行；前端轮询 `GET /api/v1/repositories/scan/status` 直至结束
+- 若服务端长期处于「扫描中」未结束，超过约**数分钟**后允许新的扫描请求覆盖僵死状态（避免永久无法再次扫描）
+
+#### 2.7.6 API 约定（手动扫描）
+**需求描述**：
+- `POST /api/v1/repositories/scan`
+- 请求体（JSON）：
+```typescript
+{
+  startDate: number;   // 区间起点（毫秒时间戳，建议为当日 startOf('day')）
+  endDate: number;     // 区间终点（毫秒时间戳，建议为当日 endOf('day')）
+  repositoryIds?: string[]; // 可选，不传或空则全部已启用仓库
+}
+```
+- 校验：`startDate < endDate`，且 `endDate - startDate` 不超过约 186 天对应的毫秒上限
+
+#### 2.7.7 分支、去重与忽略分支（需求说明）
+
+**数据流（入库与展示分离）**：
+
+```mermaid
+flowchart LR
+  subgraph ingest [扫描入库]
+    GitLog["git log 多分支"]
+    Dedup["repoId+hash 唯一"]
+    DB[(commits.branch)]
+  end
+  subgraph query [统计查询]
+    Filter[忽略分支过滤]
+    UI[列表与图表]
+  end
+  GitLog --> Dedup --> DB
+  DB --> Filter --> UI
+```
+
+**入库与去重**：
+- 同一仓库、同一 `commitHash` 在数据库中**仅保留一行**（唯一约束）
+- 单次扫描跨多分支时，内存合并策略倾向于保留**更具未上线分支语义**的那条记录，再写入 `branch` 字段（实现见 `GitScanService`）
+
+**`branch` 字段语义**：
+- 来自 `release` / `master` 主干的记录在库中通常记为 **`branch = null`**
+- 其他分支记为具体分支名（如 `develop`、`feature/...`）
+
+**忽略分支**：
+- 在**各仓库**配置中维护忽略分支列表；统计查询时使用**全局合并**后的分支名列表过滤
+- **含义**：被忽略的 `branch` 值在**列表与统计接口中不展示**，**不表示**扫描时丢弃这些分支上的提交（提交仍可能已写入数据库）
+
+**已知限制（产品/实现）**：
+- 若某提交**首次**以忽略分支名（如 `develop`）入库，之后同一 hash 已出现在 `release` 上，当前实现因**去重不会更新**已有行的 `branch` 字段，则该记录在统计中**仍可能**被忽略分支规则隐藏。业务上「已上线应在 release 体现」的直觉与此不完全一致，可作为后续优化项（例如合入 release 后降级或清空 `branch`）。
+
+---
+
+### 2.8 配置与扫描任务（概要）
+
+**需求描述**：
+- **配置管理**：维护仓库（ID、名称、本地路径、是否启用）、每仓库**作者**、**忽略分支**等；支持批量扫描目录添加仓库等能力（以实际界面为准）
+- **任务管理**：支持**手动任务**与**定时任务**（Cron），按任务配置的扫描时间范围与可选仓库列表执行扫描入库；与统计页「手动扫描」共用同一套 Git 扫描与入库逻辑（区间计算、作者过滤等以服务端实现为准）
+- 初始化或大批量历史补数据可使用命令行脚本（如 `pnpm init-scan`），不在本需求文档展开
 
 ---
 
@@ -310,14 +417,17 @@ YYYY年MM月DD日
 ### 3.1 后端实现
 
 #### 3.1.1 API 接口
-**接口路径**：`GET /api/v1/commits/by-date`
 
-**请求参数**：
+**提交按日聚合查询**  
+**接口路径**：`GET /api/v1/commits/by-date`（Query 参数，非 JSON Body）
+
+**请求参数**（实现上为字符串查询，多值可用逗号分隔）：
 ```typescript
 {
   startDate: number;        // 开始日期（时间戳）
   endDate: number;          // 结束日期（时间戳）
-  repositoryIds?: string[]; // 仓库ID列表（可选）
+  repositoryIds?: string[]; // 仓库 ID，可选，逗号分隔
+  authorEmails?: string[];  // 作者邮箱，可选，逗号分隔；不传表示全部
   isOvertime?: boolean;     // 是否加班筛选（可选）
 }
 ```
@@ -348,10 +458,19 @@ YYYY年MM月DD日
 3. 根据配置的阈值和加班情况，计算工作状态
 4. 返回工作状态标识
 
-#### 3.1.3 数据去重
+**查询侧过滤**：同一服务在聚合前会按**忽略分支**（各仓库配置合并）与 **authorEmails** 等条件过滤提交，与 §2.7.7 一致。
+
+#### 3.1.3 扫描与入库
+**相关文件**：
+- 路由与扫描状态：`backend/src/routes/repositories.ts`（`POST /scan`、`GET /scan/status`、扫描僵死超时等）
+- 扫描核心：`backend/src/services/GitScanService.ts`（`git pull`、`git log`、多分支合并、`branch` 写入）
+- 任务执行：`backend/src/services/ScanTaskExecutor.ts`（定时/手动任务与手动扫描共用区间解析、可选 `resolveScanFromDateWithGapFill` 等逻辑）
+
+#### 3.1.4 数据去重与 `branch`
 **需求描述**：
-- 不同分支或 fork 的相同 commit hash 需要去重
-- 基于 `commitHash` 字段进行去重判断
+- 数据库层：同一 `repoId` + `commitHash` **唯一**，重复插入由合并策略或 upsert 消化
+- 扫描层：单次扫描多分支结果在内存中合并，优先保留更符合「未上线分支」语义的 `branch` 再落库
+- **已知限制**：已存在行不会因后续扫描到 `release`/`master` 而自动把 `branch` 从分支名改为 `null`，详见 §2.7.7
 
 ---
 
@@ -360,6 +479,7 @@ YYYY年MM月DD日
 #### 3.2.1 组件结构
 ```
 GitStatisticsList
+├── 顶栏：手动扫描 Dropdown.Button、扫描状态、配置扫描时间 Modal（与 useScan 等配合）
 ├── StatisticsFilter (筛选组件)
 ├── StatisticsCards (统计卡片组件)
 ├── WorkStatusReport (工作状态统计报表组件)
@@ -379,6 +499,7 @@ GitStatisticsList
 interface FilterState {
   dateRange: [Dayjs, Dayjs];  // 日期范围
   repositoryIds: string[];    // 仓库ID列表
+  authorEmails?: string[];    // 作者邮箱多选（可选，空/不传表示全部）
   isOvertime?: boolean;       // 是否加班筛选
 }
 ```
@@ -386,6 +507,7 @@ interface FilterState {
 **默认值**：
 - 日期范围：最近一个月
 - 仓库：全部（空数组）
+- 作者：全部（`authorEmails` 未选或空）
 - 加班筛选：全部（undefined）
 
 #### 3.2.3 UI 组件库
@@ -395,7 +517,7 @@ interface FilterState {
 - `Collapse`：日期分组折叠面板
 - `Tabs`：仓库分组标签页
 - `DatePicker.RangePicker`：日期范围选择器
-- `Select`：仓库和加班筛选下拉框
+- `Select`：仓库、作者、加班筛选下拉框
 - `Button`：搜索和重置按钮
 - `Tag`：工作状态和加班标签
 - `Tooltip`：加班时间提示
@@ -432,6 +554,7 @@ interface Commit {
   insertions: number;
   deletions: number;
   createdAt: number;
+  branch?: string | null;    // 分支名；release/master 多为 null，见 §2.7.7
   isOvertime?: boolean;       // 是否加班
   overtimeCommitTimes?: string[]; // 加班时间点
 }
@@ -500,13 +623,18 @@ type WorkStatus =
 - 手动扫描功能：30 秒内只能扫描一次
 - 搜索功能：点击后立即执行，无需防抖
 
+### 6.3 扫描任务
+- Git 扫描为**异步长任务**，可能持续数秒至更久，前端通过轮询状态展示进度，避免阻塞主线程请求
+
 ---
 
 ## 7. 测试要求
 
 ### 7.1 功能测试
+- [ ] 进入 Git 统计页首次加载自动执行一次查询（与 §2.5.3、§2.6 一致）
 - [ ] 日期筛选功能正常
 - [ ] 仓库筛选功能正常
+- [ ] 作者邮箱筛选功能正常（仅影响查询，与扫描作者配置无关）
 - [ ] 加班筛选功能正常
 - [ ] 重置功能正常
 - [ ] 工作状态计算正确
@@ -518,6 +646,10 @@ type WorkStatus =
 - [ ] 折线图 Y 轴显示正确（轻松、正常、忙碌、加班、疯狂）
 - [ ] 折线图 Tooltip 显示正确（日期、工作状态、提交次数）
 - [ ] 筛选条件变化时统计报表同步更新
+- [ ] 手动扫描：配置扫描时间 Modal、多选预设保存与默认「近 2 周」回退
+- [ ] 手动扫描：多预设合并为并集、合并跨度超过 186 天时的提示或拦截
+- [ ] 扫描状态轮询与 30 秒防抖
+- [ ] 忽略分支配置下列表/统计的展示行为（可选：覆盖先 develop 后 release 的已知限制场景）
 
 ### 7.2 边界测试
 - [ ] 无数据时显示提示
@@ -531,6 +663,7 @@ type WorkStatus =
 
 ### 8.1 功能扩展
 - ✅ 支持自定义工作状态阈值配置（前端配置界面）- **已实现**
+- 去重后若同一 commit 已出现在 release，可考虑更新或清空 `branch`，消除 §2.7.7 所述展示盲区
 - 支持导出统计数据
 - 支持更多图表类型（柱状图、饼图等）
 - 支持图表数据导出（PNG、PDF）
@@ -553,13 +686,21 @@ type WorkStatus =
 ### 9.1 相关文件
 - 后端工作状态配置（默认值）：`backend/src/config/workStatus.config.ts`
 - 后端数据指标配置服务：`backend/src/services/DataMetricsConfigService.ts`
-- 后端服务：`backend/src/services/CommitService.ts`
+- 后端提交查询与忽略分支过滤：`backend/src/services/CommitService.ts`
+- 后端 Git 扫描入库：`backend/src/services/GitScanService.ts`
+- 后端扫描任务执行：`backend/src/services/ScanTaskExecutor.ts`
 - 后端配置路由：`backend/src/routes/config.ts`
+- 后端仓库与扫描路由：`backend/src/routes/repositories.ts`
 - 前端类型定义：`frontend/src/types/gitStatistics.ts`
 - 前端工具函数：`frontend/src/utils/workStatus.ts`
+- 前端扫描时间预设与区间合并：`frontend/src/utils/scanTimeRange.ts`
+- 前端扫描状态与请求封装：`frontend/src/biz/hooks/useScan.ts`
 - 前端配置 API：`frontend/src/services/configApi.ts`
 - 前端配置管理页面：`frontend/src/pages/Config/ConfigList.tsx`
+- 前端扫描任务列表：`frontend/src/pages/Tasks/TasksList.tsx`
+- 前端日志查询：`frontend/src/pages/Logs/LogsList.tsx`
 - 前端数据指标配置组件：`frontend/src/pages/Config/components/DataMetricsConfig.tsx`
+- 前端 Git 统计列表页：`frontend/src/pages/GitStatistics/GitStatisticsList.tsx`
 - 前端列表组件：`frontend/src/pages/GitStatistics/GitStatisticsList/components/CommitsByDateList.tsx`
 - 前端筛选组件：`frontend/src/pages/GitStatistics/GitStatisticsList/components/StatisticsFilter.tsx`
 - 前端统计报表组件：`frontend/src/pages/GitStatistics/GitStatisticsList/components/WorkStatusReport.tsx`
