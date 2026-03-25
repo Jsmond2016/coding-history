@@ -1,6 +1,6 @@
 /**
  * 配置迁移脚本
- * 若存在 config/repositories.json，则将其中的仓库、作者、忽略分支、定时任务迁移到数据库；
+ * 若存在 config/repositories.json，则将其中的仓库、作者、定时任务迁移到数据库；
  * 若文件不存在则跳过，可通过前端「配置管理」添加仓库。
  */
 
@@ -110,31 +110,6 @@ async function migrateConfigToDb() {
             });
           } catch (error) {
             logger.warn(`[配置迁移] 跳过重复作者 ${author.email} for ${repo.name}`);
-          }
-        }
-      }
-
-      // 迁移忽略分支配置（每个仓库都使用全局忽略分支配置）
-      if (config.ignoredBranches && config.ignoredBranches.length > 0) {
-        logger.info(`[配置迁移] 为仓库 ${repo.name} 迁移 ${config.ignoredBranches.length} 个忽略分支...`);
-        for (const branchName of config.ignoredBranches) {
-          try {
-            await prisma.ignoredBranch.upsert({
-              where: {
-                repoId_branchName: {
-                  repoId: repo.id,
-                  branchName: branchName
-                }
-              },
-              update: {},
-              create: {
-                repoId: repo.id,
-                branchName: branchName,
-                createdAt: now
-              }
-            });
-          } catch (error) {
-            logger.warn(`[配置迁移] 跳过重复分支 ${branchName} for ${repo.name}`);
           }
         }
       }

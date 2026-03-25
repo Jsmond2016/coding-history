@@ -24,8 +24,7 @@ export const ConfigSchema = z.object({
   scanInterval: z.union([
     z.string(), // 向后兼容：单个字符串
     z.array(ScanScheduleSchema) // 新的数组格式
-  ]),
-  ignoredBranches: z.array(z.string()).optional().default(['develop', 'release', 'uat']) // 忽略的分支列表，不参与汇总统计
+  ])
 });
 
 export type RepositoryConfig = z.infer<typeof RepositoryConfigSchema>;

@@ -11,7 +11,6 @@ export interface RepositoryConfig {
   path: string;
   enabled: boolean;
   authors: AuthorConfig[];
-  ignoredBranches: string[];
   lastScanTime: number | null;
   totalCommits: number;
   createdAt: number;
@@ -44,10 +43,6 @@ export interface CreateAuthorParams {
   isDefault?: boolean;
 }
 
-export interface CreateIgnoredBranchParams {
-  branchName: string;
-}
-
 /**
  * 获取所有仓库配置
  */
@@ -67,11 +62,10 @@ export const createRepository = async (params: CreateRepositoryParams): Promise<
 export interface BatchCreateRepositoriesParams {
   repositories: Array<{ id: string; name: string; path: string; enabled?: boolean }>;
   author?: { name: string; email: string };
-  ignoredBranches?: string[];
 }
 
 /**
- * 批量创建仓库配置（可同时为所有仓库设置默认作者与忽略分支）
+ * 批量创建仓库配置（可同时为所有仓库设置默认作者）
  */
 export const batchCreateRepositories = async (
   params: BatchCreateRepositoriesParams
@@ -140,34 +134,6 @@ export const createAuthor = async (repoId: string, params: CreateAuthorParams): 
  */
 export const deleteAuthor = async (repoId: string, authorId: number): Promise<void> => {
   await api.delete(`/config/repositories/${repoId}/authors/${authorId}`);
-};
-
-export interface IgnoredBranchItem {
-  id: number;
-  branchName: string;
-}
-
-/**
- * 获取忽略分支列表
- */
-export const getIgnoredBranches = async (repoId: string): Promise<IgnoredBranchItem[]> => {
-  const response = await api.get<{ data: IgnoredBranchItem[] }>(`/config/repositories/${repoId}/ignored-branches`);
-  return response.data.data;
-};
-
-/**
- * 添加忽略分支
- */
-export const createIgnoredBranch = async (repoId: string, params: CreateIgnoredBranchParams): Promise<{ id: number; branchName: string }> => {
-  const response = await api.post<{ data: { id: number; branchName: string } }>(`/config/repositories/${repoId}/ignored-branches`, params);
-  return response.data.data;
-};
-
-/**
- * 删除忽略分支
- */
-export const deleteIgnoredBranch = async (repoId: string, branchId: number): Promise<void> => {
-  await api.delete(`/config/repositories/${repoId}/ignored-branches/${branchId}`);
 };
 
 export interface DataMetricsConfig {

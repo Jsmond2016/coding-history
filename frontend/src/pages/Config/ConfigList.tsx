@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs, Alert } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   PlusOutlined,
@@ -21,7 +21,6 @@ import {
 } from '../../services/configApi';
 import RepositoryForm from './components/RepositoryForm';
 import AuthorsManager from './components/AuthorsManager';
-import IgnoredBranchesManager from './components/IgnoredBranchesManager';
 import DataMetricsConfig from './components/DataMetricsConfig';
 
 import ScanReposModal from './components/ScanReposModal';
@@ -35,10 +34,8 @@ const ConfigList: React.FC = () => {
   const [editingRepo, setEditingRepo] = React.useState<RepositoryConfig | undefined>();
   const [expandedKeys, setExpandedKeys] = React.useState<string[]>([]);
   const [authorsModalOpen, setAuthorsModalOpen] = React.useState(false);
-  const [branchesModalOpen, setBranchesModalOpen] = React.useState(false);
   const [scanReposModalOpen, setScanReposModalOpen] = React.useState(false);
   const [editingRepoForAuthors, setEditingRepoForAuthors] = React.useState<RepositoryConfig | undefined>();
-  const [editingRepoForBranches, setEditingRepoForBranches] = React.useState<RepositoryConfig | undefined>();
   const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([]);
   const [deleting, setDeleting] = React.useState(false);
 
@@ -100,21 +97,11 @@ const ConfigList: React.FC = () => {
     }
   };
 
-  
-
   // 处理编辑作者
   const handleEditAuthors = (repo: RepositoryConfig) => {
     setEditingRepoForAuthors(repo);
     setAuthorsModalOpen(true);
   };
-
-  // 处理编辑忽略分支
-  const handleEditBranches = (repo: RepositoryConfig) => {
-    setEditingRepoForBranches(repo);
-    setBranchesModalOpen(true);
-  };
-
-  
 
   // 表格列定义
   const columns: ColumnsType<RepositoryConfig> = [
@@ -168,35 +155,6 @@ const ConfigList: React.FC = () => {
             size="small"
             icon={<EditOutlined />}
             onClick={() => handleEditAuthors(record)}
-            className="p-0 h-auto flex-shrink-0"
-          />
-        </Flex>
-      )
-    },
-    {
-      title: '忽略分支(兼容)',
-      key: 'ignoredBranches',
-      width: 200,
-      render: (_: any, record: RepositoryConfig) => (
-        <Flex align="flex-start" justify="space-between" gap={8} className="w-full">
-          <div className="flex-1">
-            {record.ignoredBranches.length > 0 ? (
-              <Space direction="vertical" size={4} className="w-full">
-                {record.ignoredBranches.map((branch, index) => (
-                  <Tag key={index} className="m-0">
-                    {branch}
-                  </Tag>
-                ))}
-              </Space>
-            ) : (
-              <span className="text-xs text-gray-400">未配置</span>
-            )}
-          </div>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEditBranches(record)}
             className="p-0 h-auto flex-shrink-0"
           />
         </Flex>
@@ -321,18 +279,11 @@ const ConfigList: React.FC = () => {
               onExpandedRowsChange: (keys) => setExpandedKeys(keys as string[]),
               expandedRowRender: (record: RepositoryConfig) => (
                 <div className="py-4">
-                  <Collapse defaultActiveKey={['authors', 'branches']}>
+                  <Collapse defaultActiveKey={['authors']}>
                     <Panel header={`作者配置 (${record.authors.length})`} key="authors">
                       <AuthorsManager
                         repoId={record.id}
                         authors={record.authors}
-                        onUpdate={loadRepositories}
-                      />
-                    </Panel>
-                    <Panel header={`忽略分支（已不影响统计，${record.ignoredBranches.length} 条）`} key="branches">
-                      <IgnoredBranchesManager
-                        repoId={record.id}
-                        branches={record.ignoredBranches}
                         onUpdate={loadRepositories}
                       />
                     </Panel>
@@ -362,13 +313,6 @@ const ConfigList: React.FC = () => {
         <Title level={2} className="mb-4">
           配置管理
         </Title>
-        <Alert
-          type="info"
-          showIcon
-          className="mb-4"
-          message="忽略分支配置已不影响 Git 统计汇总"
-          description="扫描使用全引用 `git log --all` 与按 commit 去重；列表与图表不再按忽略分支过滤。展开仓库后「忽略分支」面板仅作兼容与数据清理。"
-        />
         <Tabs items={tabItems} />
       </Card>
 
@@ -404,30 +348,6 @@ const ConfigList: React.FC = () => {
         )}
       </Modal>
 
-      {/* 忽略分支编辑弹窗 */}
-      <Modal
-        title={`编辑忽略分支 - ${editingRepoForBranches?.name || ''}`}
-        open={branchesModalOpen}
-        onCancel={() => {
-          setBranchesModalOpen(false);
-          setEditingRepoForBranches(undefined);
-        }}
-        footer={null}
-        width={800}
-      >
-        {editingRepoForBranches && (
-          <IgnoredBranchesManager
-            repoId={editingRepoForBranches.id}
-            branches={editingRepoForBranches.ignoredBranches}
-            onUpdate={() => {
-              loadRepositories();
-            }}
-          />
-        )}
-      </Modal>
-
-      
-
       {/* 扫描仓库弹窗 */}
       <ScanReposModal
         open={scanReposModalOpen}
@@ -439,4 +359,3 @@ const ConfigList: React.FC = () => {
 };
 
 export default ConfigList;
-

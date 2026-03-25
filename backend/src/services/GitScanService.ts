@@ -24,7 +24,7 @@ export class GitScanService {
 
   /**
    * 全图单次扫描：`git log --all` 跨所有 ref，每个 commit hash 至多出现一次（含 merge commit，不设 --no-merges）。
-   * 不按分支写 `branch` 字段，入库多为 `branch=null`，与「时间窗内多仓库汇总、查询不再按忽略分支过滤」一致。
+   * 不按分支写 `branch` 字段，入库多为 `branch=null`，与时间窗内多仓库汇总口径一致。
    */
   async scanRepositoryFlat(fromDate?: Date, toDate?: Date, authorEmails?: string[]): Promise<ScannedCommit[]> {
     const isRepo = await this.git.checkIsRepo();

@@ -97,10 +97,6 @@ const CreateAuthorSchema = z.object({
   isDefault: z.boolean().default(false)
 });
 
-const CreateIgnoredBranchSchema = z.object({
-  branchName: z.string()
-});
-
 const ScanDirectorySchema = z.object({
   rootPath: z.string().min(1, '请输入根目录路径')
 });
@@ -119,8 +115,7 @@ const BatchCreateRepositoriesSchema = z.object({
       enabled: z.boolean().default(true)
     })
   ),
-  author: BatchAuthorSchema.optional(),
-  ignoredBranches: z.array(z.string()).optional()
+  author: BatchAuthorSchema.optional()
 });
 
 const BatchDeleteRepositoriesSchema = z.object({
@@ -150,10 +145,10 @@ app.get('/repositories', async (c) => {
   }
 });
 
-// 批量创建仓库配置（支持批量作者与忽略分支，用于扫描仓库后一键保存）
+// 批量创建仓库配置（支持批量作者，用于扫描仓库后一键保存）
 app.post('/repositories/batch', zValidator('json', BatchCreateRepositoriesSchema), async (c) => {
   try {
-    const { repositories, author, ignoredBranches } = c.req.valid('json');
+    const { repositories, author } = c.req.valid('json');
     if (repositories.length === 0) {
       return c.json({ error: 'repositories 不能为空' }, 400);
     }
@@ -180,22 +175,6 @@ app.post('/repositories/batch', zValidator('json', BatchCreateRepositoriesSchema
           if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') return;
           throw err;
         });
-      }
-      if (Array.isArray(ignoredBranches) && ignoredBranches.length > 0) {
-        for (const branchName of ignoredBranches) {
-          const name = typeof branchName === 'string' ? branchName.trim() : '';
-          if (!name) continue;
-          await prisma.ignoredBranch.create({
-            data: {
-              repoId: repo.id,
-              branchName: name,
-              createdAt: now
-            }
-          }).catch((err: unknown) => {
-            if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') return;
-            throw err;
-          });
-        }
       }
     }
 
@@ -363,62 +342,6 @@ app.delete('/repositories/:id/authors/:authorId', async (c) => {
   } catch (error) {
     logger.error('Failed to delete author:', error);
     return c.json({ error: 'Failed to delete author' }, 500);
-  }
-});
-
-// 获取忽略分支列表
-app.get('/repositories/:id/ignored-branches', async (c) => {
-  try {
-    const repoId = c.req.param('id');
-    const branches = await prisma.ignoredBranch.findMany({
-      where: { repoId },
-      orderBy: { createdAt: 'asc' }
-    });
-    return c.json({ data: branches.map((b: { id: number; branchName: string }) => ({ id: b.id, branchName: b.branchName })) });
-  } catch (error) {
-    logger.error('Failed to get ignored branches:', error);
-    return c.json({ error: 'Failed to get ignored branches' }, 500);
-  }
-});
-
-// 添加忽略分支
-app.post('/repositories/:id/ignored-branches', zValidator('json', CreateIgnoredBranchSchema), async (c) => {
-  try {
-    const repoId = c.req.param('id');
-    const data = c.req.valid('json');
-    const now = BigInt(Date.now());
-
-    const branch = await prisma.ignoredBranch.create({
-      data: {
-        repoId,
-        branchName: data.branchName,
-        createdAt: now
-      }
-    });
-
-    return c.json({ data: { id: branch.id, branchName: branch.branchName } }, 201);
-  } catch (error) {
-    logger.error('Failed to create ignored branch:', error);
-    return c.json({ error: 'Failed to create ignored branch' }, 500);
-  }
-});
-
-// 删除忽略分支
-app.delete('/repositories/:id/ignored-branches/:branchId', async (c) => {
-  try {
-    const branchId = parseInt(c.req.param('branchId'), 10);
-    if (isNaN(branchId)) {
-      return c.json({ error: 'Invalid branch ID' }, 400);
-    }
-
-    await prisma.ignoredBranch.delete({
-      where: { id: branchId }
-    });
-
-    return c.json({ success: true });
-  } catch (error) {
-    logger.error('Failed to delete ignored branch:', error);
-    return c.json({ error: 'Failed to delete ignored branch' }, 500);
   }
 });
 

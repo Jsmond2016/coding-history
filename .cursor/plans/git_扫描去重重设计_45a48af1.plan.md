@@ -4,13 +4,13 @@ overview: 已确认产品目标为「时间范围内、多配置仓库、配置�
 todos:
   - id: decide-strategy
     content: 方案 A + 取消忽略分支过滤 + merge commit 纳入汇总（已确认）
-    status: completed
+    status: cancelled
   - id: redefine-ignore
     content: 移除 CommitService 查询侧忽略分支过滤；requirements 写明保留 merge 与工时用途；配置页弃用/隐藏忽略分支
     status: completed
   - id: implement-scan
     content: GitScanService scanRepositoryFlat（rev-list，默认含 merge）；CommitService 去忽略过滤；回归：同 hash 跨分支一条可见；作者为 merger 的 merge 记录可见
-    status: completed
+    status: cancelled
 isProject: false
 ---
 

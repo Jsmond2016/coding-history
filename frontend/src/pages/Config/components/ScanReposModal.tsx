@@ -7,8 +7,7 @@ import {
   Space,
   message,
   Typography,
-  Form,
-  Select
+  Form
 } from 'antd';
 import { FolderOpenOutlined, SearchOutlined, DeleteOutlined, ArrowLeftOutlined, UserOutlined } from '@ant-design/icons';
 import { useAtom, useStore } from 'jotai';
@@ -18,8 +17,6 @@ import {
   type ScannedRepoItem
 } from '../../../services/configApi';
 import { scannedReposListAtom, type EditableScanItem } from '../../../biz/atoms/scanRepos.atom';
-
-const DEFAULT_IGNORED_BRANCHES = ['develop', 'uat', 'release', 'master'];
 
 interface ScanReposModalProps {
   open: boolean;
@@ -36,7 +33,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
   const [scanning, setScanning] = React.useState(false);
   const [list, setList] = useAtom(scannedReposListAtom);
   const store = useStore();
-  const [form] = Form.useForm<{ authorName: string; authorEmail: string; ignoredBranches: string[] }>();
+  const [form] = Form.useForm<{ authorName: string; authorEmail: string }>();
 
   const handleClose = () => {
     setRootPath('');
@@ -100,8 +97,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
     }
     form.setFieldsValue({
       authorName: form.getFieldValue('authorName') ?? '',
-      authorEmail: form.getFieldValue('authorEmail') ?? '',
-      ignoredBranches: form.getFieldValue('ignoredBranches') ?? []
+      authorEmail: form.getFieldValue('authorEmail') ?? ''
     });
     setStep('settings');
   };
@@ -109,10 +105,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
   const handleSave = async () => {
     const values = await form.validateFields().catch(() => null);
     if (values === null) return;
-    const { authorName, authorEmail, ignoredBranches } = values;
-    const branches = Array.isArray(ignoredBranches)
-      ? ignoredBranches.map((b) => String(b).trim()).filter(Boolean)
-      : [];
+    const { authorName, authorEmail } = values;
     const currentList = store.get(scannedReposListAtom);
     if (currentList.length === 0) {
       message.warning('没有可保存的仓库，请返回预览步骤确认列表');
@@ -130,8 +123,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
     try {
       await batchCreateRepositories({
         repositories,
-        author: { name: authorName, email: authorEmail },
-        ignoredBranches: branches
+        author: { name: authorName, email: authorEmail }
       });
       message.success(`已添加 ${currentList.length} 个仓库并应用批量设置`);
       handleClose();
@@ -201,7 +193,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
     ? '扫描仓库'
     : isPreview
       ? '确认扫描结果'
-      : '批量设置（作者与忽略分支）';
+      : '批量设置（作者）';
 
   return (
     <Modal
@@ -268,15 +260,14 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
       {isSettings && (
         <div>
           <Typography.Paragraph type="secondary" className="mb-4">
-            以下设置将应用到本次添加的 {list.length} 个仓库。作者信息需与 Git 提交一致。统计已不按「忽略分支」过滤；下方分支列表可选，仅写入配置库作兼容，一般可留空。
+            以下设置将应用到本次添加的 {list.length} 个仓库。作者信息需与 Git 提交一致。
           </Typography.Paragraph>
           <Form
             form={form}
             layout="vertical"
             initialValues={{
               authorName: '',
-              authorEmail: '',
-              ignoredBranches: []
+              authorEmail: ''
             }}
           >
             <Form.Item
@@ -299,24 +290,6 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
               extra="需与 Git 提交记录中的邮箱一致"
             >
               <Input type="email" placeholder="例如：zhangsan@example.com" />
-            </Form.Item>
-            <Form.Item
-              label="忽略分支（可选，已不影响统计）"
-              name="ignoredBranches"
-              normalize={(v) =>
-                Array.isArray(v)
-                  ? v.map((b) => String(b).trim()).filter(Boolean)
-                  : v
-              }
-              extra="可留空。若填写会写入数据库，仅作历史兼容，不再用于隐藏提交。"
-            >
-              <Select
-                mode="tags"
-                placeholder="一般留空即可"
-                tokenSeparators={[',', ' ']}
-                allowClear
-                options={DEFAULT_IGNORED_BRANCHES.map((b) => ({ label: b, value: b }))}
-              />
             </Form.Item>
           </Form>
           <div className="mt-4 flex justify-between">

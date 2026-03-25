@@ -6,7 +6,6 @@ export interface RepositoryConfig {
   path: string;
   enabled: boolean;
   authors: AuthorConfig[];
-  ignoredBranches: string[];
   lastScanTime: number | null;
   totalCommits: number;
   createdAt: number;
@@ -22,16 +21,13 @@ export interface AuthorConfig {
 
 export class ConfigService {
   /**
-   * 获取仓库完整配置（包括作者、忽略分支）
+   * 获取仓库完整配置（含作者）
    */
   async getRepositoryConfig(repoId: string): Promise<RepositoryConfig | null> {
     const repo = await prisma.repository.findUnique({
       where: { id: repoId },
       include: {
         authors: {
-          orderBy: { createdAt: 'asc' }
-        },
-        ignoredBranches: {
           orderBy: { createdAt: 'asc' }
         }
       }
@@ -50,7 +46,6 @@ export class ConfigService {
         email: a.email,
         isDefault: a.isDefault
       })),
-      ignoredBranches: repo.ignoredBranches.map(b => b.branchName),
       lastScanTime: repo.lastScanTime ? Number(repo.lastScanTime) : null,
       totalCommits: repo.totalCommits,
       createdAt: Number(repo.createdAt),
@@ -65,9 +60,6 @@ export class ConfigService {
     const repos = await prisma.repository.findMany({
       include: {
         authors: {
-          orderBy: { createdAt: 'asc' }
-        },
-        ignoredBranches: {
           orderBy: { createdAt: 'asc' }
         }
       },
@@ -85,7 +77,6 @@ export class ConfigService {
         email: a.email,
         isDefault: a.isDefault
       })),
-      ignoredBranches: repo.ignoredBranches.map(b => b.branchName),
       lastScanTime: repo.lastScanTime ? Number(repo.lastScanTime) : null,
       totalCommits: repo.totalCommits,
       createdAt: Number(repo.createdAt),
@@ -108,18 +99,6 @@ export class ConfigService {
       email: a.email,
       isDefault: a.isDefault
     }));
-  }
-
-  /**
-   * 获取仓库的忽略分支列表
-   */
-  async getIgnoredBranchesByRepoId(repoId: string): Promise<string[]> {
-    const branches = await prisma.ignoredBranch.findMany({
-      where: { repoId },
-      orderBy: { createdAt: 'asc' }
-    });
-
-    return branches.map(b => b.branchName);
   }
 
   /**
@@ -165,16 +144,5 @@ export class ConfigService {
     return authors.map(a => a.email);
   }
 
-  /**
-   * 获取所有仓库的忽略分支列表（合并去重）
-   */
-  async getAllIgnoredBranches(): Promise<string[]> {
-    const branches = await prisma.ignoredBranch.findMany({
-      select: { branchName: true }
-    });
-
-    // 去重
-    return Array.from(new Set(branches.map(b => b.branchName)));
-  }
 }
 

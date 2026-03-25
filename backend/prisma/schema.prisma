@@ -21,9 +21,8 @@ model Repository {
   createdAt         BigInt  @map("created_at")
   updatedAt         BigInt  @map("updated_at")
 
-  commits         Commit[]
-  authors         Author[]
-  ignoredBranches IgnoredBranch[]
+  commits Commit[]
+  authors Author[]
 
   @@map("repositories")
 }
@@ -138,19 +137,6 @@ model Author {
   @@unique([repoId, email])
   @@index([repoId])
   @@map("authors")
-}
-
-model IgnoredBranch {
-  id         Int    @id @default(autoincrement())
-  repoId     String @map("repo_id")
-  branchName String @map("branch_name")
-  createdAt  BigInt @map("created_at")
-
-  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
-
-  @@unique([repoId, branchName])
-  @@index([repoId])
-  @@map("ignored_branches")
 }
 
 model DataMetricsConfig {
