@@ -1,5 +1,5 @@
 import React from 'react';
-import { Collapse, Tag, Tooltip, Space, Typography, Tabs } from 'antd';
+import { Collapse, Tag, Tooltip, Space, Typography, Tabs, Timeline } from 'antd';
 import { ClockCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { CommitsByDate, Commit, WorkStatus } from '../../../../types/gitStatistics';
@@ -88,32 +88,30 @@ function getRepoColorForOverview(
   return { tagPreset, borderHex: REPO_BORDER_HEX[tagPreset] };
 }
 
-function renderCommitBlock(
+/** 与 Timeline 的 color 一致：节点与连线用色；支持 hex（见 antd Timeline items 示例） */
+const DEFAULT_TIMELINE_COLOR = '#1890ff';
+
+/**
+ * 单条提交卡片内容（不含 Timeline 外壳）；布局仍为两行，首行左右分栏
+ */
+function renderCommitTimelineItemContent(
   commit: Commit,
   options?: {
     showRepo?: boolean;
-    /** 当日全览 Tab：与面板头部仓库 Tag 同色 */
     repoTagPreset?: (typeof REPO_PRESET_COLORS)[number];
     repoBorderHex?: string;
   },
 ) {
   const { showRepo, repoTagPreset, repoBorderHex } = options ?? {};
-  const borderColor = repoBorderHex ?? '#1890ff';
+  const accent = repoBorderHex ?? DEFAULT_TIMELINE_COLOR;
   const timeClass =
-    showRepo && repoBorderHex
-      ? 'font-medium'
-      : 'text-[#1890ff] font-medium';
+    showRepo && repoBorderHex ? 'font-medium' : 'text-[#1890ff] font-medium';
   const timeStyle =
-    showRepo && repoBorderHex ? { color: borderColor } : undefined;
+    showRepo && repoBorderHex ? { color: accent } : undefined;
 
   return (
-    <div
-      key={commit.id}
-      className="mb-2 ml-4 rounded border-l-[3px] border-solid bg-[#fafafa] px-3 py-2"
-      style={{ borderLeftColor: borderColor }}
-    >
+    <div className="rounded bg-[#fafafa] px-2 py-2">
       <div className="flex w-full flex-col gap-1">
-        {/* 第一行：左元信息 / 右文件与行数，压缩纵向空间 */}
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <Space size={[8, 4]} wrap className="min-w-0 flex-1">
             {showRepo && (
@@ -126,16 +124,13 @@ function renderCommitBlock(
             {commit.branch && (
               <Tag color="geekblue">🌿 {commit.branch}</Tag>
             )}
-            {commit.isOvertime && (
-              <Tag color="red">加班</Tag>
-            )}
+            {commit.isOvertime && <Tag color="red">加班</Tag>}
           </Space>
           <div className="flex shrink-0 flex-wrap items-baseline justify-end gap-x-4 gap-y-0.5 text-[14px]">
             <span className="whitespace-nowrap text-neutral-600">
               文件变更{' '}
               <span className="text-[#1677ff]!">{commit.filesChanged}</span>
             </span>
-            {/* 不用 Typography.Text，避免 antd 覆盖颜色；新增绿 / 删除红 */}
             <span className="whitespace-nowrap text-[#389e0d]!">
               +{commit.insertions}
             </span>
@@ -148,6 +143,18 @@ function renderCommitBlock(
       </div>
     </div>
   );
+}
+
+function buildCommitTimelineItem(
+  commit: Commit,
+  timelineColor: string,
+  contentOptions?: Parameters<typeof renderCommitTimelineItemContent>[1],
+) {
+  return {
+    key: commit.id,
+    color: timelineColor,
+    children: renderCommitTimelineItemContent(commit, contentOptions),
+  };
 }
 
 export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, loading }) => {
@@ -285,24 +292,32 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                         : ''
                     }
                   >
-                    {timelineCommits.map((c) => {
-                      const { tagPreset, borderHex } = getRepoColorForOverview(
-                        c.repoName,
-                        repositories,
-                        repoNames,
-                      );
-                      return renderCommitBlock(c, {
-                        showRepo: true,
-                        repoTagPreset: tagPreset,
-                        repoBorderHex: borderHex,
-                      });
-                    })}
+                    <Timeline
+                      className="[&_.ant-timeline-item-last>.ant-timeline-item-content]:min-h-0"
+                      items={timelineCommits.map((c) => {
+                        const { tagPreset, borderHex } = getRepoColorForOverview(
+                          c.repoName,
+                          repositories,
+                          repoNames,
+                        );
+                        return buildCommitTimelineItem(c, borderHex, {
+                          showRepo: true,
+                          repoTagPreset: tagPreset,
+                          repoBorderHex: borderHex,
+                        });
+                      })}
+                    />
                   </div>
                 </TabPane>
                 {repoNames.map((repoName) => {
                   const repoCommits = commitsByRepo[repoName];
                   const totalRepoCommits = repoCommits.length;
                   const shouldScroll = totalRepoCommits > 10;
+                  const { borderHex: repoTabColor } = getRepoColorForOverview(
+                    repoName,
+                    repositories,
+                    repoNames,
+                  );
 
                   return (
                     <TabPane
@@ -321,7 +336,12 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                           shouldScroll ? 'mt-2 max-h-[500px] overflow-y-auto' : 'mt-2'
                         }
                       >
-                        {repoCommits.map((commit) => renderCommitBlock(commit))}
+                        <Timeline
+                          className="[&_.ant-timeline-item-last>.ant-timeline-item-content]:min-h-0"
+                          items={repoCommits.map((commit) =>
+                            buildCommitTimelineItem(commit, repoTabColor),
+                          )}
+                        />
                       </div>
                     </TabPane>
                   );
