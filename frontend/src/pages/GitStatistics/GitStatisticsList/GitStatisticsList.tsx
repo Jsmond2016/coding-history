@@ -5,7 +5,6 @@ import {
   message,
   Empty,
   Spin,
-  Layout,
   Button,
   ConfigProvider,
   Card,
@@ -14,10 +13,14 @@ import {
   Dropdown,
   Modal,
   Radio,
-  Space
+  Space,
 } from "antd"
 import type { MenuProps } from "antd"
-import { ReloadOutlined, DownOutlined, CalendarOutlined } from "@ant-design/icons"
+import {
+  ReloadOutlined,
+  DownOutlined,
+  CalendarOutlined,
+} from "@ant-design/icons"
 import { StatisticsFilter } from "./components/StatisticsFilter"
 import { StatisticsCards } from "./components/StatisticsCards"
 import {
@@ -40,10 +43,8 @@ import {
   SCAN_TIME_PRESET_OPTIONS,
   getPresetRange,
   getScanPresetLabel,
-  MAX_SCAN_SPAN_MS
+  MAX_SCAN_SPAN_MS,
 } from "../../../utils/scanTimeRange"
-
-const { Header } = Layout
 
 const GitStatisticsList: React.FC = () => {
   const filter = useAtomValue(filterAtom)
@@ -77,8 +78,8 @@ const GitStatisticsList: React.FC = () => {
     {
       key: "config",
       label: "配置扫描时间范围",
-      icon: <CalendarOutlined />
-    }
+      icon: <CalendarOutlined />,
+    },
   ]
 
   const handleScanMenuClick: MenuProps["onClick"] = ({ key }) => {
@@ -86,16 +87,17 @@ const GitStatisticsList: React.FC = () => {
   }
 
   const handleManualScan = React.useCallback(() => {
-    const [startDate, endDate] = getPresetRange(scanTimePreset, filter.dateRange)
+    const [startDate, endDate] = getPresetRange(
+      scanTimePreset,
+      filter.dateRange,
+    )
 
     if (startDate >= endDate) {
       message.error("当前扫描时间范围无效，请检查所选预设或筛选日期")
       return
     }
     if (endDate - startDate > MAX_SCAN_SPAN_MS) {
-      message.error(
-        "所选范围超过 186 天，请换更短预设或缩小筛选日期后再扫描"
-      )
+      message.error("所选范围超过 186 天，请换更短预设或缩小筛选日期后再扫描")
       return
     }
 
@@ -153,7 +155,7 @@ const GitStatisticsList: React.FC = () => {
         setLoading(false)
       }
     },
-    [filter, setStatistics]
+    [filter, setStatistics],
   )
 
   // 加载仓库列表和作者列表
@@ -174,9 +176,10 @@ const GitStatisticsList: React.FC = () => {
 
   return (
     <ScanProvider onScanComplete={handleSearch}>
-      <div className="h-full flex flex-col overflow-hidden">
-        <Header
-          className="flex w-full min-w-0 items-center justify-end shadow-sm sticky top-0 z-[1000] h-16 shrink-0 bg-white px-3"
+      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
+        <header
+          role="banner"
+          className="sticky top-0 z-[1000] flex h-16 w-full min-w-0 shrink-0 items-center justify-end border-b border-neutral-100 bg-white px-3 shadow-sm"
         >
           <ConfigProvider
             theme={{
@@ -187,22 +190,31 @@ const GitStatisticsList: React.FC = () => {
               },
             }}
           >
-            <Dropdown.Button
-              type="primary"
-              icon={<DownOutlined />}
-              loading={scanning}
-              disabled={scanning}
-              menu={{ items: scanMenuItems, onClick: handleScanMenuClick }}
-              onClick={handleManualScan}
-              className="[&_.ant-btn.ant-btn-loading]:!bg-[#ff9800] [&_.ant-btn.ant-btn-loading]:!border-[#ff9800] [&_.ant-btn.ant-btn-loading]:!opacity-100"
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <ReloadOutlined />
+            <Space.Compact>
+              <Button
+                type="primary"
+                icon={<ReloadOutlined />}
+                loading={scanning}
+                disabled={scanning}
+                onClick={handleManualScan}
+              >
                 {scanButtonLabel}
-              </span>
-            </Dropdown.Button>
+              </Button>
+              <Dropdown
+                menu={{ items: scanMenuItems, onClick: handleScanMenuClick }}
+                placement="bottomRight"
+              >
+                <Button
+                  type="primary"
+                  icon={<DownOutlined />}
+                  loading={scanning}
+                  disabled={scanning}
+                  aria-label="扫描更多操作"
+                />
+              </Dropdown>
+            </Space.Compact>
           </ConfigProvider>
-        </Header>
+        </header>
         <Modal
           title="筛选扫描时间范围"
           open={scanConfigOpen}
@@ -213,14 +225,15 @@ const GitStatisticsList: React.FC = () => {
             </Button>,
             <Button key="ok" type="primary" onClick={saveScanConfig}>
               保存
-            </Button>
+            </Button>,
           ]}
           destroyOnClose
           width={420}
         >
           <p className="text-neutral-500 text-sm mb-3">
             单选一项作为手动扫描的时间窗口；保存后主按钮会显示「手动扫描-」加选项名称（如
-            2 周内）。跨度不能超过 186 天（选「当前筛选日期」时请留意筛选区间）。
+            2 周内）。跨度不能超过 186
+            天（选「当前筛选日期」时请留意筛选区间）。
           </p>
           <Radio.Group
             value={draftPreset}
@@ -246,10 +259,10 @@ const GitStatisticsList: React.FC = () => {
             <div className="my-3">
               {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
               <Row gutter={16} className="mb-3 !mx-0">
-                <Col span={12} className='!pl-0'>
+                <Col span={12} className="!pl-0">
                   <StatisticsCards />
                 </Col>
-                <Col span={12} className='!pr-0'>
+                <Col span={12} className="!pr-0">
                   <WorkStatusCards data={commitsByDate} />
                 </Col>
               </Row>
