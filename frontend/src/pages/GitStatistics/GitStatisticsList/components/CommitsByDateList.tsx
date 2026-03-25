@@ -92,7 +92,7 @@ function renderCommitBlock(
   commit: Commit,
   options?: {
     showRepo?: boolean;
-    /** 全览 Tab：与面板头部仓库 Tag 同色 */
+    /** 当日全览 Tab：与面板头部仓库 Tag 同色 */
     repoTagPreset?: (typeof REPO_PRESET_COLORS)[number];
     repoBorderHex?: string;
   },
@@ -167,28 +167,21 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
       {data.map((dateGroup) => {
         const { date, commits, totalCommits, overtimeCount, latestOvertimeCommits, workStatus, hasRelease, repositories, branches } = dateGroup;
         
-        // 按仓库分组，然后按分支分组
-        const commitsByRepoAndBranch = commits.reduce((acc, commit) => {
+        // 按仓库分组（当前扫描口径下 branch 多为空，不再按分支分子 Tab）
+        const commitsByRepo = commits.reduce((acc, commit) => {
           if (!acc[commit.repoName]) {
-            acc[commit.repoName] = {};
+            acc[commit.repoName] = [];
           }
-          const branchKey = commit.branch || 'unknown';
-          if (!acc[commit.repoName][branchKey]) {
-            acc[commit.repoName][branchKey] = [];
-          }
-          acc[commit.repoName][branchKey].push(commit);
+          acc[commit.repoName].push(commit);
           return acc;
-        }, {} as Record<string, Record<string, Commit[]>>);
-        
-        // 对每个仓库每个分支的commits按时间降序排序
-        Object.keys(commitsByRepoAndBranch).forEach(repoName => {
-          Object.keys(commitsByRepoAndBranch[repoName]).forEach(branch => {
-            commitsByRepoAndBranch[repoName][branch].sort((a, b) => b.commitDate - a.commitDate);
-          });
+        }, {} as Record<string, Commit[]>);
+
+        Object.keys(commitsByRepo).forEach((repoName) => {
+          commitsByRepo[repoName].sort((a, b) => b.commitDate - a.commitDate);
         });
 
-        // 获取仓库列表（用于 Tabs）；首项为「全览」按时间线从早到晚
-        const repoNames = Object.keys(commitsByRepoAndBranch);
+        // 获取仓库列表（用于 Tabs）；首项为「当日全览」按时间线从早到晚
+        const repoNames = Object.keys(commitsByRepo);
         const timelineCommits = [...commits].sort((a, b) => a.commitDate - b.commitDate);
         const defaultActiveKey = OVERVIEW_TAB_KEY;
 
@@ -277,7 +270,7 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                 <TabPane
                   tab={
                     <span>
-                      全览
+                      当日全览
                       <Text type="secondary" className="ml-2 text-xs">
                         ({totalCommits})
                       </Text>
@@ -285,9 +278,6 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                   }
                   key={OVERVIEW_TAB_KEY}
                 >
-                  <p className="mb-3 text-sm text-neutral-500">
-                    按提交时间从早到晚排列，便于查看当日跨仓库的工作顺序。
-                  </p>
                   <div
                     className={
                       timelineCommits.length > 10
@@ -310,13 +300,12 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                   </div>
                 </TabPane>
                 {repoNames.map((repoName) => {
-                  const repoBranches = commitsByRepoAndBranch[repoName];
-                  const branchNames = Object.keys(repoBranches);
-                  const totalRepoCommits = Object.values(repoBranches).reduce((sum, commits) => sum + commits.length, 0);
-                  const defaultBranchKey = branchNames[0] || '';
-                  
+                  const repoCommits = commitsByRepo[repoName];
+                  const totalRepoCommits = repoCommits.length;
+                  const shouldScroll = totalRepoCommits > 10;
+
                   return (
-                    <TabPane 
+                    <TabPane
                       tab={
                         <span>
                           {repoName}
@@ -324,40 +313,16 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                             ({totalRepoCommits})
                           </Text>
                         </span>
-                      } 
+                      }
                       key={repoName}
                     >
-                      {/* 按分支分组展示 */}
-                      <Tabs 
-                        defaultActiveKey={defaultBranchKey} 
-                        type="line"
-                        size="small"
-                        className="mt-2"
+                      <div
+                        className={
+                          shouldScroll ? 'mt-2 max-h-[500px] overflow-y-auto' : 'mt-2'
+                        }
                       >
-                        {branchNames.map((branch) => {
-                          const branchCommits = repoBranches[branch];
-                          const shouldScroll = branchCommits.length > 10;
-                          const branchDisplayName = branch === 'unknown' ? '未知分支' : branch;
-                          
-                          return (
-                            <TabPane
-                              tab={
-                                <span>
-                                  🌿 {branchDisplayName}
-                                  <Text type="secondary" className="ml-2 text-xs">
-                                    ({branchCommits.length})
-                                  </Text>
-                                </span>
-                              }
-                              key={branch}
-                            >
-                              <div className={`${shouldScroll ? 'max-h-[500px] overflow-y-auto' : ''} mt-2`}>
-                                {branchCommits.map((commit) => renderCommitBlock(commit))}
-                              </div>
-                            </TabPane>
-                          );
-                        })}
-                      </Tabs>
+                        {repoCommits.map((commit) => renderCommitBlock(commit))}
+                      </div>
                     </TabPane>
                   );
                 })}
