@@ -45,44 +45,107 @@ interface CommitsByDateListProps {
 
 const OVERVIEW_TAB_KEY = '__overview__';
 
-function renderCommitBlock(commit: Commit, options?: { showRepo?: boolean }) {
-  const { showRepo } = options ?? {};
+/** 与日期折叠面板头部仓库 Tag 顺序一致（按当日 repositories 数组下标取色） */
+const REPO_PRESET_COLORS = [
+  'blue',
+  'green',
+  'orange',
+  'cyan',
+  'purple',
+  'magenta',
+  'red',
+  'volcano',
+  'gold',
+  'lime',
+] as const;
+
+/** 与 antd Tag 预设色接近的左边框色 */
+const REPO_BORDER_HEX: Record<(typeof REPO_PRESET_COLORS)[number], string> = {
+  blue: '#1677ff',
+  green: '#52c41a',
+  orange: '#fa8c16',
+  cyan: '#13c2c2',
+  purple: '#722ed1',
+  magenta: '#eb2f96',
+  red: '#f5222d',
+  volcano: '#fa541c',
+  gold: '#faad14',
+  lime: '#a0d911',
+};
+
+function getRepoColorForOverview(
+  repoName: string,
+  repositoriesOrdered: string[] | undefined,
+  repoNamesInCommits: string[],
+): { tagPreset: (typeof REPO_PRESET_COLORS)[number]; borderHex: string } {
+  let idx = repositoriesOrdered?.indexOf(repoName) ?? -1;
+  if (idx < 0) {
+    const sorted = [...repoNamesInCommits].sort();
+    idx = sorted.indexOf(repoName);
+  }
+  if (idx < 0) idx = 0;
+  const tagPreset = REPO_PRESET_COLORS[idx % REPO_PRESET_COLORS.length];
+  return { tagPreset, borderHex: REPO_BORDER_HEX[tagPreset] };
+}
+
+function renderCommitBlock(
+  commit: Commit,
+  options?: {
+    showRepo?: boolean;
+    /** 全览 Tab：与面板头部仓库 Tag 同色 */
+    repoTagPreset?: (typeof REPO_PRESET_COLORS)[number];
+    repoBorderHex?: string;
+  },
+) {
+  const { showRepo, repoTagPreset, repoBorderHex } = options ?? {};
+  const borderColor = repoBorderHex ?? '#1890ff';
+  const timeClass =
+    showRepo && repoBorderHex
+      ? 'font-medium'
+      : 'text-[#1890ff] font-medium';
+  const timeStyle =
+    showRepo && repoBorderHex ? { color: borderColor } : undefined;
+
   return (
     <div
       key={commit.id}
-      className="py-3 px-4 ml-4 border-l-[3px] border-l-[#1890ff] mb-2 bg-[#fafafa] rounded"
+      className="mb-2 ml-4 rounded border-l-[3px] border-solid bg-[#fafafa] px-3 py-2"
+      style={{ borderLeftColor: borderColor }}
     >
-      <Space direction="vertical" size={4} style={{ width: '100%' }}>
-        <Space size="middle" wrap>
-          {showRepo && (
-            <Tag color="processing">{commit.repoName}</Tag>
-          )}
-          <Text code>{commit.commitHash?.substring(0, 7) || '-'}</Text>
-          <Text className="text-[#1890ff] font-medium">
-            {dayjs(commit.commitDate).format('HH:mm:ss')}
-          </Text>
-          {commit.branch && (
-            <Tag color="geekblue">🌿 {commit.branch}</Tag>
-          )}
-          {commit.isOvertime && (
-            <Tag color="red">加班</Tag>
-          )}
-        </Space>
-
-        <Text className="text-sm">{commit.message}</Text>
-
-        <Space size="large">
-          <Text type="secondary">
-            文件变更: {commit.filesChanged}
-          </Text>
-          <Text className="text-[#52c41a] font-medium">
-            +{commit.insertions}
-          </Text>
-          <Text className="text-[#ff4d4f] font-medium">
-            -{commit.deletions}
-          </Text>
-        </Space>
-      </Space>
+      <div className="flex w-full flex-col gap-1">
+        {/* 第一行：左元信息 / 右文件与行数，压缩纵向空间 */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <Space size={[8, 4]} wrap className="min-w-0 flex-1">
+            {showRepo && (
+              <Tag color={repoTagPreset ?? 'processing'}>{commit.repoName}</Tag>
+            )}
+            <Text code>{commit.commitHash?.substring(0, 7) || '-'}</Text>
+            <Text className={timeClass} style={timeStyle}>
+              {dayjs(commit.commitDate).format('HH:mm:ss')}
+            </Text>
+            {commit.branch && (
+              <Tag color="geekblue">🌿 {commit.branch}</Tag>
+            )}
+            {commit.isOvertime && (
+              <Tag color="red">加班</Tag>
+            )}
+          </Space>
+          <div className="flex shrink-0 flex-wrap items-baseline justify-end gap-x-4 gap-y-0.5 text-[14px]">
+            <span className="whitespace-nowrap text-neutral-600">
+              文件变更{' '}
+              <span className="text-[#1677ff]!">{commit.filesChanged}</span>
+            </span>
+            {/* 不用 Typography.Text，避免 antd 覆盖颜色；新增绿 / 删除红 */}
+            <span className="whitespace-nowrap text-[#389e0d]!">
+              +{commit.insertions}
+            </span>
+            <span className="whitespace-nowrap text-[#cf1322]!">
+              -{commit.deletions}
+            </span>
+          </div>
+        </div>
+        <Text className="text-sm leading-snug">{commit.message}</Text>
+      </div>
     </div>
   );
 }
@@ -153,16 +216,14 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                 {/* 显示当日修改的仓库标签 */}
                 {repositories && repositories.length > 0 && (
                   <>
-                    {repositories.map((repoName, idx) => {
-                      // 使用不同颜色区分不同仓库
-                      const colors = ['blue', 'green', 'orange', 'cyan', 'purple', 'magenta', 'red', 'volcano', 'gold', 'lime'];
-                      const colorIndex = idx % colors.length;
-                      return (
-                        <Tag key={repoName} color={colors[colorIndex]}>
-                          {repoName}
-                        </Tag>
-                      );
-                    })}
+                    {repositories.map((repoName, idx) => (
+                      <Tag
+                        key={repoName}
+                        color={REPO_PRESET_COLORS[idx % REPO_PRESET_COLORS.length]}
+                      >
+                        {repoName}
+                      </Tag>
+                    ))}
                   </>
                 )}
                 {/* 显示当日修改的分支标签 */}
@@ -234,7 +295,18 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                         : ''
                     }
                   >
-                    {timelineCommits.map((c) => renderCommitBlock(c, { showRepo: true }))}
+                    {timelineCommits.map((c) => {
+                      const { tagPreset, borderHex } = getRepoColorForOverview(
+                        c.repoName,
+                        repositories,
+                        repoNames,
+                      );
+                      return renderCommitBlock(c, {
+                        showRepo: true,
+                        repoTagPreset: tagPreset,
+                        repoBorderHex: borderHex,
+                      });
+                    })}
                   </div>
                 </TabPane>
                 {repoNames.map((repoName) => {
