@@ -1,0 +1,28 @@
+# 项目规范
+
+## 技术栈
+- 后端: Hono + TypeScript + Prisma + SQLite
+- 前端: React + Vite + Ant Design + Tailwind CSS + Jotai
+- 包管理: pnpm monorepo
+
+## Git 提交规范
+使用 Conventional Commits + 中文描述：
+```
+feat(模块): 新增功能描述
+fix(模块): 修复问题描述
+style(模块): 样式调整
+refactor(模块): 重构说明
+docs(模块): 文档更新
+chore: 杂项变更
+```
+
+## 代码风格
+- 使用 TypeScript
+- 前端使用函数式组件 + Hooks
+- 后端 API 路由在 routes/，业务逻辑在 services/
+- 样式使用 Tailwind CSS + Ant Design
+
+## 常用命令
+- `pnpm dev` - 启动开发环境
+- `pnpm build:backend` / `pnpm build:frontend` - 构建
+- `pnpm init-scan` - 初始扫描

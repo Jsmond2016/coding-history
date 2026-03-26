@@ -9,3 +9,10 @@ backend/logs/
 .start.pid
 .env
 
+# Claude Code 项目级敏感配置
+.claude/memory/
+.claude/settings.local.json
+.claude/*.json
+
+# Cursor 计划文件（临时）
+.cursor/plans/
