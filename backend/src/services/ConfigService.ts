@@ -1,4 +1,10 @@
 import { prisma } from '../db/client.js';
+import { CommitService } from './CommitService.js';
+
+export interface CommitDateRange {
+  earliest: number;  // 最早提交时间（毫秒）
+  latest: number;    // 最晚提交时间（毫秒）
+}
 
 export interface RepositoryConfig {
   id: string;
@@ -8,6 +14,7 @@ export interface RepositoryConfig {
   authors: AuthorConfig[];
   lastScanTime: number | null;
   totalCommits: number;
+  commitDateRange: CommitDateRange | null;  // 提交时间范围，无记录时为 null
   createdAt: number;
   updatedAt: number;
 }
@@ -20,6 +27,12 @@ export interface AuthorConfig {
 }
 
 export class ConfigService {
+  private commitService: CommitService;
+
+  constructor() {
+    this.commitService = new CommitService();
+  }
+
   /**
    * 获取仓库完整配置（含作者）
    */
@@ -35,6 +48,8 @@ export class ConfigService {
 
     if (!repo) return null;
 
+    const commitDateRange = await this.commitService.getCommitDateRangeForRepo(repoId);
+
     return {
       id: repo.id,
       name: repo.name,
@@ -48,6 +63,7 @@ export class ConfigService {
       })),
       lastScanTime: repo.lastScanTime ? Number(repo.lastScanTime) : null,
       totalCommits: repo.totalCommits,
+      commitDateRange,
       createdAt: Number(repo.createdAt),
       updatedAt: Number(repo.updatedAt)
     };
@@ -66,7 +82,12 @@ export class ConfigService {
       orderBy: { name: 'asc' }
     });
 
-    return repos.map(repo => ({
+    // 并行获取所有仓库的提交时间范围
+    const commitDateRanges = await Promise.all(
+      repos.map(repo => this.commitService.getCommitDateRangeForRepo(repo.id))
+    );
+
+    return repos.map((repo, index) => ({
       id: repo.id,
       name: repo.name,
       path: repo.path,
@@ -79,6 +100,7 @@ export class ConfigService {
       })),
       lastScanTime: repo.lastScanTime ? Number(repo.lastScanTime) : null,
       totalCommits: repo.totalCommits,
+      commitDateRange: commitDateRanges[index],
       createdAt: Number(repo.createdAt),
       updatedAt: Number(repo.updatedAt)
     }));

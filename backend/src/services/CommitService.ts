@@ -87,6 +87,30 @@ export class CommitService {
   }
 
   /**
+   * 获取仓库的提交时间范围（最早和最晚的提交时间）
+   * @returns { earliest: 最早提交时间（毫秒）, latest: 最晚提交时间（毫秒） } 或 null（无记录时）
+   */
+  async getCommitDateRangeForRepo(repoId: string): Promise<{ earliest: number; latest: number } | null> {
+    const result = await prisma.commit.aggregate({
+      where: { repoId },
+      _min: { commitDate: true },
+      _max: { commitDate: true }
+    });
+
+    const earliest = result._min.commitDate;
+    const latest = result._max.commitDate;
+
+    if (earliest == null || latest == null) {
+      return null;
+    }
+
+    return {
+      earliest: Number(earliest),
+      latest: Number(latest)
+    };
+  }
+
+  /**
    * 批量插入提交记录（按 repoId + commitHash 去重，同一 commit 只插一次）
    * 来自未上线分支的写 branch=分支名，来自 release 的写 branch=null
    */

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   PlusOutlined,
@@ -8,7 +8,8 @@ import {
   ReloadOutlined,
   DatabaseOutlined,
   BarChartOutlined,
-  FolderOpenOutlined
+  FolderOpenOutlined,
+  QuestionCircleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -17,7 +18,8 @@ import {
   getRepositoriesConfig,
   deleteRepository,
   batchDeleteRepositories,
-  type RepositoryConfig
+  type RepositoryConfig,
+  type CommitDateRange
 } from '../../services/configApi';
 import RepositoryForm from './components/RepositoryForm';
 import AuthorsManager from './components/AuthorsManager';
@@ -165,6 +167,34 @@ const ConfigList: React.FC = () => {
       dataIndex: 'totalCommits',
       key: 'totalCommits',
       width: 100
+    },
+    {
+      title: (
+        <span>
+          提交范围{' '}
+          <Tooltip title="对应仓库已扫描入库 commit 的时间范围">
+            <QuestionCircleOutlined className="text-gray-400" />
+          </Tooltip>
+        </span>
+      ),
+      dataIndex: 'commitDateRange',
+      key: 'commitDateRange',
+      width: 220,
+      render: (range: CommitDateRange | null) => {
+        if (!range) {
+          return <span className="text-gray-400">暂无记录</span>;
+        }
+        const earliest = dayjs(range.earliest).format('YYYY-MM-DD');
+        const latest = dayjs(range.latest).format('YYYY-MM-DD');
+        if (earliest === latest) {
+          return <span>{earliest}</span>;
+        }
+        return (
+          <span>
+            {earliest} ~ {latest}
+          </span>
+        );
+      }
     },
     {
       title: '最后扫描',

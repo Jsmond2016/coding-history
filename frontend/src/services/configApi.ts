@@ -5,6 +5,11 @@ const api = axios.create({
   timeout: 30000
 });
 
+export interface CommitDateRange {
+  earliest: number;  // 最早提交时间（毫秒）
+  latest: number;    // 最晚提交时间（毫秒）
+}
+
 export interface RepositoryConfig {
   id: string;
   name: string;
@@ -13,6 +18,7 @@ export interface RepositoryConfig {
   authors: AuthorConfig[];
   lastScanTime: number | null;
   totalCommits: number;
+  commitDateRange: CommitDateRange | null;  // 提交时间范围，无记录时为 null
   createdAt: number;
   updatedAt: number;
 }
