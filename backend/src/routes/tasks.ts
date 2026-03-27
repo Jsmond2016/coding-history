@@ -4,6 +4,7 @@ import { CreateScanTaskSchema, UpdateScanTaskSchema, TriggerTaskSchema } from '.
 import { ScanTaskService } from '../services/ScanTaskService.js';
 import { executeScanTask } from '../services/ScanTaskExecutor.js';
 import { logger } from '../config/logger.js';
+import { restartScheduler } from '../jobs/scanScheduler.js';
 
 const app = new Hono();
 const taskService = new ScanTaskService();
@@ -75,6 +76,13 @@ app.post('/', zValidator('json', CreateScanTaskSchema), async (c) => {
     }
 
     const task = await taskService.createTask(params);
+
+    // 如果是启用的定时任务，重启调度器使配置生效
+    if (task.enabled && task.taskType === 'scheduled') {
+      await restartScheduler();
+      logger.info(`[创建任务] 定时任务 ${task.name} 已创建，调度器已重启`);
+    }
+
     return c.json(task, 201);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -112,6 +120,13 @@ app.put('/:id', zValidator('json', UpdateScanTaskSchema), async (c) => {
     }
 
     const task = await taskService.updateTask(id, params);
+
+    // 如果是定时任务，重启调度器使配置生效
+    if (task.taskType === 'scheduled') {
+      await restartScheduler();
+      logger.info(`[更新任务] 定时任务 ${task.name} 已更新，调度器已重启`);
+    }
+
     return c.json(task);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -129,7 +144,15 @@ app.delete('/:id', async (c) => {
   }
 
   try {
+    const task = await taskService.getTaskById(id);
     await taskService.deleteTask(id);
+
+    // 如果删除的是定时任务，重启调度器
+    if (task?.taskType === 'scheduled') {
+      await restartScheduler();
+      logger.info(`[删除任务] 定时任务 ${task.name} 已删除，调度器已重启`);
+    }
+
     return c.json({ message: 'Task deleted successfully' });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -148,6 +171,13 @@ app.post('/:id/enable', async (c) => {
 
   try {
     const task = await taskService.enableTask(id);
+
+    // 如果是定时任务，重启调度器使配置生效
+    if (task.taskType === 'scheduled') {
+      await restartScheduler();
+      logger.info(`[启用任务] 定时任务 ${task.name} 已启用，调度器已重启`);
+    }
+
     return c.json(task);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -166,6 +196,13 @@ app.post('/:id/disable', async (c) => {
 
   try {
     const task = await taskService.disableTask(id);
+
+    // 如果是定时任务，重启调度器使配置生效
+    if (task.taskType === 'scheduled') {
+      await restartScheduler();
+      logger.info(`[禁用任务] 定时任务 ${task.name} 已禁用，调度器已重启`);
+    }
+
     return c.json(task);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
