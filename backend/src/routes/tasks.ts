@@ -263,5 +263,26 @@ app.post('/:id/trigger', zValidator('json', TriggerTaskSchema), async (c) => {
   }
 });
 
+// 批量更新任务排序
+app.post('/batch-sort', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { sortOrders } = body as { sortOrders: Array<{ id: number; sortOrder: number }> };
+
+    if (!sortOrders || !Array.isArray(sortOrders)) {
+      return c.json({ error: 'sortOrders must be an array' }, 400);
+    }
+
+    await taskService.batchUpdateSortOrder(sortOrders);
+    logger.info(`[批量排序] 已更新 ${sortOrders.length} 个任务的排序`);
+
+    return c.json({ message: 'Sort order updated successfully', count: sortOrders.length });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('[批量排序] 失败:', error);
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
 export default app;
 

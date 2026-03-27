@@ -63,13 +63,13 @@ const getNextExecutionTime = (cronExpression: string): number => {
 };
 
 /**
- * 默认排序逻辑：
+ * 默认排序逻辑（用于重置排序时计算）：
  * 1. scheduled 任务在前，manual 任务在后
  * 2. scheduled 任务按下次执行时间排序
  * 3. manual 任务按最后执行时间排序（未执行的排后面）
  */
-const sortTasks = (tasks: ScanTask[]): ScanTask[] => {
-  return [...tasks].sort((a, b) => {
+const calculateDefaultSortOrder = (tasks: ScanTask[]): Array<{ id: number; sortOrder: number }> => {
+  const sorted = [...tasks].sort((a, b) => {
     // 1. 按类型排序：scheduled 在前
     if (a.taskType !== b.taskType) {
       return a.taskType === 'scheduled' ? -1 : 1;
@@ -88,6 +88,11 @@ const sortTasks = (tasks: ScanTask[]): ScanTask[] => {
       return bLast - aLast; // 最近执行的在前
     }
   });
+
+  return sorted.map((task, index) => ({
+    id: task.id,
+    sortOrder: index
+  }));
 };
 
 /**
@@ -157,14 +162,12 @@ const TasksList: React.FC = () => {
     })
   );
 
-  // 加载任务列表
+  // 加载任务列表（后端已按 sortOrder 排序）
   const loadTasks = React.useCallback(async () => {
     setLoading(true);
     try {
       const data = await tasksApi.getTasks();
-      // 应用默认排序
-      const sortedData = sortTasks(data);
-      setTasks(sortedData);
+      setTasks(data);
     } catch (error) {
       message.error('加载任务列表失败');
       console.error(error);
@@ -302,22 +305,53 @@ const TasksList: React.FC = () => {
   };
 
   // 处理拖拽结束
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      setTasks((items) => {
-        const oldIndex = items.findIndex((item) => String(item.id) === active.id);
-        const newIndex = items.findIndex((item) => String(item.id) === over.id);
-        return arrayMove(items, oldIndex, newIndex);
-      });
+      const oldIndex = tasks.findIndex((item) => String(item.id) === active.id);
+      const newIndex = tasks.findIndex((item) => String(item.id) === over.id);
+      const newTasks = arrayMove(tasks, oldIndex, newIndex);
+
+      // 立即更新 UI
+      setTasks(newTasks);
+
+      // 保存排序到后端
+      try {
+        const sortOrders = newTasks.map((task, index) => ({
+          id: task.id,
+          sortOrder: index
+        }));
+        await tasksApi.batchUpdateSortOrder(sortOrders);
+        message.success('排序已保存');
+      } catch (error) {
+        message.error('保存排序失败');
+        console.error(error);
+        // 失败时重新加载列表
+        loadTasks();
+      }
     }
   };
 
   // 重置为默认排序
-  const handleResetSort = () => {
-    setTasks(sortTasks(tasks));
-    message.success('已恢复默认排序');
+  const handleResetSort = async () => {
+    try {
+      const sortOrders = calculateDefaultSortOrder(tasks);
+      await tasksApi.batchUpdateSortOrder(sortOrders);
+
+      // 重新按默认排序排列本地数据
+      const sortedTasks = [...tasks].sort((a, b) => {
+        const aOrder = sortOrders.find(s => s.id === a.id)?.sortOrder ?? 0;
+        const bOrder = sortOrders.find(s => s.id === b.id)?.sortOrder ?? 0;
+        return aOrder - bOrder;
+      });
+      setTasks(sortedTasks);
+
+      message.success('已恢复默认排序');
+    } catch (error) {
+      message.error('恢复默认排序失败');
+      console.error(error);
+    }
   };
 
   // 获取扫描范围显示文本

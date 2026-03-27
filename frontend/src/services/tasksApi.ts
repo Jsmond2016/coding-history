@@ -46,6 +46,10 @@ export const tasksApi = {
 
   // 触发任务执行
   triggerTask: (id: number, params?: TriggerTaskParams): Promise<{ message: string; taskId: number; taskName: string }> =>
-    api.post(`/tasks/${id}/trigger`, params || {}).then(res => res.data)
+    api.post(`/tasks/${id}/trigger`, params || {}).then(res => res.data),
+
+  // 批量更新任务排序
+  batchUpdateSortOrder: (sortOrders: Array<{ id: number; sortOrder: number }>): Promise<{ message: string; count: number }> =>
+    api.post('/tasks/batch-sort', { sortOrders }).then(res => res.data)
 };
 

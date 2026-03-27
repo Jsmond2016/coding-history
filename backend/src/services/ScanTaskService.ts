@@ -19,6 +19,7 @@ export interface ScanTask {
   repositoryIds?: string[];
   enabled: boolean;
   lastExecuteTime?: number;
+  sortOrder: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -73,16 +74,35 @@ export class ScanTaskService {
   }
 
   /**
-   * 获取所有任务
+   * 获取所有任务（按 sortOrder 排序）
    */
   async getAllTasks(): Promise<ScanTask[]> {
     const tasks = await prismaClient.scanTask.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      }
+      orderBy: [
+        { sortOrder: 'asc' },
+        { createdAt: 'desc' }
+      ]
     });
 
     return tasks.map((task: any) => this.mapToScanTask(task));
+  }
+
+  /**
+   * 批量更新任务排序
+   * @param sortOrders 任务ID和排序顺序的数组
+   */
+  async batchUpdateSortOrder(sortOrders: Array<{ id: number; sortOrder: number }>): Promise<void> {
+    const now = BigInt(Date.now());
+
+    for (const item of sortOrders) {
+      await prismaClient.scanTask.update({
+        where: { id: item.id },
+        data: {
+          sortOrder: item.sortOrder,
+          updatedAt: now
+        }
+      });
+    }
   }
 
   /**
@@ -318,6 +338,7 @@ export class ScanTaskService {
       repositoryIds: task.repositoryIds ? JSON.parse(task.repositoryIds) : undefined,
       enabled: task.enabled,
       lastExecuteTime: task.lastExecuteTime ? Number(task.lastExecuteTime) : undefined,
+      sortOrder: task.sortOrder ?? 0,
       createdAt: Number(task.createdAt),
       updatedAt: Number(task.updatedAt)
     };

@@ -115,11 +115,13 @@ model ScanTask {
   repositoryIds   String? @map("repository_ids") // JSON 数组字符串，存储仓库ID列表，null表示所有仓库
   enabled         Boolean @default(true)
   lastExecuteTime BigInt? @map("last_execute_time") // 最后执行时间
+  sortOrder       Int     @default(0) @map("sort_order") // 排序顺序，数值越小越靠前
   createdAt       BigInt  @map("created_at")
   updatedAt       BigInt  @map("updated_at")
 
   @@index([taskType, enabled], name: "idx_scan_task_type_enabled")
   @@index([enabled], name: "idx_scan_task_enabled")
+  @@index([sortOrder], name: "idx_scan_task_sort_order")
   @@map("scan_tasks")
 }
 

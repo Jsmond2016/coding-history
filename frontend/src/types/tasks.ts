@@ -13,6 +13,7 @@ export interface ScanTask {
   repositoryIds?: string[];
   enabled: boolean;
   lastExecuteTime?: number;
+  sortOrder: number;
   createdAt: number;
   updatedAt: number;
 }
