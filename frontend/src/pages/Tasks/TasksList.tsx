@@ -1,6 +1,7 @@
 import React from 'react';
 import { Table, Button, Space, Tag, Popconfirm, message, Card, Modal, Form, Select, DatePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { TableProps } from 'antd';
 import {
   PlusOutlined,
   PlayCircleOutlined,
@@ -8,9 +9,28 @@ import {
   DeleteOutlined,
   CheckCircleOutlined,
   StopOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  HolderOutlined
 } from '@ant-design/icons';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import dayjs from 'dayjs';
+import { CronExpressionParser } from 'cron-parser';
 import { tasksApi } from '../../services/tasksApi';
 import type { ScanTask, ScanRangeType } from '../../types/tasks';
 import CreateTaskModal from './components/CreateTaskModal';
@@ -29,6 +49,90 @@ const SCAN_RANGE_OPTIONS: { value: ScanRangeType; label: string }[] = [
   { value: 'custom', label: '自定义时间范围' }
 ];
 
+/**
+ * 获取 cron 表达式的下次执行时间（用于排序）
+ */
+const getNextExecutionTime = (cronExpression: string): number => {
+  try {
+    const interval = CronExpressionParser.parse(cronExpression);
+    const next = interval.next();
+    return next.getTime();
+  } catch {
+    return Infinity;
+  }
+};
+
+/**
+ * 默认排序逻辑：
+ * 1. scheduled 任务在前，manual 任务在后
+ * 2. scheduled 任务按下次执行时间排序
+ * 3. manual 任务按最后执行时间排序（未执行的排后面）
+ */
+const sortTasks = (tasks: ScanTask[]): ScanTask[] => {
+  return [...tasks].sort((a, b) => {
+    // 1. 按类型排序：scheduled 在前
+    if (a.taskType !== b.taskType) {
+      return a.taskType === 'scheduled' ? -1 : 1;
+    }
+
+    // 2. 同类型按时间排序
+    if (a.taskType === 'scheduled') {
+      // scheduled 按下次执行时间排序
+      const aNext = a.cronExpression ? getNextExecutionTime(a.cronExpression) : Infinity;
+      const bNext = b.cronExpression ? getNextExecutionTime(b.cronExpression) : Infinity;
+      return aNext - bNext;
+    } else {
+      // manual 按最后执行时间排序（未执行的排后面）
+      const aLast = a.lastExecuteTime || 0;
+      const bLast = b.lastExecuteTime || 0;
+      return bLast - aLast; // 最近执行的在前
+    }
+  });
+};
+
+/**
+ * 可拖拽的行组件
+ */
+interface SortableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
+  'data-row-key': string;
+}
+
+const SortableRow: React.FC<SortableRowProps> = (props) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props['data-row-key']
+  });
+
+  const style: React.CSSProperties = {
+    ...props.style,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { background: '#fafafa', zIndex: 9999 } : {})
+  };
+
+  // 找到拖拽手柄列并添加拖拽监听器
+  const childrenWithDragHandle = React.Children.map(props.children, (child) => {
+    if (React.isValidElement(child)) {
+      const childProps = child.props as { className?: string };
+      if (childProps.className?.includes('drag-handle-cell')) {
+        return React.cloneElement(child, {
+          children: (
+            <div {...listeners} className="cursor-grab active:cursor-grabbing">
+              <HolderOutlined className="text-gray-400 hover:text-gray-600" />
+            </div>
+          )
+        } as React.Attributes);
+      }
+    }
+    return child;
+  });
+
+  return (
+    <tr {...props} ref={setNodeRef} style={style} {...attributes}>
+      {childrenWithDragHandle}
+    </tr>
+  );
+};
+
 const TasksList: React.FC = () => {
   const [tasks, setTasks] = React.useState<ScanTask[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -41,12 +145,26 @@ const TasksList: React.FC = () => {
   const [batchTriggering, setBatchTriggering] = React.useState(false);
   const [batchScanForm] = Form.useForm<{ scanRangeType: ScanRangeType; dateRange?: [dayjs.Dayjs, dayjs.Dayjs] }>();
 
+  // 拖拽传感器配置
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5 // 需要拖拽 5px 才开始
+      }
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
+  );
+
   // 加载任务列表
   const loadTasks = React.useCallback(async () => {
     setLoading(true);
     try {
       const data = await tasksApi.getTasks();
-      setTasks(data);
+      // 应用默认排序
+      const sortedData = sortTasks(data);
+      setTasks(sortedData);
     } catch (error) {
       message.error('加载任务列表失败');
       console.error(error);
@@ -183,6 +301,25 @@ const TasksList: React.FC = () => {
     }
   };
 
+  // 处理拖拽结束
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setTasks((items) => {
+        const oldIndex = items.findIndex((item) => String(item.id) === active.id);
+        const newIndex = items.findIndex((item) => String(item.id) === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  // 重置为默认排序
+  const handleResetSort = () => {
+    setTasks(sortTasks(tasks));
+    message.success('已恢复默认排序');
+  };
+
   // 获取扫描范围显示文本
   const getScanRangeText = (task: ScanTask) => {
     switch (task.scanRangeType) {
@@ -210,6 +347,12 @@ const TasksList: React.FC = () => {
   };
 
   const columns: ColumnsType<ScanTask> = [
+    {
+      key: 'drag',
+      width: 40,
+      className: 'drag-handle-cell',
+      render: () => null
+    },
     {
       title: '任务名称',
       dataIndex: 'name',
@@ -315,6 +458,13 @@ const TasksList: React.FC = () => {
     }
   ];
 
+  // 表格配置
+  const tableComponents: TableProps<ScanTask>['components'] = {
+    body: {
+      row: SortableRow
+    }
+  };
+
   return (
     <div>
       <Card className="mb-4">
@@ -348,27 +498,42 @@ const TasksList: React.FC = () => {
               批量触发{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ''}
             </Button>
           </Popconfirm>
+          <Button onClick={handleResetSort}>
+            恢复默认排序
+          </Button>
           <Button onClick={loadTasks}>
             刷新
           </Button>
         </Space>
       </Card>
 
-      <Table
-        rowSelection={{
-          selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys)
-        }}
-        columns={columns}
-        dataSource={tasks}
-        loading={loading}
-        rowKey="id"
-        scroll={{ x: 1200 }}
-        pagination={{
-          showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 条`
-        }}
-      />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={tasks.map((t) => String(t.id))}
+          strategy={verticalListSortingStrategy}
+        >
+          <Table
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys)
+            }}
+            columns={columns}
+            dataSource={tasks}
+            loading={loading}
+            rowKey={(record) => String(record.id)}
+            scroll={{ x: 1200 }}
+            pagination={{
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 条`
+            }}
+            components={tableComponents}
+          />
+        </SortableContext>
+      </DndContext>
 
       <Modal
         title="批量设置扫描范围"
@@ -447,4 +612,3 @@ const TasksList: React.FC = () => {
 };
 
 export default TasksList;
-
