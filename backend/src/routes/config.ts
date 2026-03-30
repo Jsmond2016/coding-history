@@ -9,6 +9,7 @@ import { DataMetricsConfigService } from '../services/DataMetricsConfigService.j
 import { ScanTaskService } from '../services/ScanTaskService.js';
 import { logger } from '../config/logger.js';
 import { restartScheduler } from '../jobs/scanScheduler.js';
+import { runDatabaseBackup } from '../jobs/dbBackupScheduler.js';
 import type { WorkStatus } from '../config/workStatus.config.js';
 import { prisma } from '../db/client.js';
 
@@ -379,6 +380,29 @@ app.put('/data-metrics', zValidator('json', UpdateDataMetricsConfigSchema), asyn
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Failed to update data metrics config:', error);
     return c.json({ error: errorMessage || 'Failed to update data metrics config' }, 500);
+  }
+});
+
+// 手动备份数据库
+app.post('/database/backup', async (c) => {
+  try {
+    const result = runDatabaseBackup();
+    if (result.success) {
+      return c.json({
+        success: true,
+        message: '数据库备份成功',
+        destPath: result.destPath
+      });
+    } else {
+      return c.json({
+        success: false,
+        error: result.error || '备份失败'
+      }, 500);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to backup database:', error);
+    return c.json({ error: errorMessage }, 500);
   }
 });
 

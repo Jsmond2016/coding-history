@@ -32,16 +32,24 @@ function localDateYmd(): string {
   return `${y}-${m}-${d}`;
 }
 
+export interface DatabaseBackupResult {
+  success: boolean;
+  destPath?: string;
+  sourcePath?: string;
+  error?: string;
+}
+
 /**
  * 将数据库备份到目标目录，文件名 coding-history-backup-{YYYY-MM-DD}.db
  */
-export function runDatabaseBackup(): void {
+export function runDatabaseBackup(): DatabaseBackupResult {
   const backupDir = (process.env.DB_BACKUP_DIR ?? DEFAULT_BACKUP_DIR).trim() || DEFAULT_BACKUP_DIR;
   const sourcePath = resolveSqliteDatabasePath();
 
   if (!fs.existsSync(sourcePath)) {
+    const msg = '源数据库文件不存在';
     logger.warn({ msg: '[DB备份] 源数据库文件不存在，跳过', sourcePath });
-    return;
+    return { success: false, sourcePath, error: msg };
   }
 
   fs.mkdirSync(backupDir, { recursive: true });
@@ -58,6 +66,7 @@ export function runDatabaseBackup(): void {
       destPath,
       sourcePath
     });
+    return { success: true, destPath, sourcePath };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     logger.error({
@@ -66,6 +75,7 @@ export function runDatabaseBackup(): void {
       destPath,
       error: errMsg
     });
+    return { success: false, destPath, sourcePath, error: errMsg };
   } finally {
     try {
       srcDb?.close();

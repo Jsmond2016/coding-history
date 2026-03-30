@@ -9,7 +9,8 @@ import {
   DatabaseOutlined,
   BarChartOutlined,
   FolderOpenOutlined,
-  QuestionCircleOutlined
+  QuestionCircleOutlined,
+  CloudUploadOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -18,6 +19,7 @@ import {
   getRepositoriesConfig,
   deleteRepository,
   batchDeleteRepositories,
+  backupDatabase,
   type RepositoryConfig,
   type CommitDateRange
 } from '../../services/configApi';
@@ -40,6 +42,7 @@ const ConfigList: React.FC = () => {
   const [editingRepoForAuthors, setEditingRepoForAuthors] = React.useState<RepositoryConfig | undefined>();
   const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([]);
   const [deleting, setDeleting] = React.useState(false);
+  const [backingUp, setBackingUp] = React.useState(false);
 
   // 加载仓库配置列表
   const loadRepositories = React.useCallback(async () => {
@@ -96,6 +99,24 @@ const ConfigList: React.FC = () => {
       message.error('批量删除失败');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // 处理数据库备份
+  const handleBackupDatabase = async () => {
+    setBackingUp(true);
+    try {
+      const result = await backupDatabase();
+      if (result.success) {
+        message.success(`数据库备份成功：${result.destPath}`);
+      } else {
+        message.error(`备份失败：${result.error || '未知错误'}`);
+      }
+    } catch (error) {
+      message.error('备份数据库失败');
+      console.error(error);
+    } finally {
+      setBackingUp(false);
     }
   };
 
@@ -284,6 +305,20 @@ const ConfigList: React.FC = () => {
               >
                 扫描仓库
               </Button>
+              <Popconfirm
+                title="备份数据库"
+                description="确定要备份当前数据库吗？备份文件将保存到配置的备份目录中。"
+                onConfirm={handleBackupDatabase}
+                okText="确定备份"
+                cancelText="取消"
+              >
+                <Button
+                  icon={<CloudUploadOutlined />}
+                  loading={backingUp}
+                >
+                  备份数据库
+                </Button>
+              </Popconfirm>
               <Button
                 type="primary"
                 icon={<PlusOutlined />}

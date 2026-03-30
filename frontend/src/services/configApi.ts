@@ -184,3 +184,18 @@ export const updateDataMetricsConfig = async (params: UpdateDataMetricsConfigPar
   const response = await api.put<{ data: DataMetricsConfig }>('/config/data-metrics', params);
   return response.data.data;
 };
+
+export interface DatabaseBackupResult {
+  success: boolean;
+  message?: string;
+  destPath?: string;
+  error?: string;
+}
+
+/**
+ * 手动备份数据库
+ */
+export const backupDatabase = async (): Promise<DatabaseBackupResult> => {
+  const response = await api.post<DatabaseBackupResult>('/config/database/backup');
+  return response.data;
+};
