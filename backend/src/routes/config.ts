@@ -386,7 +386,7 @@ app.put('/data-metrics', zValidator('json', UpdateDataMetricsConfigSchema), asyn
 // 手动备份数据库
 app.post('/database/backup', async (c) => {
   try {
-    const result = runDatabaseBackup();
+    const result = await runDatabaseBackup();
     if (result.success) {
       return c.json({
         success: true,

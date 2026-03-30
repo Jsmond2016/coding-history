@@ -42,7 +42,7 @@ export interface DatabaseBackupResult {
 /**
  * 将数据库备份到目标目录，文件名 coding-history-backup-{YYYY-MM-DD}.db
  */
-export function runDatabaseBackup(): DatabaseBackupResult {
+export async function runDatabaseBackup(): Promise<DatabaseBackupResult> {
   const backupDir = (process.env.DB_BACKUP_DIR ?? DEFAULT_BACKUP_DIR).trim() || DEFAULT_BACKUP_DIR;
   const sourcePath = resolveSqliteDatabasePath();
 
@@ -60,7 +60,7 @@ export function runDatabaseBackup(): DatabaseBackupResult {
   let srcDb: Database.Database | undefined;
   try {
     srcDb = new Database(sourcePath, { readonly: true, fileMustExist: true });
-    srcDb.backup(destPath);
+    await srcDb.backup(destPath);
     logger.info({
       msg: '[DB备份] 已完成',
       destPath,
@@ -117,9 +117,9 @@ export function startDbBackupScheduler(): void {
     backupTask = null;
   }
 
-  backupTask = cron.schedule(expr, () => {
+  backupTask = cron.schedule(expr, async () => {
     try {
-      runDatabaseBackup();
+      await runDatabaseBackup();
     } catch (error) {
       logger.error({
         msg: '[DB备份] 定时任务回调异常',
