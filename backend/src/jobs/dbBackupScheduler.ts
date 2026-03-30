@@ -126,6 +126,8 @@ export function startDbBackupScheduler(): void {
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  }, {
+    timezone: 'Asia/Shanghai'  // 显式设置时区，确保定时任务按北京时间执行
   });
 
   const dir = (process.env.DB_BACKUP_DIR ?? DEFAULT_BACKUP_DIR).trim() || DEFAULT_BACKUP_DIR;

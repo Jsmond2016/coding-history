@@ -121,7 +121,9 @@ export async function startScheduler(): Promise<void> {
           });
         };
 
-        const scheduledTask = cron.schedule(task.cronExpression, taskHandler);
+        const scheduledTask = cron.schedule(task.cronExpression, taskHandler, {
+          timezone: 'Asia/Shanghai'  // 显式设置时区，确保定时任务按北京时间执行
+        });
 
         schedulers.push(scheduledTask);
         logger.info(
