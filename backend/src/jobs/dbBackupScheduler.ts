@@ -51,7 +51,7 @@ export function runDatabaseBackup(): void {
 
   let srcDb: Database.Database | undefined;
   try {
-    srcDb = new Database(sourcePath, { readonly: true });
+    srcDb = new Database(sourcePath, { readonly: true, fileMustExist: true });
     srcDb.backup(destPath);
     logger.info({
       msg: '[DB备份] 已完成',
