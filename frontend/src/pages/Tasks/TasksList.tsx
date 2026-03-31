@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, Button, Space, Tag, Popconfirm, message, Card, Modal, Form, Select, DatePicker } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, message, Card, Modal, Form, Select, DatePicker, Dropdown, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { TableProps } from 'antd';
 import {
@@ -10,7 +10,8 @@ import {
   CheckCircleOutlined,
   StopOutlined,
   CalendarOutlined,
-  HolderOutlined
+  HolderOutlined,
+  EllipsisOutlined
 } from '@ant-design/icons';
 import {
   DndContext,
@@ -398,8 +399,13 @@ const TasksList: React.FC = () => {
       title: '描述',
       dataIndex: 'description',
       key: 'description',
-      ellipsis: true,
-      render: (text: string) => text || '-'
+      width: 160,
+      ellipsis: { showTitle: false },
+      render: (text: string) => (
+        <Tooltip title={text} placement="topLeft">
+          {text || '-'}
+        </Tooltip>
+      )
     },
     {
       title: '类型',
@@ -446,7 +452,7 @@ const TasksList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 280,
+      width: 140,
       fixed: 'right',
       render: (_, task) => (
         <Space size="small">
@@ -459,34 +465,43 @@ const TasksList: React.FC = () => {
           >
             触发
           </Button>
-          <Button
-            type="link"
-            icon={task.enabled ? <StopOutlined /> : <CheckCircleOutlined />}
-            onClick={() => handleToggleEnabled(task)}
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'toggle',
+                  icon: task.enabled ? <StopOutlined /> : <CheckCircleOutlined />,
+                  label: task.enabled ? '禁用' : '启用',
+                  onClick: () => handleToggleEnabled(task),
+                },
+                {
+                  key: 'edit',
+                  icon: <EditOutlined />,
+                  label: '编辑',
+                  onClick: () => handleEdit(task),
+                },
+                {
+                  type: 'divider',
+                },
+                {
+                  key: 'delete',
+                  icon: <DeleteOutlined />,
+                  label: '删除',
+                  danger: true,
+                  onClick: () => {
+                    Modal.confirm({
+                      title: '确定要删除这个任务吗？',
+                      onOk: () => handleDelete(task.id),
+                      okText: '确定',
+                      cancelText: '取消',
+                    });
+                  },
+                },
+              ],
+            }}
           >
-            {task.enabled ? '禁用' : '启用'}
-          </Button>
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(task)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            title="确定要删除这个任务吗？"
-            onConfirm={() => handleDelete(task.id)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Button
-              type="link"
-              danger
-              icon={<DeleteOutlined />}
-            >
-              删除
-            </Button>
-          </Popconfirm>
+            <Button type="link" icon={<EllipsisOutlined />} />
+          </Dropdown>
         </Space>
       )
     }

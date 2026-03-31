@@ -138,7 +138,13 @@ const ConfigList: React.FC = () => {
       title: '路径',
       dataIndex: 'path',
       key: 'path',
-      ellipsis: true
+      width: 200,
+      ellipsis: { showTitle: false },
+      render: (text: string) => (
+        <Tooltip title={text} placement="topLeft">
+          {text}
+        </Tooltip>
+      )
     },
     {
       title: '状态',
