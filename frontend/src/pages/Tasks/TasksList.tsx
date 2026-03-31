@@ -500,7 +500,7 @@ const TasksList: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="p-3">
       <Card className="mb-4">
         <Space>
           <Button

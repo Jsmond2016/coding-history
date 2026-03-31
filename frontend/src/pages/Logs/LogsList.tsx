@@ -396,7 +396,7 @@ const LogsList: React.FC = () => {
   ]
 
   return (
-    <div>
+    <div className="p-3">
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
     </div>
   )
