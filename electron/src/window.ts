@@ -9,20 +9,18 @@ export function getMainWindow(): BrowserWindow | null {
 }
 
 export function createMainWindow(): BrowserWindow {
+  const preloadPath = path.join(__dirname, '../preload/preload.mjs');
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    show: false,
+    show: true,
     titleBarStyle: 'hiddenInset',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
     },
-  });
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
   });
 
   mainWindow.on('closed', () => {
@@ -36,6 +34,11 @@ export function createMainWindow(): BrowserWindow {
     }
     return { action: 'deny' };
   });
+
+  // 开发模式下打开 DevTools
+  if (process.env.ELECTRON_RENDERER_URL) {
+    mainWindow.webContents.openDevTools();
+  }
 
   loadFrontend(mainWindow);
 
@@ -51,6 +54,7 @@ function loadFrontend(win: BrowserWindow) {
     if (port) {
       devUrl.searchParams.set('backendPort', String(port));
     }
+    console.log(`[Electron] 加载前端: ${devUrl.toString()}`);
     win.loadURL(devUrl.toString());
   } else {
     // 生产模式：加载构建后的文件
