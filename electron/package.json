@@ -1,10 +1,16 @@
 {
   "name": "coding-history-electron",
   "version": "1.0.0",
+  "description": "Git commit statistics desktop application",
+  "author": "jsmond2016",
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev --config electron.vite.config.ts",
-    "build": "electron-vite build --config electron.vite.config.ts"
+    "build": "electron-vite build --config electron.vite.config.ts",
+    "package": "electron-builder --mac --config electron-builder.yml"
+  },
+  "dependencies": {
+    "electron-is-dev": "^3.0.0"
   }
 }

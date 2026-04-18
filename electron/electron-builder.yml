@@ -3,6 +3,8 @@ productName: Coding History
 directories:
   buildResources: resources
   output: release
+electronDist: ../node_modules/electron/dist
+electronVersion: 35.1.5
 mac:
   category: public.app-category.developer-tools
   target:
@@ -26,6 +28,7 @@ extraResources:
     filter:
       - "**/*"
 files:
-  - dist/**/*
+  - out/main/**/*
+  - out/preload/**/*
   - "!node_modules/**/{test,tests,__tests__,spec}/**"
 npmRebuild: true
