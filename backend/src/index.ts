@@ -24,7 +24,7 @@ const logService = new LogService();
 // 中间件
 app.use('*', honoLogger());
 app.use('*', cors({
-  origin: 'http://localhost:5173',
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   credentials: true
 }));
 
@@ -140,7 +140,8 @@ function sanitizeRequestBody(body: any): any {
 }
 
 // 启动服务器
-const port = 5188;
+const port = parseInt(process.env.PORT || '5188', 10);
+let server: ReturnType<typeof serve> | null = null;
 
 async function startServer() {
   try {
@@ -171,7 +172,6 @@ async function startServer() {
         rotation: lp.rotation
       });
     }
-    logger.info(`[服务就绪] 服务器运行在端口 ${port}`);
     logger.info('[提示] 如需初始化历史数据，请运行: pnpm init-scan');
     logger.info('[提示] 配置已迁移到数据库，请使用配置管理功能进行管理');
 
@@ -181,10 +181,13 @@ async function startServer() {
       message: `服务器启动成功，运行在端口 ${port}`
     });
 
-    serve({
+    server = serve({
       fetch: app.fetch,
       port
     });
+
+    const actualPort = (server as any)?.address?.()?.port || port;
+    logger.info(`[服务就绪] 服务器运行在端口 ${actualPort}`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
@@ -275,16 +278,25 @@ process.on('unhandledRejection', async (reason, promise) => {
   }
 });
 
-startServer().catch((error) => {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  const errorStack = error instanceof Error ? error.stack : undefined;
-  logger.error({
-    msg: 'Failed to start server',
-    error: errorMessage,
-    stack: errorStack
-  });
-  process.exit(1);
-});
-
 export default app;
+export { startServer, gracefulShutdown, port, server };
+
+// 仅在直接运行时自动启动（非被 Electron 导入）
+const isDirectRun = (() => {
+  const execPath = process.argv[1] || '';
+  return execPath.includes('backend') && (execPath.endsWith('index.ts') || execPath.endsWith('index.js') || execPath.endsWith('dist/index.js'));
+})();
+
+if (isDirectRun) {
+  startServer().catch((error) => {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    logger.error({
+      msg: 'Failed to start server',
+      error: errorMessage,
+      stack: errorStack
+    });
+    process.exit(1);
+  });
+}
 

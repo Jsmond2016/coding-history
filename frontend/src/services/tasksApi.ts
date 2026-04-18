@@ -5,9 +5,10 @@ import type {
   UpdateTaskParams,
   TriggerTaskParams
 } from '../types/tasks';
+import { API_BASE_URL } from '../config/api';
 
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 30000
 });
 

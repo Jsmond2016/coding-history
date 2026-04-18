@@ -8,7 +8,7 @@ import { logger } from '../config/logger.js';
 /** 默认：每周五 19:00（node-cron：周日=0，周五=5） */
 const DEFAULT_BACKUP_CRON = '0 19 * * 5';
 
-const DEFAULT_BACKUP_DIR = '/Users/huangjing/Desktop/MyCode/temp/coding-history-db-backup';
+const DEFAULT_BACKUP_DIR = process.env.DB_BACKUP_DIR || path.join(process.cwd(), 'db-backup');
 
 let backupTask: ScheduledTask | null = null;
 

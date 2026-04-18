@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout/AppLayout';
 import GitStatisticsList from './pages/GitStatistics/GitStatisticsList';
 import LogsList from './pages/Logs/LogsList';
@@ -8,7 +8,7 @@ import ConfigList from './pages/Config/ConfigList';
 
 const App: React.FC = () => {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AppLayout>
         <Routes>
           <Route path="/" element={<Navigate to="/git-statistics" replace />} />
@@ -18,7 +18,7 @@ const App: React.FC = () => {
           <Route path="/config" element={<ConfigList />} />
         </Routes>
       </AppLayout>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
