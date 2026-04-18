@@ -5,22 +5,16 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      outDir: 'dist',
-      rollupOptions: {
-        input: {
-          index: resolve('src/main.ts'),
-        },
+      lib: {
+        entry: resolve('src/main.ts'),
       },
     },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      outDir: 'dist',
-      rollupOptions: {
-        input: {
-          index: resolve('src/preload.ts'),
-        },
+      lib: {
+        entry: resolve('src/preload.ts'),
       },
     },
   },
