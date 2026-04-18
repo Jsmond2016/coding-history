@@ -1,0 +1,31 @@
+appId: com.coding-history.app
+productName: Coding History
+directories:
+  buildResources: resources
+  output: release
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  icon: resources/icon.icns
+  hardenedRuntime: false
+  asar: true
+  asarUnpack:
+    - "**/*.node"
+    - "**/better-sqlite3/**"
+extraResources:
+  - from: ../backend/prisma
+    to: prisma
+    filter:
+      - "**/*.sql"
+      - "migration_lock.toml"
+  - from: ../backend/src/generated
+    to: generated
+    filter:
+      - "**/*"
+files:
+  - dist/**/*
+  - "!node_modules/**/{test,tests,__tests__,spec}/**"
+npmRebuild: true

@@ -1,0 +1,75 @@
+import { BrowserWindow, shell } from 'electron';
+import path from 'path';
+import { getBackendPort } from './backendRunner.js';
+
+let mainWindow: BrowserWindow | null = null;
+
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindow;
+}
+
+export function createMainWindow(): BrowserWindow {
+  mainWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    show: false,
+    titleBarStyle: 'hiddenInset',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  // 外部链接在系统浏览器中打开
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  loadFrontend(mainWindow);
+
+  return mainWindow;
+}
+
+function loadFrontend(win: BrowserWindow) {
+  const port = getBackendPort();
+
+  if (process.env.ELECTRON_RENDERER_URL) {
+    // 开发模式：加载 Vite dev server
+    const devUrl = new URL(process.env.ELECTRON_RENDERER_URL);
+    if (port) {
+      devUrl.searchParams.set('backendPort', String(port));
+    }
+    win.loadURL(devUrl.toString());
+  } else {
+    // 生产模式：加载构建后的文件
+    const frontendPath = path.join(__dirname, '../../../frontend/dist/index.html');
+    if (port) {
+      win.loadFile(frontendPath, { query: { backendPort: String(port) } });
+    } else {
+      win.loadFile(frontendPath);
+    }
+  }
+}
+
+export function restoreMainWindow(): BrowserWindow {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.focus();
+    return mainWindow;
+  }
+  return createMainWindow();
+}

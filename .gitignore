@@ -16,3 +16,8 @@ backend/logs/
 
 # Cursor 计划文件（临时）
 .cursor/plans/
+
+# Electron 构建输出
+electron/out/
+electron/dist/
+electron/release/

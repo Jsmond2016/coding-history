@@ -4,7 +4,7 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build"
+    "dev": "electron-vite dev --config electron.vite.config.ts",
+    "build": "electron-vite build --config electron.vite.config.ts"
   }
 }
