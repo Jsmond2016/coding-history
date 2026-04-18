@@ -156,8 +156,12 @@ async function startServer() {
       logger.warn('[初始化] 数据指标配置初始化失败，将使用默认配置:', error);
     }
 
-    // 启动定时任务（从数据库加载）
-    await startScheduler();
+    // 启动定时任务（从数据库加载，表不存在时跳过）
+    try {
+      await startScheduler();
+    } catch (error) {
+      logger.warn('[初始化] 定时任务启动失败，将跳过:', error);
+    }
 
     // 系统级数据库文件定时备份（仅日志提示，见 DB_BACKUP_CRON）
     startDbBackupScheduler();
@@ -175,11 +179,11 @@ async function startServer() {
     logger.info('[提示] 如需初始化历史数据，请运行: pnpm init-scan');
     logger.info('[提示] 配置已迁移到数据库，请使用配置管理功能进行管理');
 
-    // 记录服务器启动日志
-    await logService.createServerLog({
+    // 记录服务器启动日志（不阻塞启动）
+    logService.createServerLog({
       type: 'start',
       message: `服务器启动成功，运行在端口 ${port}`
-    });
+    }).catch(() => {});
 
     server = serve({
       fetch: app.fetch,

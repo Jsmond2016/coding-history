@@ -10,6 +10,19 @@ export function getBackendPort(): number | null {
   return backendPort;
 }
 
+function findTsx(): string | null {
+  const candidates = [
+    path.resolve(__dirname, '../../../backend/node_modules/.bin/tsx'),
+    path.resolve(__dirname, '../../node_modules/.pnpm/node_modules/.bin/tsx'),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return null;
+}
+
 export async function startBackend(): Promise<number> {
   const paths = getPaths();
 
@@ -24,21 +37,24 @@ export async function startBackend(): Promise<number> {
     PORT: '0',
   };
 
-  // 确定后端入口路径
-  const isDev = !!process.env.ELECTRON_RENDERER_URL;
   const backendRoot = path.resolve(__dirname, '../../../backend');
+  const isDev = !!process.env.ELECTRON_RENDERER_URL;
 
   let cmd: string;
   let args: string[];
 
   if (isDev) {
     // 开发模式：使用 tsx 运行 TypeScript 源码
-    const tsxPath = path.resolve(__dirname, '../../../node_modules/.bin/tsx');
+    const tsxPath = findTsx();
+    if (!tsxPath) {
+      throw new Error('未找到 tsx，请确认 backend 依赖已安装');
+    }
     cmd = tsxPath;
     args = [path.join(backendRoot, 'src/index.ts')];
   } else {
-    // 生产模式：运行编译后的 JS
-    cmd = process.execPath;
+    // 生产模式：使用系统 Node 运行编译后的 JS
+    // Electron 中 process.execPath 是 Electron 二进制，需要找到真正的 Node
+    cmd = process.env.NODE_PATH || '/usr/local/bin/node';
     args = [path.join(backendRoot, 'dist/index.js')];
   }
 
@@ -85,14 +101,15 @@ export async function startBackend(): Promise<number> {
       backendProcess = null;
     });
 
-    // 超时 fallback：5秒后如果没有捕获到端口，使用默认端口
+    // 超时 fallback：8秒后如果没有捕获到端口，使用默认端口
     setTimeout(() => {
       if (!resolved) {
+        console.log('[Electron] 后端启动超时，使用默认端口');
         backendPort = 5188;
         resolved = true;
         resolve(backendPort);
       }
-    }, 5000);
+    }, 8000);
   });
 }
 
@@ -107,7 +124,6 @@ export function stopBackend(): Promise<void> {
       backendProcess = null;
       resolve();
     });
-    // 3秒后强制结束
     setTimeout(() => {
       if (backendProcess) {
         backendProcess.kill('SIGKILL');

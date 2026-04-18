@@ -9,7 +9,7 @@ export function getMainWindow(): BrowserWindow | null {
 }
 
 export function createMainWindow(): BrowserWindow {
-  const preloadPath = path.join(__dirname, '../preload/preload.mjs');
+  const preloadPath = path.join(__dirname, '../preload/preload.cjs');
 
   mainWindow = new BrowserWindow({
     width: 1400,

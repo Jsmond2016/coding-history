@@ -37,10 +37,20 @@ function initializeDatabase() {
       return;
     }
 
-    execFileSync(process.execPath, [
+    // Electron 中 process.execPath 指向 Electron 二进制，
+    // 需要用 Node.js 来执行 prisma，这里直接用 backend 的 tsx 作为 runtime
+    const nodePath = findNodeBin();
+    const runner = nodePath || findTsxBin();
+    if (!runner) {
+      console.log('[Electron] 未找到 Node.js 运行时，跳过数据库初始化');
+      return;
+    }
+
+    execFileSync(runner, [
       prismaEntry, 'db', 'push',
       '--schema', schemaPath,
-      '--skip-generate',
+      '--url', paths.dbUrl(),
+      '--accept-data-loss',
     ], {
       env: { ...process.env, DATABASE_URL: paths.dbUrl() },
       timeout: 15000,
@@ -58,6 +68,34 @@ function findPrismaEntry(): string | null {
     path.join(__dirname, '../../../backend/node_modules/prisma/build/index.js'),
     path.join(__dirname, '../../node_modules/prisma/build/index.js'),
   ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return null;
+}
+
+function findTsxBin(): string | null {
+  const candidates = [
+    path.join(__dirname, '../../../backend/node_modules/.bin/tsx'),
+    path.join(__dirname, '../../node_modules/.pnpm/node_modules/.bin/tsx'),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return null;
+}
+
+function findNodeBin(): string | null {
+  // 常见的 Node.js 路径
+  const candidates = [
+    '/usr/local/bin/node',
+    '/opt/homebrew/bin/node',
+    process.env.NODE_PATH || '',
+  ].filter(Boolean);
   for (const p of candidates) {
     if (fs.existsSync(p)) {
       return p;
