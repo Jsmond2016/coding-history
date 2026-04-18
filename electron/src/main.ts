@@ -23,34 +23,38 @@ async function initializeDatabase() {
   console.log('[Electron] 首次运行，初始化数据库...');
 
   try {
-    // 查找 prisma CLI
-    const prismaBinPath = findPrismaBin();
-    if (prismaBinPath) {
-      const schemaPath = findPrismaSchema();
-      if (schemaPath) {
-        execSync(
-          `"${process.execPath}" "${prismaBinPath}" db push --schema "${schemaPath}" --skip-generate`,
-          {
-            env: { ...process.env, DATABASE_URL: paths.dbUrl() },
-            stdio: 'pipe',
-          }
-        );
-        console.log('[Electron] 数据库初始化完成');
-        return;
-      }
+    const schemaPath = findPrismaSchema();
+    if (!schemaPath) {
+      console.log('[Electron] 未找到 Prisma schema，跳过数据库初始化');
+      return;
     }
-    console.log('[Electron] 未找到 Prisma CLI，将尝试由后端自动创建');
+
+    // 查找 prisma CLI 的真实 JS 入口（不是 .bin/shell 脚本）
+    const prismaEntry = findPrismaEntry();
+    if (!prismaEntry) {
+      console.log('[Electron] 未找到 Prisma CLI，跳过数据库初始化');
+      return;
+    }
+
+    execSync(
+      `"${process.execPath}" "${prismaEntry}" db push --schema "${schemaPath}" --skip-generate`,
+      {
+        env: { ...process.env, DATABASE_URL: paths.dbUrl() },
+        stdio: 'pipe',
+      }
+    );
+    console.log('[Electron] 数据库初始化完成');
   } catch (error) {
     console.error('[Electron] 数据库初始化失败:', error);
     // 不阻止启动，后端可能会处理
   }
 }
 
-function findPrismaBin(): string | null {
-  // 在开发模式下从 node_modules 查找
+function findPrismaEntry(): string | null {
+  // 查找 prisma npm 包的真实 JS 入口（非 .bin shell 脚本）
   const candidates = [
-    path.join(__dirname, '../../../backend/node_modules/.bin/prisma'),
-    path.join(__dirname, '../../node_modules/.bin/prisma'),
+    path.join(__dirname, '../../../backend/node_modules/prisma/build/index.js'),
+    path.join(__dirname, '../../node_modules/prisma/build/index.js'),
   ];
 
   for (const p of candidates) {
