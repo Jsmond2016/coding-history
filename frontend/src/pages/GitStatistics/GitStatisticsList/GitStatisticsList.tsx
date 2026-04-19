@@ -146,8 +146,8 @@ const GitStatisticsList: React.FC = () => {
           }),
         ])
 
-        setCommitsByDate(commitsByDateResult.data)
-        setStatistics(statisticsResult)
+        setCommitsByDate(commitsByDateResult?.data ?? [])
+        setStatistics(statisticsResult ?? { totalCommits: 0, totalInsertions: 0, totalDeletions: 0, totalFilesChanged: 0, byRepository: [], byDate: [] })
       } catch (error) {
         console.error("[Frontend] Search error:", error)
         message.error("加载数据失败")
@@ -162,11 +162,11 @@ const GitStatisticsList: React.FC = () => {
   useMount(async () => {
     try {
       const [repos, authors] = await Promise.all([
-        gitStatisticsApi.getRepositories(),
-        gitStatisticsApi.getAuthors(),
+        gitStatisticsApi.getRepositories().catch(() => []),
+        gitStatisticsApi.getAuthors().catch(() => []),
       ])
-      setRepositories(repos)
-      setAuthors(authors)
+      setRepositories(Array.isArray(repos) ? repos : [])
+      setAuthors(Array.isArray(authors) ? authors : [])
       // 自动执行一次搜索
       await handleSearch()
     } catch (error) {
@@ -179,8 +179,9 @@ const GitStatisticsList: React.FC = () => {
       <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
         <header
           role="banner"
-          className="sticky top-0 z-[1000] flex h-16 w-full min-w-0 shrink-0 items-center justify-end border-b border-neutral-100 bg-white px-3 shadow-sm"
+          className="sticky top-0 z-[1000] flex h-14 w-full min-w-0 shrink-0 items-center justify-between border-b border-neutral-100 bg-white px-4 shadow-sm"
         >
+          <div className="app-drag-region flex-1 h-full" />
           <ConfigProvider
             theme={{
               token: {
@@ -255,7 +256,11 @@ const GitStatisticsList: React.FC = () => {
             <StatisticsFilter onSearch={handleSearch} />
           </Card>
 
-          {hasSearched ? (
+          {hasSearched && !loading && commitsByDate.length === 0 ? (
+            <Card>
+              <Empty description="当前筛选条件下暂无提交记录" />
+            </Card>
+          ) : hasSearched ? (
             <div className="my-3">
               {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
               <Row gutter={16} className="mb-3 !mx-0">

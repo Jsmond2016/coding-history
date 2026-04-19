@@ -76,11 +76,11 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         placeholder="选择仓库（默认全部）"
         value={filter.repositoryIds}
         onChange={(ids) => setFilter({ ...filter, repositoryIds: ids })}
-        className="min-w-60"
+        style={{ minWidth: 200 }}
         allowClear
         maxTagCount="responsive"
       >
-        {repositories.map((repo: Repository) => (
+        {(repositories ?? []).map((repo: Repository) => (
           <Option key={repo.id} value={repo.id}>
             {repo.name}
           </Option>
@@ -92,11 +92,11 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         placeholder="选择作者（默认全部）"
         value={filter.authorEmails}
         onChange={(emails) => setFilter({ ...filter, authorEmails: emails })}
-        className="min-w-40"
+        style={{ minWidth: 160 }}
         allowClear
         maxTagCount="responsive"
       >
-        {authors.map((author: Author) => (
+        {(authors ?? []).map((author: Author) => (
           <Option key={author.email} value={author.email}>
             {author.name}
           </Option>
@@ -112,7 +112,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
             isOvertime: value === null || value === undefined ? undefined : value,
           })
         }}
-        className="w-37.5"
+        style={{ minWidth: 140 }}
         allowClear
       >
         <Option value={true}>仅加班</Option>

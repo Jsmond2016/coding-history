@@ -12,8 +12,8 @@ export function createMainWindow(): BrowserWindow {
   const preloadPath = path.join(__dirname, '../preload/preload.cjs');
 
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: 1600,
+    height: 1000,
     show: true,
     titleBarStyle: 'hiddenInset',
     webPreferences: {

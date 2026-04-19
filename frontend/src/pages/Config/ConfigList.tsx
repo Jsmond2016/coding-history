@@ -345,6 +345,7 @@ const ConfigList: React.FC = () => {
             loading={loading}
             rowKey="id"
             pagination={false}
+            locale={{ emptyText: '暂无仓库配置，请点击"添加仓库"按钮添加' }}
             expandable={{
               expandedRowKeys: expandedKeys,
               onExpandedRowsChange: (keys) => setExpandedKeys(keys as string[]),

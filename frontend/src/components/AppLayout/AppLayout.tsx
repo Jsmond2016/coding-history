@@ -78,8 +78,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           theme="dark"
           className="h-screen overflow-auto"
         >
-          <div className="h-8 m-4 bg-white/20 rounded flex items-center justify-center text-white font-bold">
-            {collapsed ? "GH" : "Git History"}
+          {/* macOS 拖拽区域：为红绿灯按钮留出空间 */}
+          <div className="h-12 flex items-center justify-center app-drag-region">
+            <div className="h-8 px-4 bg-white/20 rounded flex items-center justify-center text-white font-bold">
+              {collapsed ? "GH" : "Git History"}
+            </div>
           </div>
           <Menu
             theme="dark"
