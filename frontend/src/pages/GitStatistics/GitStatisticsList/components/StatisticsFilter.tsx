@@ -61,24 +61,24 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
   ];
 
   return (
-    <Space wrap size="middle">
+    <Space wrap size="small">
       <RangePicker
         value={filter.dateRange}
         onChange={handleDateChange}
         format="YYYY-MM-DD"
         allowClear={false}
         presets={rangePresets}
-        className="w-70"
+        style={{ width: 260 }}
       />
-      
+
       <Select
         mode="multiple"
-        placeholder="选择仓库（默认全部）"
+        placeholder="仓库"
         value={filter.repositoryIds}
         onChange={(ids) => setFilter({ ...filter, repositoryIds: ids })}
-        style={{ minWidth: 200 }}
+        style={{ width: 180 }}
         allowClear
-        maxTagCount="responsive"
+        maxTagCount={1}
       >
         {(repositories ?? []).map((repo: Repository) => (
           <Option key={repo.id} value={repo.id}>
@@ -89,12 +89,12 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
 
       <Select
         mode="multiple"
-        placeholder="选择作者（默认全部）"
+        placeholder="作者"
         value={filter.authorEmails}
         onChange={(emails) => setFilter({ ...filter, authorEmails: emails })}
-        style={{ minWidth: 160 }}
+        style={{ width: 160 }}
         allowClear
-        maxTagCount="responsive"
+        maxTagCount={1}
       >
         {(authors ?? []).map((author: Author) => (
           <Option key={author.email} value={author.email}>
@@ -104,7 +104,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
       </Select>
 
       <Select
-        placeholder="是否加班（默认全部）"
+        placeholder="加班"
         value={filter.isOvertime === undefined ? null : filter.isOvertime}
         onChange={(value) => {
           setFilter({
@@ -112,7 +112,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
             isOvertime: value === null || value === undefined ? undefined : value,
           })
         }}
-        style={{ minWidth: 140 }}
+        style={{ width: 100 }}
         allowClear
       >
         <Option value={true}>仅加班</Option>

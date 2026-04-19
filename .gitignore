@@ -21,3 +21,4 @@ backend/logs/
 electron/out/
 electron/dist/
 electron/release/
+release/

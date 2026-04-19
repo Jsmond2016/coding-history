@@ -51,7 +51,7 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
             }
             value={relaxedDays}
             valueStyle={{ color: '#52c41a' }}
-            suffix={`天 (${relaxedPercentage}%)`}
+            suffix={<span style={{ fontSize: 14 }}>({relaxedPercentage}%)</span>}
           />
         </Col>
         <Col span={6}>
@@ -66,7 +66,7 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
             }
             value={busyDays}
             valueStyle={{ color: '#ff9800' }}
-            suffix={`天 (${busyPercentage}%)`}
+            suffix={<span style={{ fontSize: 14 }}>({busyPercentage}%)</span>}
           />
         </Col>
         <Col span={6}>
@@ -74,7 +74,7 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
             title="加班天数"
             value={overtimeDays}
             valueStyle={{ color: '#ff4d4f' }}
-            suffix={`天 (${overtimePercentage}%)`}
+            suffix={<span style={{ fontSize: 14 }}>({overtimePercentage}%)</span>}
           />
         </Col>
       </Row>

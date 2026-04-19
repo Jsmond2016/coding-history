@@ -15,7 +15,8 @@ export function createMainWindow(): BrowserWindow {
     width: 1600,
     height: 1000,
     show: true,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: 'hidden',
+    trafficLightPosition: { x: 15, y: 15 },
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

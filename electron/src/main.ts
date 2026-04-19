@@ -17,12 +17,7 @@ function ensureDirectories() {
 function initializeDatabase() {
   const paths = getPaths();
 
-  // 如果数据库已存在，跳过初始化
-  if (fs.existsSync(paths.db)) {
-    return;
-  }
-
-  console.log('[Electron] 首次运行，初始化数据库...');
+  console.log('[Electron] 同步数据库 schema...');
 
   try {
     const schemaPath = findPrismaSchema();

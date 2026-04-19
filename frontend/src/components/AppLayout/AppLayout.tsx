@@ -63,7 +63,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   return (
     <LayoutProvider collapsed={collapsed} setCollapsed={setCollapsed}>
-      <Layout className="h-screen min-h-0 overflow-hidden">
+      <Layout className="h-screen min-h-0 overflow-hidden" style={{ minHeight: '100vh', maxHeight: '100%' }}>
         {/*
           不要用 position:fixed 的 Sider 再叠一层 marginLeft：
           antd 的 Sider 在横向 Layout 里仍会参与 flex 占位，会与 margin 叠加成「侧栏 + 大缝」。
@@ -91,8 +91,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             items={menuItems}
           />
         </Sider>
-        <Layout className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          <Content className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto bg-white">
+        <Layout className="min-h-0 min-w-0 flex-1 overflow-hidden" style={{ minHeight: 0, flex: 1 }}>
+          <Content className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto bg-white" style={{ height: '100%', minHeight: 0, flex: 1 }}>
             {children}
           </Content>
         </Layout>

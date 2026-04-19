@@ -4,9 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { logger } from '../config/logger.js';
+import { appSettingService } from '../services/AppSettingService.js';
 
-/** 默认：每周五 19:00（node-cron：周日=0，周五=5） */
-const DEFAULT_BACKUP_CRON = '0 19 * * 5';
 
 const DEFAULT_BACKUP_DIR = process.env.DB_BACKUP_DIR || path.join(process.cwd(), 'db-backup');
 
@@ -43,7 +42,7 @@ export interface DatabaseBackupResult {
  * 将数据库备份到目标目录，文件名 coding-history-backup-{YYYY-MM-DD}.db
  */
 export async function runDatabaseBackup(): Promise<DatabaseBackupResult> {
-  const backupDir = (process.env.DB_BACKUP_DIR ?? DEFAULT_BACKUP_DIR).trim() || DEFAULT_BACKUP_DIR;
+  const backupDir = await appSettingService.getBackupDir();
   const sourcePath = resolveSqliteDatabasePath();
 
   if (!fs.existsSync(sourcePath)) {
@@ -85,25 +84,13 @@ export async function runDatabaseBackup(): Promise<DatabaseBackupResult> {
   }
 }
 
-function getBackupCronExpression(): string | null {
-  const v = process.env.DB_BACKUP_CRON;
-  if (v === undefined || v === null) {
-    return DEFAULT_BACKUP_CRON;
-  }
-  const t = v.trim();
-  if (t === '' || t === 'false' || t === 'off' || t === '0') {
-    return null;
-  }
-  return t;
-}
-
 /**
  * 启动数据库定时备份（仅打日志，不写业务库）
  */
-export function startDbBackupScheduler(): void {
-  const expr = getBackupCronExpression();
+export async function startDbBackupScheduler(): Promise<void> {
+  const expr = await appSettingService.getBackupCron();
   if (!expr) {
-    logger.info('[DB备份] 未启用（DB_BACKUP_CRON 为空、false、off 或 0）');
+    logger.info('[DB备份] 未启用（cron 配置为空、false、off 或 0）');
     return;
   }
 
@@ -130,7 +117,7 @@ export function startDbBackupScheduler(): void {
     timezone: 'Asia/Shanghai'  // 显式设置时区，确保定时任务按北京时间执行
   });
 
-  const dir = (process.env.DB_BACKUP_DIR ?? DEFAULT_BACKUP_DIR).trim() || DEFAULT_BACKUP_DIR;
+  const dir = await appSettingService.getBackupDir();
   logger.info({
     msg: '[DB备份] 定时任务已启动',
     cron: expr,

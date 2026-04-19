@@ -16,6 +16,7 @@ import { startDbBackupScheduler, stopDbBackupScheduler } from './jobs/dbBackupSc
 import { logger, getCurrentResolvedLogPaths } from './config/logger.js';
 import { LogService } from './services/LogService.js';
 import { DataMetricsConfigService } from './services/DataMetricsConfigService.js';
+import { appSettingService } from './services/AppSettingService.js';
 
 
 const app = new Hono();
@@ -154,6 +155,13 @@ async function startServer() {
       logger.info('[初始化] 数据指标配置已就绪');
     } catch (error) {
       logger.warn('[初始化] 数据指标配置初始化失败，将使用默认配置:', error);
+    }
+
+    // 初始化应用设置（备份目录等）
+    try {
+      await appSettingService.initDefaultSettings();
+    } catch (error) {
+      logger.warn('[初始化] 应用设置初始化失败:', error);
     }
 
     // 启动定时任务（从数据库加载，表不存在时跳过）

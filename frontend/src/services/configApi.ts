@@ -193,10 +193,39 @@ export interface DatabaseBackupResult {
   error?: string;
 }
 
+export interface BackupConfig {
+  backupDir: string;
+  backupCron: string | null;
+}
+
 /**
  * 手动备份数据库
  */
 export const backupDatabase = async (): Promise<DatabaseBackupResult> => {
   const response = await api.post<DatabaseBackupResult>('/config/database/backup');
   return response.data;
+};
+
+/**
+ * 获取备份配置
+ */
+export const getBackupConfig = async (): Promise<BackupConfig> => {
+  const response = await api.get<{ data: BackupConfig }>('/config/backup-config');
+  return response.data.data;
+};
+
+/**
+ * 更新备份目录
+ */
+export const updateBackupDir = async (backupDir: string): Promise<BackupConfig> => {
+  const response = await api.put<{ data: BackupConfig }>('/config/backup-config', { backupDir });
+  return response.data.data;
+};
+
+/**
+ * 更新备份定时配置
+ */
+export const updateBackupCron = async (backupCron: string): Promise<BackupConfig> => {
+  const response = await api.put<{ data: BackupConfig }>('/config/backup-config', { backupCron });
+  return response.data.data;
 };

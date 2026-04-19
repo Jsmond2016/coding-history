@@ -10,6 +10,7 @@ import { ScanTaskService } from '../services/ScanTaskService.js';
 import { logger } from '../config/logger.js';
 import { restartScheduler } from '../jobs/scanScheduler.js';
 import { runDatabaseBackup } from '../jobs/dbBackupScheduler.js';
+import { appSettingService } from '../services/AppSettingService.js';
 import type { WorkStatus } from '../config/workStatus.config.js';
 import { prisma } from '../db/client.js';
 
@@ -402,6 +403,59 @@ app.post('/database/backup', async (c) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Failed to backup database:', error);
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+// 获取备份配置
+app.get('/backup-config', async (c) => {
+  try {
+    const backupDir = await appSettingService.getBackupDir();
+    const backupCron = await appSettingService.getBackupCron();
+    return c.json({
+      data: {
+        backupDir,
+        backupCron,
+      }
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+// 更新备份配置
+const UpdateBackupConfigSchema = z.object({
+  backupDir: z.string().min(1, '备份目录不能为空').optional(),
+  backupCron: z.string().optional(),
+});
+
+app.put('/backup-config', zValidator('json', UpdateBackupConfigSchema), async (c) => {
+  try {
+    const { backupDir, backupCron } = c.req.valid('json');
+
+    if (backupDir !== undefined) {
+      const result = await appSettingService.setBackupDir(backupDir);
+      if (!result.success) {
+        return c.json({ error: result.error }, 400);
+      }
+    }
+
+    if (backupCron !== undefined) {
+      const result = await appSettingService.setBackupCron(backupCron);
+      if (!result.success) {
+        return c.json({ error: result.error }, 400);
+      }
+    }
+
+    return c.json({
+      data: {
+        backupDir: await appSettingService.getBackupDir(),
+        backupCron: await appSettingService.getBackupCron(),
+      }
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return c.json({ error: errorMessage }, 500);
   }
 });
