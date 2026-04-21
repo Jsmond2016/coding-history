@@ -193,12 +193,8 @@ pm2 restart coding-history-backend
 - Thunder Client (API 测试)
 
 ### 环境变量配置
-创建 `backend/.env` 文件：
+创建 `backend/.env` 文件，可直接参考 `backend/.env.example`：
 ```bash
-# 控制启动时是否立即执行定时任务扫描
-ENABLE_STARTUP_SCAN=true
-
-# 其他可选配置
 # LOG_LEVEL=info
 # DATABASE_URL="file:./database/coding-history.db"
 ```
@@ -271,9 +267,6 @@ cd backend && pnpm migrate-config
 ```bash
 # 前台启动 (开发调试)
 ./start.sh
-
-# 带初始化扫描启动
-ENABLE_STARTUP_SCAN=true ./start.sh
 
 # 单独启动后端
 cd backend && pnpm dev

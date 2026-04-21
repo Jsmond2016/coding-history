@@ -13,7 +13,7 @@
     "pnpm": "10.15.0"
   },
   "scripts": {
-    "dev": "ENABLE_STARTUP_SCAN=false pnpm --filter coding-history-backend --filter coding-history-frontend run --parallel dev",
+    "dev": "pnpm --filter coding-history-backend --filter coding-history-frontend run --parallel dev",
     "dev:backend": "pnpm --filter coding-history-backend dev",
     "dev:frontend": "pnpm --filter coding-history-frontend dev",
     "build:backend": "pnpm --filter coding-history-backend build",

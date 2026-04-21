@@ -125,17 +125,7 @@ cd ..
 
 在 `backend` 目录下可以创建 `.env` 文件来配置环境变量：
 
-```bash
-# 控制是否在项目启动时立即执行定时任务扫描
-# true: 如果当前时间匹配 cron 表达式，会立即执行一次扫描（默认）
-# false: 只启动定时任务，不立即执行扫描
-ENABLE_STARTUP_SCAN=true
-```
-
-**说明**：
-- `ENABLE_STARTUP_SCAN`: 控制项目启动时是否默认执行定时任务扫描
-  - 设置为 `true`（默认）：如果当前时间匹配定时任务的 cron 表达式，会在启动时立即执行一次扫描
-  - 设置为 `false`：只启动定时任务调度器，不会在启动时立即执行扫描，定时任务会按计划执行
+常用配置可直接参考 `backend/.env.example`。
 
 
 
@@ -240,6 +230,8 @@ pnpm delete
    pnpm init-scan  # 扫描最近3个月的数据
    pnpm init-scan --months 6  # 扫描最近6个月的数据
    ```
+
+   项目启动后不会自动执行首次扫描。日常依赖页面里的手动扫描和自动定时任务；只有需要补历史数据时才手动运行 `pnpm init-scan`。
 
 3. **查看统计数据**:
    - 访问 Git 数据看板页面
@@ -381,11 +373,7 @@ git status /path/to/your/repository
 - Prisma
 
 #### 环境变量配置
-创建 `backend/.env` 文件：
-```bash
-# 控制启动时是否立即执行定时任务扫描
-ENABLE_STARTUP_SCAN=true
-```
+创建 `backend/.env` 文件，可直接参考 `backend/.env.example`。
 
 ### 🔄 日常维护命令
 
@@ -405,7 +393,7 @@ pnpm status
 # 查看日志
 pnpm logs
 
-# 手动扫描
+# 手动补历史数据
 pnpm init-scan
 
 # 清理日志
@@ -519,4 +507,3 @@ pnpm build
 ## 许可证
 
 MIT
-

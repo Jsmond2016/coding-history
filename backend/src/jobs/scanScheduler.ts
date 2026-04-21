@@ -11,13 +11,6 @@ import { logger } from '../config/logger.js';
 let currentSchedulers: ScheduledTask[] = [];
 
 /**
- * 跟踪每个任务是否是第一次执行（用于控制启动时是否立即执行）
- * key: taskId, value: 是否是第一次执行
- */
-const firstExecutionMap = new Map<number, boolean>();
-
-
-/**
  * 执行数据库中的定时任务
  * 根据任务ID执行对应的扫描任务
  */
@@ -62,29 +55,20 @@ async function executeDatabaseTask(taskId: number): Promise<void> {
  * 1. 如果已有定时任务在运行，先停止旧任务
  * 2. 从数据库加载启用的定时任务
  * 3. 支持多个定时任务同时运行
- * 
+ *
  * 数据库任务：
  * - 从 ScanTask 表中加载 taskType='scheduled' 且 enabled=true 的任务
  * - 每个任务使用自己的 Cron 表达式和扫描配置
- * 
- * 环境变量：
- * - ENABLE_STARTUP_SCAN: 控制是否在启动时立即执行扫描（默认: true）
- *   - true: 如果当前时间匹配 cron 表达式，会立即执行一次
- *   - false: 只启动定时任务，不立即执行扫描
+ *
+ * 注意：
+ * - 启动时只注册调度器，不执行额外扫描
+ * - 日常扫描依赖用户手动触发或定时任务按计划执行
  */
 export async function startScheduler(): Promise<void> {
   // 如果已有定时任务在运行，先停止（避免重复启动）
   if (currentSchedulers.length > 0) {
     logger.info('[定时任务] 检测到已有任务运行，先停止旧任务');
     stopScheduler();
-  }
-
-  // 读取环境变量，控制是否在启动时立即执行扫描
-  // 默认值为 true，保持向后兼容
-  const enableStartupScan = process.env.ENABLE_STARTUP_SCAN !== 'false';
-  
-  if (!enableStartupScan) {
-    logger.info('[定时任务] 启动时扫描已禁用（ENABLE_STARTUP_SCAN=false），定时任务将按计划执行');
   }
 
   const taskService = new ScanTaskService();
@@ -101,21 +85,7 @@ export async function startScheduler(): Promise<void> {
           return;
         }
 
-        // 如果禁用了启动时扫描，标记该任务为第一次执行
-        if (!enableStartupScan) {
-          firstExecutionMap.set(task.id, true);
-        }
-
-        // 创建定时任务，执行时调用 executeDatabaseTask
-        // 如果禁用了启动时扫描，包装执行函数以跳过第一次执行
         const taskHandler = () => {
-          // 如果禁用了启动时扫描且是第一次执行，跳过
-          if (!enableStartupScan && firstExecutionMap.get(task.id)) {
-            firstExecutionMap.set(task.id, false);
-            logger.debug(`[定时任务] 跳过任务 ${task.name} 的启动时执行（ENABLE_STARTUP_SCAN=false）`);
-            return;
-          }
-          
           executeDatabaseTask(task.id).catch((error) => {
             logger.error(`[定时任务] 执行数据库任务 ${task.name} 失败:`, error);
           });
@@ -127,8 +97,7 @@ export async function startScheduler(): Promise<void> {
 
         schedulers.push(scheduledTask);
         logger.info(
-          `[定时任务] 数据库任务 "${task.name}" 调度已启动，Cron 表达式: ${task.cronExpression}` +
-          (enableStartupScan ? '' : '（启动时扫描已禁用）')
+          `[定时任务] 数据库任务 "${task.name}" 调度已启动，Cron 表达式: ${task.cronExpression}`
         );
       });
     }
@@ -168,9 +137,8 @@ export function stopScheduler(): void {
     logger.info(`[定时任务] 调度器 ${index + 1} 已停止`);
   });
 
-  // 清空任务列表和首次执行标志
+  // 清空任务列表
   currentSchedulers = [];
-  firstExecutionMap.clear();
   logger.info('[定时任务] 所有调度器已停止');
 }
 
@@ -199,4 +167,3 @@ export async function restartScheduler(): Promise<void> {
 
   logger.info('[定时任务] 调度器已使用新配置重启');
 }
-
