@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs, Tooltip } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs, Tooltip, Input } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   PlusOutlined,
@@ -20,6 +20,9 @@ import {
   deleteRepository,
   batchDeleteRepositories,
   backupDatabase,
+  getBackupConfig,
+  updateBackupDir,
+  updateBackupCron,
   type RepositoryConfig,
   type CommitDateRange
 } from '../../services/configApi';
@@ -43,6 +46,14 @@ const ConfigList: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([]);
   const [deleting, setDeleting] = React.useState(false);
   const [backingUp, setBackingUp] = React.useState(false);
+  const [backupModalOpen, setBackupModalOpen] = React.useState(false);
+  const [backupDir, setBackupDir] = React.useState('');
+  const [backupCron, setBackupCron] = React.useState<string | null>(null);
+  const [backupDirEditing, setBackupDirEditing] = React.useState('');
+  const [loadingConfig, setLoadingConfig] = React.useState(false);
+  const [savingDir, setSavingDir] = React.useState(false);
+  const [backupCronEditing, setBackupCronEditing] = React.useState('');
+  const [savingCron, setSavingCron] = React.useState(false);
 
   // 加载仓库配置列表
   const loadRepositories = React.useCallback(async () => {
@@ -109,6 +120,7 @@ const ConfigList: React.FC = () => {
       const result = await backupDatabase();
       if (result.success) {
         message.success(`数据库备份成功：${result.destPath}`);
+        setBackupModalOpen(false);
       } else {
         message.error(`备份失败：${result.error || '未知错误'}`);
       }
@@ -117,6 +129,60 @@ const ConfigList: React.FC = () => {
       console.error(error);
     } finally {
       setBackingUp(false);
+    }
+  };
+
+  // 打开备份配置弹窗
+  const handleOpenBackupModal = async () => {
+    setBackupModalOpen(true);
+    setLoadingConfig(true);
+    try {
+      const config = await getBackupConfig();
+      setBackupDir(config.backupDir);
+      setBackupDirEditing(config.backupDir);
+      setBackupCron(config.backupCron);
+      setBackupCronEditing(config.backupCron || '');
+    } catch {
+      message.error('获取备份配置失败');
+    } finally {
+      setLoadingConfig(false);
+    }
+  };
+
+  // 保存备份目录
+  const handleSaveBackupDir = async () => {
+    const trimmed = backupDirEditing.trim();
+    if (!trimmed) {
+      message.error('备份目录不能为空');
+      return;
+    }
+    setSavingDir(true);
+    try {
+      const config = await updateBackupDir(trimmed);
+      setBackupDir(config.backupDir);
+      setBackupDirEditing(config.backupDir);
+      message.success('备份目录已更新');
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || '更新失败';
+      message.error(msg);
+    } finally {
+      setSavingDir(false);
+    }
+  };
+
+  // 保存备份定时
+  const handleSaveBackupCron = async () => {
+    setSavingCron(true);
+    try {
+      const config = await updateBackupCron(backupCronEditing.trim());
+      setBackupCron(config.backupCron);
+      setBackupCronEditing(config.backupCron || '');
+      message.success('备份定时已更新');
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || '更新失败';
+      message.error(msg);
+    } finally {
+      setSavingCron(false);
     }
   };
 
@@ -311,20 +377,13 @@ const ConfigList: React.FC = () => {
               >
                 扫描仓库
               </Button>
-              <Popconfirm
-                title="备份数据库"
-                description="确定要备份当前数据库吗？备份文件将保存到配置的备份目录中。"
-                onConfirm={handleBackupDatabase}
-                okText="确定备份"
-                cancelText="取消"
+              <Button
+                icon={<CloudUploadOutlined />}
+                loading={backingUp}
+                onClick={handleOpenBackupModal}
               >
-                <Button
-                  icon={<CloudUploadOutlined />}
-                  loading={backingUp}
-                >
-                  备份数据库
-                </Button>
-              </Popconfirm>
+                备份数据库
+              </Button>
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -345,6 +404,7 @@ const ConfigList: React.FC = () => {
             loading={loading}
             rowKey="id"
             pagination={false}
+            locale={{ emptyText: '暂无仓库配置，请点击"添加仓库"按钮添加' }}
             expandable={{
               expandedRowKeys: expandedKeys,
               onExpandedRowsChange: (keys) => setExpandedKeys(keys as string[]),
@@ -425,6 +485,95 @@ const ConfigList: React.FC = () => {
         onClose={() => setScanReposModalOpen(false)}
         onSuccess={loadRepositories}
       />
+
+      {/* 备份数据库弹窗 */}
+      <Modal
+        title="备份数据库"
+        open={backupModalOpen}
+        onCancel={() => setBackupModalOpen(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setBackupModalOpen(false)}>
+            取消
+          </Button>,
+          <Button
+            key="backup"
+            type="primary"
+            icon={<CloudUploadOutlined />}
+            loading={backingUp}
+            onClick={handleBackupDatabase}
+          >
+            立即备份
+          </Button>,
+        ]}
+        width={520}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>备份目录</div>
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              value={backupDirEditing}
+              onChange={(e) => setBackupDirEditing(e.target.value)}
+              placeholder="输入备份目录绝对路径"
+            />
+            <Button
+              type="primary"
+              loading={savingDir}
+              disabled={backupDirEditing === backupDir}
+              onClick={handleSaveBackupDir}
+            >
+              保存路径
+            </Button>
+          </Space.Compact>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
+            备份文件将保存到: {backupDir}/coding-history-backup-YYYY-MM-DD.db
+          </div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>定时备份</div>
+          <Space direction="vertical" size={6} style={{ width: '100%' }}>
+            <Space wrap size={4}>
+              {[
+                { label: '每天 19:00', value: '0 19 * * *' },
+                { label: '工作日 19:00', value: '0 19 * * 1-5' },
+                { label: '每周五 19:00', value: '0 19 * * 5' },
+                { label: '关闭', value: 'off' },
+              ].map((preset) => (
+                <Tag
+                  key={preset.value}
+                  color={backupCronEditing === preset.value ? 'blue' : 'default'}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setBackupCronEditing(preset.value)}
+                >
+                  {preset.label}
+                </Tag>
+              ))}
+            </Space>
+            <Space.Compact style={{ width: '100%' }}>
+              <Input
+                value={backupCronEditing}
+                onChange={(e) => setBackupCronEditing(e.target.value)}
+                placeholder="自定义 cron 表达式，如 0 19 * * 5"
+              />
+              <Button
+                type="primary"
+                loading={savingCron}
+                disabled={backupCronEditing === (backupCron || '')}
+                onClick={handleSaveBackupCron}
+              >
+                保存
+              </Button>
+            </Space.Compact>
+            <div style={{ fontSize: 12, color: '#999' }}>
+              格式：分 时 日 月 周，如 0 19 * * 5 = 每周五 19:00；输入 off 关闭定时备份
+            </div>
+          </Space>
+        </div>
+        <div style={{ padding: '12px', background: '#f5f5f5', borderRadius: 6 }}>
+          <div style={{ fontSize: 13, color: '#333' }}>
+            点击「立即备份」将创建一个完整的数据库副本。
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

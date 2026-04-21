@@ -199,3 +199,23 @@ export const backupDatabase = async (): Promise<DatabaseBackupResult> => {
   const response = await api.post<DatabaseBackupResult>('/config/database/backup');
   return response.data;
 };
+
+export interface BackupConfig {
+  backupDir: string;
+  backupCron: string | null;
+}
+
+export const getBackupConfig = async (): Promise<BackupConfig> => {
+  const response = await api.get<{ data: BackupConfig }>('/config/backup-config');
+  return response.data.data;
+};
+
+export const updateBackupDir = async (backupDir: string): Promise<BackupConfig> => {
+  const response = await api.put<{ data: BackupConfig }>('/config/backup-config', { backupDir });
+  return response.data.data;
+};
+
+export const updateBackupCron = async (backupCron: string): Promise<BackupConfig> => {
+  const response = await api.put<{ data: BackupConfig }>('/config/backup-config', { backupCron });
+  return response.data.data;
+};

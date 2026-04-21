@@ -146,8 +146,8 @@ const GitStatisticsList: React.FC = () => {
           }),
         ])
 
-        setCommitsByDate(commitsByDateResult.data)
-        setStatistics(statisticsResult)
+        setCommitsByDate(commitsByDateResult?.data ?? [])
+        setStatistics(statisticsResult ?? { totalCommits: 0, totalInsertions: 0, totalDeletions: 0, totalFilesChanged: 0, byRepository: [], byDate: [] })
       } catch (error) {
         console.error("[Frontend] Search error:", error)
         message.error("加载数据失败")
@@ -162,11 +162,11 @@ const GitStatisticsList: React.FC = () => {
   useMount(async () => {
     try {
       const [repos, authors] = await Promise.all([
-        gitStatisticsApi.getRepositories(),
-        gitStatisticsApi.getAuthors(),
+        gitStatisticsApi.getRepositories().catch(() => []),
+        gitStatisticsApi.getAuthors().catch(() => []),
       ])
-      setRepositories(repos)
-      setAuthors(authors)
+      setRepositories(Array.isArray(repos) ? repos : [])
+      setAuthors(Array.isArray(authors) ? authors : [])
       // 自动执行一次搜索
       await handleSearch()
     } catch (error) {
@@ -179,42 +179,8 @@ const GitStatisticsList: React.FC = () => {
       <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
         <header
           role="banner"
-          className="sticky top-0 z-[1000] flex h-16 w-full min-w-0 shrink-0 items-center justify-end border-b border-neutral-100 bg-white px-3 shadow-sm"
-        >
-          <ConfigProvider
-            theme={{
-              token: {
-                colorPrimary: "#ff9800",
-                colorPrimaryHover: "#f57c00",
-                colorPrimaryActive: "#e65100",
-              },
-            }}
-          >
-            <Space.Compact>
-              <Button
-                type="primary"
-                icon={<ReloadOutlined />}
-                loading={scanning}
-                disabled={scanning}
-                onClick={handleManualScan}
-              >
-                {scanButtonLabel}
-              </Button>
-              <Dropdown
-                menu={{ items: scanMenuItems, onClick: handleScanMenuClick }}
-                placement="bottomRight"
-              >
-                <Button
-                  type="primary"
-                  icon={<DownOutlined />}
-                  loading={scanning}
-                  disabled={scanning}
-                  aria-label="扫描更多操作"
-                />
-              </Dropdown>
-            </Space.Compact>
-          </ConfigProvider>
-        </header>
+          className="sticky top-0 z-[1000] h-12 w-full min-w-0 shrink-0"
+        />
         <Modal
           title="筛选扫描时间范围"
           open={scanConfigOpen}
@@ -250,25 +216,68 @@ const GitStatisticsList: React.FC = () => {
             </Space>
           </Radio.Group>
         </Modal>
-        <div className="flex-1 overflow-auto p-3 mt-3">
-          <Card className="mb-6">
-            <StatisticsFilter onSearch={handleSearch} />
+        <div className="flex-1 overflow-auto" style={{ padding: 16 }}>
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <StatisticsFilter onSearch={handleSearch} />
+              </div>
+              <ConfigProvider
+                theme={{
+                  token: {
+                    colorPrimary: "#ff9800",
+                    colorPrimaryHover: "#f57c00",
+                    colorPrimaryActive: "#e65100",
+                  },
+                }}
+              >
+                <Space.Compact>
+                  <Button
+                    type="primary"
+                    icon={<ReloadOutlined />}
+                    loading={scanning}
+                    disabled={scanning}
+                    onClick={handleManualScan}
+                  >
+                    {scanButtonLabel}
+                  </Button>
+                  <Dropdown
+                    menu={{ items: scanMenuItems, onClick: handleScanMenuClick }}
+                    placement="bottomRight"
+                  >
+                    <Button
+                      type="primary"
+                      icon={<DownOutlined />}
+                      loading={scanning}
+                      disabled={scanning}
+                      aria-label="扫描更多操作"
+                    />
+                  </Dropdown>
+                </Space.Compact>
+              </ConfigProvider>
+            </div>
           </Card>
 
-          {hasSearched ? (
-            <div className="my-3">
+          {hasSearched && !loading && commitsByDate.length === 0 ? (
+            <Card>
+              <Empty description="当前筛选条件下暂无提交记录" />
+            </Card>
+          ) : hasSearched ? (
+            <div>
               {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
-              <Row gutter={16} className="mb-3 !mx-0">
-                <Col span={12} className="!pl-0">
+              <Row gutter={16} style={{ marginBottom: 16, marginLeft: 0, marginRight: 0 }}>
+                <Col span={12} style={{ paddingLeft: 0 }}>
                   <StatisticsCards />
                 </Col>
-                <Col span={12} className="!pr-0">
+                <Col span={12} style={{ paddingRight: 0 }}>
                   <WorkStatusCards data={commitsByDate} />
                 </Col>
               </Row>
 
               {/* 提交次数趋势图 */}
-              <WorkStatusReport data={commitsByDate} />
+              <Card style={{ marginBottom: 16 }}>
+                <WorkStatusReport data={commitsByDate} />
+              </Card>
 
               {/* 提交记录列表 */}
               <Card

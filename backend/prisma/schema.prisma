@@ -152,3 +152,11 @@ model DataMetricsConfig {
 
   @@map("data_metrics_config")
 }
+
+model AppSetting {
+  key       String @id
+  value     String
+  updatedAt BigInt @map("updated_at")
+
+  @@map("app_settings")
+}

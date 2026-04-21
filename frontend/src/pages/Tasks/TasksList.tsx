@@ -574,6 +574,7 @@ const TasksList: React.FC = () => {
             dataSource={tasks}
             loading={loading}
             rowKey={(record) => String(record.id)}
+            locale={{ emptyText: '暂无扫描任务，请点击"添加任务"按钮创建' }}
             scroll={{ x: 1200 }}
             pagination={{
               showSizeChanger: true,
