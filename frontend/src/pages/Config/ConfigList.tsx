@@ -61,6 +61,13 @@ const ConfigList: React.FC = () => {
     try {
       const data = await getRepositoriesConfig();
       setRepositories(data);
+      setEditingRepoForAuthors((currentRepo) => {
+        if (!currentRepo) {
+          return currentRepo;
+        }
+
+        return data.find((repo) => repo.id === currentRepo.id) ?? currentRepo;
+      });
     } catch (error) {
       message.error('加载仓库配置失败');
       console.error(error);
