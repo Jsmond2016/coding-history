@@ -89,7 +89,8 @@ async def _scan_repositories_date_range(
                 logger.info(f"[Manual scan] {repo_name}: {len(commits)} commits in range")
 
                 if commits:
-                    await commit_svc.batch_insert_commits(db, repo_id, commits)
+                    commit_dicts = [c.to_dict() for c in commits]
+                    await commit_svc.batch_insert_commits(db, repo_id, commit_dicts)
 
                     result = await commit_svc.get_commits(
                         db,
