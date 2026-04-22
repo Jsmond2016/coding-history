@@ -143,8 +143,31 @@ python-backend/
 
 ## 启动方式
 
+### 1. 安装依赖（首次或依赖变更后执行）
+
 ```bash
 cd python-backend
 pip install -e .
-uvicorn app.main:app --host 0.0.0.0 --port 5188
 ```
+
+`pip install -e .` 表示以「可编辑模式」安装当前项目，修改代码后无需重新安装即可生效。
+
+### 2. 启动服务
+
+```bash
+# 生产模式
+uvicorn app.main:app --host 0.0.0.0 --port 5188
+
+# 开发模式（文件变更自动重启）
+uvicorn app.main:app --host 0.0.0.0 --port 5188 --reload
+```
+
+**命令说明：**
+
+| 部分 | 含义 |
+|------|------|
+| `uvicorn` | ASGI 服务器，负责接收 HTTP 请求并转交给 FastAPI 应用处理（类似 Node.js 中的 `tsx` 或 `node` 命令） |
+| `app.main:app` | 指向 `app/main.py` 文件中的 `app = FastAPI()` 实例，格式为 `模块路径:变量名` |
+| `--host 0.0.0.0` | 监听所有网络接口，允许局域网访问 |
+| `--port 5188` | 服务端口，与前端代理配置保持一致 |
+| `--reload` | 开发模式下文件变更自动重启服务，生产环境不要加 |
