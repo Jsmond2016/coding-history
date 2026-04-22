@@ -8,7 +8,6 @@ from typing import Optional
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
 
 # Sensitive field names to redact from logged request bodies
 SENSITIVE_FIELDS = frozenset({

@@ -24,11 +24,6 @@ _scan_status: dict = {
 }
 
 
-def _repo_to_dict(repo: dict) -> dict:
-    """Map the snake_case dict from RepositoryService to the format expected by the frontend."""
-    return repo  # RepositoryService already returns the correct snake_case format
-
-
 # ---------------------------------------------------------------------------
 # Background scan coroutine
 # ---------------------------------------------------------------------------
@@ -133,7 +128,7 @@ async def list_repositories(db: AsyncSession = Depends(get_db)):
 
     svc = RepositoryService()
     repos = await svc.get_all_repos(db)
-    return [_repo_to_dict(r) for r in repos]
+    return repos
 
 
 @repositories_router.get("/authors")
@@ -156,7 +151,7 @@ async def get_repository(repo_id: str, db: AsyncSession = Depends(get_db)):
     repo = await svc.get_repo_by_id(db, repo_id)
     if repo is None:
         return {"error": "Repository not found"}
-    return _repo_to_dict(repo)
+    return repo
 
 
 @repositories_router.post("/scan")

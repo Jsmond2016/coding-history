@@ -3,8 +3,6 @@
 import json
 import os
 import time
-from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends
 from loguru import logger
@@ -148,8 +146,6 @@ async def create_repository(
     from app.services.repository_service import RepositoryService
     from app.services.config_service import ConfigService
     from app.services.scan_task_service import ScanTaskService
-
-    now = int(time.time() * 1000)
 
     repo_svc = RepositoryService()
     await repo_svc.upsert_repo(db, repo_id=repo_id, name=name, path=path, enabled=enabled)

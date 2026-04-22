@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +33,7 @@ async def pull_repository(repo_path: str, repo_name: str) -> bool:
             # check for remotes
             if not repo.remotes:
                 return False
-            result = repo.remotes.origin.pull()
+            repo.remotes.origin.pull()
             return True
 
         return await asyncio.to_thread(_pull)
@@ -193,9 +193,6 @@ async def execute_scan_task(
 
             # gap-fill
             db_tip = await commit_svc.get_max_commit_date_ms(db, repo["id"])
-            db_tip_dt: datetime | None = None
-            if db_tip is not None:
-                db_tip_dt = datetime.fromtimestamp(db_tip / 1000, tz=timezone.utc)
 
             effective_from = resolve_scan_from_date_with_gap_fill(
                 from_date, db_tip

@@ -37,7 +37,6 @@ python-backend/
       config.py                 # 配置管理 (pydantic-settings)
       database.py               # 数据库连接 (async SQLAlchemy)
       logger.py                 # 日志配置 (loguru)
-      work_status.py            # 工作状态计算逻辑
     models/
       __init__.py
       repository.py             # Repository ORM
@@ -52,7 +51,7 @@ python-backend/
     api/
       __init__.py
       router.py                 # 路由聚合
-      dependencies.py           # 依赖注入
+      utils.py                  # 共享工具函数
       repositories.py           # /api/v1/repositories (5 端点)
       commits.py                # /api/v1/commits (2 端点)
       statistics.py             # /api/v1/statistics (1 端点)
@@ -87,8 +86,7 @@ python-backend/
 - [x] **1.2** 配置管理 (core/config.py) + 日志 (core/logger.py)
 - [x] **1.3** 数据库连接 (core/database.py) + SQLAlchemy 模型 (models/*.py, 9 个)
 - [ ] **1.4** Alembic 迁移配置 (暂不需要，直接用现有数据库)
-- [x] **1.5** 工作状态计算逻辑 (core/work_status.py)
-- [x] **1.6** FastAPI 应用入口 (main.py) + CORS + 健康检查
+- [x] **1.5** FastAPI 应用入口 (main.py) + CORS + 健康检查
 
 ### Phase 2: 数据校验 Schema (已跳过，直接在路由中处理)
 

@@ -1,7 +1,5 @@
 """FastAPI application entry point."""
 
-import asyncio
-import signal
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request

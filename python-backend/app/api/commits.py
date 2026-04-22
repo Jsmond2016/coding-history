@@ -1,30 +1,21 @@
 """Commit API routes: query commits by date or paginated."""
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.utils import parse_comma_list
 from app.core.database import get_db
 
 commits_router = APIRouter()
-
-
-def _parse_comma_list(value: Optional[str]) -> Optional[list[str]]:
-    """Parse a comma-separated string into a list, or None if empty."""
-    if not value:
-        return None
-    parts = [v.strip() for v in value.split(",") if v.strip()]
-    return parts if parts else None
 
 
 @commits_router.get("/by-date")
 async def get_commits_by_date(
     startDate: int = Query(..., description="Start date in milliseconds"),
     endDate: int = Query(..., description="End date in milliseconds"),
-    repositoryIds: Optional[str] = Query(None, description="Comma-separated repository IDs"),
-    authorEmails: Optional[str] = Query(None, description="Comma-separated author emails"),
-    isOvertime: Optional[str] = Query("false", description="Overtime flag 'true'/'false'"),
+    repositoryIds: str | None = Query(None, description="Comma-separated repository IDs"),
+    authorEmails: str | None = Query(None, description="Comma-separated author emails"),
+    isOvertime: str | None = Query("false", description="Overtime flag 'true'/'false'"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get commits grouped by date."""
@@ -32,8 +23,8 @@ async def get_commits_by_date(
 
     svc = CommitService()
 
-    repo_ids = _parse_comma_list(repositoryIds)
-    author_emails = _parse_comma_list(authorEmails)
+    repo_ids = parse_comma_list(repositoryIds)
+    author_emails = parse_comma_list(authorEmails)
     overtime_flag = isOvertime == "true" if isOvertime else False
 
     result = await svc.get_commits_by_date(
@@ -55,8 +46,8 @@ async def get_commits_by_date(
 async def get_commits(
     startDate: int = Query(..., description="Start date in milliseconds"),
     endDate: int = Query(..., description="End date in milliseconds"),
-    repositoryIds: Optional[str] = Query(None, description="Comma-separated repository IDs"),
-    authorEmails: Optional[str] = Query(None, description="Comma-separated author emails"),
+    repositoryIds: str | None = Query(None, description="Comma-separated repository IDs"),
+    authorEmails: str | None = Query(None, description="Comma-separated author emails"),
     page: int = Query(1, ge=1, description="Page number"),
     pageSize: int = Query(20, ge=1, le=200, description="Page size"),
     db: AsyncSession = Depends(get_db),
@@ -66,8 +57,8 @@ async def get_commits(
 
     svc = CommitService()
 
-    repo_ids = _parse_comma_list(repositoryIds)
-    author_emails = _parse_comma_list(authorEmails)
+    repo_ids = parse_comma_list(repositoryIds)
+    author_emails = parse_comma_list(authorEmails)
 
     result = await svc.get_commits(
         db,

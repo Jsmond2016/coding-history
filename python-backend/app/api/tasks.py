@@ -1,7 +1,6 @@
 """Task API routes: CRUD for scan tasks, trigger, enable/disable, batch sort."""
 
 import asyncio
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from loguru import logger
