@@ -405,7 +405,14 @@ async def update_data_metrics_config(
     from app.services.data_metrics_config_service import DataMetricsConfigService
 
     svc = DataMetricsConfigService()
-    config = await svc.update_config(db, **body)
+    # Frontend sends camelCase, convert to snake_case
+    params = {
+        "thresholds": body["thresholds"],
+        "overtime_hour": body["overtimeHour"],
+        "labels": body["labels"],
+        "colors": body["colors"],
+    }
+    config = await svc.update_config(db, **params)
     return {"data": config}
 
 
