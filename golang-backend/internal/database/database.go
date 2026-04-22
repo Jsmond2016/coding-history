@@ -23,10 +23,12 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	logLevel := logger.Warn
+	logLevel := logger.Error // 默认只打印错误，减少噪音
 	switch cfg.LogLevel {
 	case "trace", "debug":
 		logLevel = logger.Info
+	case "warn":
+		logLevel = logger.Warn
 	case "error", "fatal":
 		logLevel = logger.Error
 	case "silent":
