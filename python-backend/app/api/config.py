@@ -152,7 +152,7 @@ async def create_repository(
     now = int(time.time() * 1000)
 
     repo_svc = RepositoryService()
-    await repo_svc.upsert_repo(db, id=repo_id, name=name, path=path, enabled=enabled)
+    await repo_svc.upsert_repo(db, repo_id=repo_id, name=name, path=path, enabled=enabled)
 
     if enabled:
         task_svc = ScanTaskService()
@@ -185,7 +185,7 @@ async def batch_create_repositories(
     for repo in repositories:
         await repo_svc.upsert_repo(
             db,
-            id=repo["id"],
+            repo_id=repo["id"],
             name=repo["name"],
             path=repo["path"],
             enabled=repo.get("enabled", True),
