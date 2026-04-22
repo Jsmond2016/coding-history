@@ -104,48 +104,9 @@ class RepositoryService:
         repo.updated_at = int(time.time() * 1000)
         await db.flush()
 
-    # ------------------------------------------------------------------
-    # initial scan helpers
-    # ------------------------------------------------------------------
-
     @staticmethod
     async def get_last_scan_time(db: AsyncSession, repo_id: str) -> int | None:
         stmt = select(Repository.last_scan_time).where(Repository.id == repo_id)
         result = await db.execute(stmt)
         val = result.scalar_one_or_none()
         return int(val) if val is not None else None
-
-    @staticmethod
-    async def get_initial_scan_to_date(db: AsyncSession, repo_id: str) -> int | None:
-        stmt = select(Repository.initial_scan_to_date).where(Repository.id == repo_id)
-        result = await db.execute(stmt)
-        val = result.scalar_one_or_none()
-        return int(val) if val is not None else None
-
-    @staticmethod
-    async def update_initial_scan_to_date(
-        db: AsyncSession,
-        repo_id: str,
-        to_date: int,
-    ) -> None:
-        import time
-
-        stmt = select(Repository).where(Repository.id == repo_id)
-        result = await db.execute(stmt)
-        repo = result.scalar_one_or_none()
-        if repo is None:
-            return
-        repo.initial_scan_to_date = to_date
-        repo.updated_at = int(time.time() * 1000)
-        await db.flush()
-
-    @staticmethod
-    async def is_initial_scan_completed(
-        db: AsyncSession,
-        repo_id: str,
-        target_date: int,
-    ) -> bool:
-        scan_to_date = await RepositoryService.get_initial_scan_to_date(db, repo_id)
-        if scan_to_date is None:
-            return False
-        return scan_to_date <= target_date
