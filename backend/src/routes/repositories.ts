@@ -5,6 +5,7 @@ import { RepositoryService } from '../services/RepositoryService.js';
 import { ConfigService } from '../services/ConfigService.js';
 import { GitScanService } from '../services/GitScanService.js';
 import { CommitService } from '../services/CommitService.js';
+import { ScanTaskService } from '../services/ScanTaskService.js';
 import { logger } from '../config/logger.js';
 import simpleGit, { SimpleGit } from 'simple-git';
 
@@ -12,6 +13,7 @@ const app = new Hono();
 const repositoryService = new RepositoryService();
 const configService = new ConfigService();
 const commitService = new CommitService();
+const scanTaskService = new ScanTaskService();
 
 /** 超过该时间仍为「扫描中」则允许再次同步（应略大于前端轮询超时 5 分钟，避免僵死 finished=1） */
 const SCAN_STALE_MS = 6 * 60 * 1000;
@@ -90,10 +92,29 @@ async function scanRepositoriesDateRangeAsync(
   logger.info(`[手动扫描] 日期范围 ${fromDate.toISOString()} ~ ${toDate.toISOString()}`);
 
   const allRepos = await configService.getEnabledRepositories();
-  const reposToScan =
+  const primaryTask = await scanTaskService.getPrimaryTask();
+  const primaryRepoIds = primaryTask?.repositoryIds?.length
+    ? primaryTask.repositoryIds
+    : undefined;
+  const effectiveRepositoryIds =
     repositoryIds && repositoryIds.length > 0
-      ? allRepos.filter((repo) => repositoryIds.includes(repo.id))
+      ? (primaryRepoIds && primaryRepoIds.length > 0
+          ? repositoryIds.filter((id) => primaryRepoIds.includes(id))
+          : repositoryIds)
+      : primaryRepoIds;
+  const reposToScan =
+    effectiveRepositoryIds && effectiveRepositoryIds.length > 0
+      ? allRepos.filter((repo) => effectiveRepositoryIds.includes(repo.id))
       : allRepos;
+
+  logger.info({
+    msg: '[手动扫描] 仓库选择策略',
+    requestedRepositoryIds: repositoryIds,
+    primaryTaskId: primaryTask?.id,
+    primaryTaskName: primaryTask?.name,
+    primaryRepositoryIds: primaryRepoIds,
+    effectiveRepositoryIds: effectiveRepositoryIds ?? 'ALL_ENABLED'
+  });
 
   for (const repo of reposToScan) {
     try {
@@ -249,4 +270,3 @@ app.get('/scan/status', async (c) => {
 });
 
 export default app;
-

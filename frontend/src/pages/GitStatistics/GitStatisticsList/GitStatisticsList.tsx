@@ -101,10 +101,8 @@ const GitStatisticsList: React.FC = () => {
       return
     }
 
-    const repositoryIds =
-      filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined
-    void handleScan({ startDate, endDate, repositoryIds })
-  }, [scanTimePreset, filter.dateRange, filter.repositoryIds, handleScan])
+    void handleScan({ startDate, endDate })
+  }, [scanTimePreset, filter.dateRange, handleScan])
 
   // 加载数据
   const handleSearch = React.useCallback(

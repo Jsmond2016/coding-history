@@ -11,6 +11,7 @@ export interface ScanTask {
   endDate?: number;
   cronExpression?: string;
   repositoryIds?: string[];
+  isPrimary: boolean;
   enabled: boolean;
   lastExecuteTime?: number;
   sortOrder: number;
@@ -27,6 +28,7 @@ export interface CreateTaskParams {
   endDate?: number;
   cronExpression?: string;
   repositoryIds?: string[];
+  isPrimary?: boolean;
   enabled?: boolean;
 }
 
@@ -39,10 +41,10 @@ export interface UpdateTaskParams {
   endDate?: number;
   cronExpression?: string;
   repositoryIds?: string[];
+  isPrimary?: boolean;
   enabled?: boolean;
 }
 
 export interface TriggerTaskParams {
   repositoryIds?: string[];
 }
-

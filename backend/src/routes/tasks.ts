@@ -35,6 +35,18 @@ app.get('/default', async (c) => {
   }
 });
 
+// 获取当前主任务
+app.get('/primary', async (c) => {
+  try {
+    const task = await taskService.getPrimaryTask();
+    return c.json(task);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('[获取主任务] 失败:', error);
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
 // 获取单个任务详情
 app.get('/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
@@ -263,6 +275,35 @@ app.post('/:id/trigger', zValidator('json', TriggerTaskSchema), async (c) => {
   }
 });
 
+// 设置主任务
+app.post('/:id/set-primary', async (c) => {
+  const id = parseInt(c.req.param('id'));
+
+  if (isNaN(id)) {
+    return c.json({ error: 'Invalid task ID' }, 400);
+  }
+
+  try {
+    const task = await taskService.getTaskById(id);
+
+    if (!task) {
+      return c.json({ error: 'Task not found' }, 404);
+    }
+
+    if (!task.repositoryIds || task.repositoryIds.length === 0) {
+      return c.json({ error: '仅支持将已指定仓库范围的任务设置为主任务' }, 400);
+    }
+
+    const primaryTask = await taskService.setPrimaryTask(id);
+    await restartScheduler();
+    return c.json(primaryTask);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('[设置主任务] 失败:', error);
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
 // 批量更新任务排序
 app.post('/batch-sort', async (c) => {
   try {
@@ -285,4 +326,3 @@ app.post('/batch-sort', async (c) => {
 });
 
 export default app;
-

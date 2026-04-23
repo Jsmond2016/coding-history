@@ -11,7 +11,9 @@ import {
   StopOutlined,
   CalendarOutlined,
   HolderOutlined,
-  EllipsisOutlined
+  EllipsisOutlined,
+  StarOutlined,
+  StarFilled
 } from '@ant-design/icons';
 import {
   DndContext,
@@ -149,6 +151,7 @@ const TasksList: React.FC = () => {
   const [batchScanModalOpen, setBatchScanModalOpen] = React.useState(false);
   const [batchScanSubmitting, setBatchScanSubmitting] = React.useState(false);
   const [batchTriggering, setBatchTriggering] = React.useState(false);
+  const [settingPrimaryTaskId, setSettingPrimaryTaskId] = React.useState<number | null>(null);
   const [batchScanForm] = Form.useForm<{ scanRangeType: ScanRangeType; dateRange?: [dayjs.Dayjs, dayjs.Dayjs] }>();
 
   // 拖拽传感器配置
@@ -234,6 +237,19 @@ const TasksList: React.FC = () => {
       message.error('触发任务失败');
     } finally {
       setTriggeringTaskId(null);
+    }
+  };
+
+  const handleSetPrimaryTask = async (task: ScanTask) => {
+    try {
+      setSettingPrimaryTaskId(task.id);
+      await tasksApi.setPrimaryTask(task.id);
+      message.success(`已将任务 "${task.name}" 设为主任务，并自动切换为工作日 9 点执行、扫描近 3 天`);
+      loadTasks();
+    } catch (error) {
+      message.error('设置主任务失败');
+    } finally {
+      setSettingPrimaryTaskId(null);
     }
   };
 
@@ -393,7 +409,17 @@ const TasksList: React.FC = () => {
       dataIndex: 'name',
       key: 'name',
       width: 200,
-      ellipsis: true
+      ellipsis: true,
+      render: (name: string, task) => (
+        <Space size={6}>
+          <span>{name}</span>
+          {task.isPrimary ? (
+            <Tooltip title="主任务用于定义统计页手动扫描的默认仓库集合。设为主任务后，会自动转为自动任务，并默认按工作日 9:00、扫描近 3 天执行。">
+              <Tag color="gold">主任务</Tag>
+            </Tooltip>
+          ) : null}
+        </Space>
+      )
     },
     {
       title: '描述',
@@ -469,6 +495,13 @@ const TasksList: React.FC = () => {
             menu={{
               items: [
                 {
+                  key: 'set-primary',
+                  icon: task.isPrimary ? <StarFilled /> : <StarOutlined />,
+                  label: task.isPrimary ? '当前主任务' : '设为主任务',
+                  disabled: task.isPrimary || !task.repositoryIds || task.repositoryIds.length === 0,
+                  onClick: () => handleSetPrimaryTask(task),
+                },
+                {
                   key: 'toggle',
                   icon: task.enabled ? <StopOutlined /> : <CheckCircleOutlined />,
                   label: task.enabled ? '禁用' : '启用',
@@ -500,7 +533,11 @@ const TasksList: React.FC = () => {
               ],
             }}
           >
-            <Button type="link" icon={<EllipsisOutlined />} />
+            <Button
+              type="link"
+              icon={task.isPrimary ? <StarFilled /> : <EllipsisOutlined />}
+              loading={settingPrimaryTaskId === task.id}
+            />
           </Dropdown>
         </Space>
       )

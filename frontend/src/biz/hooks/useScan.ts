@@ -91,7 +91,7 @@ export const useScan = () => {
       return runDebouncedScan(
         () => gitStatisticsApi.triggerScan(params),
         {
-          started: '扫描已开始，将按当前筛选的日期范围从 Git 拉取并入库…',
+          started: '扫描已开始，将按已配置主任务的仓库集合和所选时间范围从 Git 拉取并入库…',
           success: '扫描完成（区间内已存在的提交会自动去重跳过）'
         }
       );

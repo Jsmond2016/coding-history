@@ -7,6 +7,9 @@ const prismaClient = prisma as any;
 export type TaskType = 'manual' | 'scheduled';
 export type ScanRangeType = '1day' | '3days' | '7days' | '2weeks' | '1month' | '3months' | '6months' | 'custom';
 
+const PRIMARY_TASK_DEFAULT_CRON = '0 9 * * 1-5';
+const PRIMARY_TASK_DEFAULT_SCAN_RANGE: ScanRangeType = '3days';
+
 export interface ScanTask {
   id: number;
   name: string;
@@ -17,6 +20,7 @@ export interface ScanTask {
   endDate?: number;
   cronExpression?: string;
   repositoryIds?: string[];
+  isPrimary: boolean;
   enabled: boolean;
   lastExecuteTime?: number;
   sortOrder: number;
@@ -33,6 +37,7 @@ export interface CreateScanTaskParams {
   endDate?: number;
   cronExpression?: string;
   repositoryIds?: string[];
+  isPrimary?: boolean;
   enabled?: boolean;
 }
 
@@ -45,6 +50,7 @@ export interface UpdateScanTaskParams {
   endDate?: number;
   cronExpression?: string;
   repositoryIds?: string[];
+  isPrimary?: boolean;
   enabled?: boolean;
 }
 
@@ -64,6 +70,7 @@ export class ScanTaskService {
         endDate: params.endDate ? BigInt(params.endDate) : null,
         cronExpression: params.cronExpression,
         repositoryIds: params.repositoryIds ? JSON.stringify(params.repositoryIds) : null,
+        isPrimary: params.isPrimary ?? false,
         enabled: params.enabled ?? true,
         createdAt: now,
         updatedAt: now
@@ -136,6 +143,63 @@ export class ScanTaskService {
   }
 
   /**
+   * 获取当前主任务
+   */
+  async getPrimaryTask(): Promise<ScanTask | null> {
+    const task = await prismaClient.scanTask.findFirst({
+      where: { isPrimary: true }
+    });
+
+    if (!task) return null;
+
+    return this.mapToScanTask(task);
+  }
+
+  /**
+   * 设置主任务（全局仅允许一个）
+   */
+  async setPrimaryTask(id: number): Promise<ScanTask> {
+    const now = BigInt(Date.now());
+    const targetTask = await prismaClient.scanTask.findUnique({
+      where: { id }
+    });
+
+    if (!targetTask) {
+      throw new Error('任务不存在');
+    }
+
+    await prismaClient.$transaction(async (tx: any) => {
+      await tx.scanTask.updateMany({
+        where: { isPrimary: true },
+        data: {
+          isPrimary: false,
+          updatedAt: now
+        }
+      });
+
+      await tx.scanTask.update({
+        where: { id },
+        data: {
+          isPrimary: true,
+          taskType: 'scheduled',
+          enabled: true,
+          scanRangeType: PRIMARY_TASK_DEFAULT_SCAN_RANGE,
+          startDate: null,
+          endDate: null,
+          cronExpression: targetTask.cronExpression?.trim() || PRIMARY_TASK_DEFAULT_CRON,
+          updatedAt: now
+        }
+      });
+    });
+
+    const task = await prismaClient.scanTask.findUnique({
+      where: { id }
+    });
+
+    return this.mapToScanTask(task);
+  }
+
+  /**
    * 更新任务
    */
   async updateTask(id: number, params: UpdateScanTaskParams): Promise<ScanTask> {
@@ -152,6 +216,7 @@ export class ScanTaskService {
     if (params.endDate !== undefined) updateData.endDate = params.endDate ? BigInt(params.endDate) : null;
     if (params.cronExpression !== undefined) updateData.cronExpression = params.cronExpression;
     if (params.repositoryIds !== undefined) updateData.repositoryIds = params.repositoryIds ? JSON.stringify(params.repositoryIds) : null;
+    if (params.isPrimary !== undefined) updateData.isPrimary = params.isPrimary;
     if (params.enabled !== undefined) updateData.enabled = params.enabled;
 
     const task = await prismaClient.scanTask.update({
@@ -336,6 +401,7 @@ export class ScanTaskService {
       endDate: task.endDate ? Number(task.endDate) : undefined,
       cronExpression: task.cronExpression,
       repositoryIds: task.repositoryIds ? JSON.parse(task.repositoryIds) : undefined,
+      isPrimary: Boolean(task.isPrimary),
       enabled: task.enabled,
       lastExecuteTime: task.lastExecuteTime ? Number(task.lastExecuteTime) : undefined,
       sortOrder: task.sortOrder ?? 0,
@@ -344,4 +410,3 @@ export class ScanTaskService {
     };
   }
 }
-

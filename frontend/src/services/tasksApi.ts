@@ -24,6 +24,10 @@ export const tasksApi = {
   getTaskById: (id: number): Promise<ScanTask> =>
     api.get<ScanTask>(`/tasks/${id}`).then(res => res.data),
 
+  // 获取当前主任务
+  getPrimaryTask: (): Promise<ScanTask | null> =>
+    api.get<ScanTask | null>('/tasks/primary').then(res => res.data),
+
   // 创建任务
   createTask: (params: CreateTaskParams): Promise<ScanTask> =>
     api.post<ScanTask>('/tasks', params).then(res => res.data),
@@ -48,8 +52,11 @@ export const tasksApi = {
   triggerTask: (id: number, params?: TriggerTaskParams): Promise<{ message: string; taskId: number; taskName: string }> =>
     api.post(`/tasks/${id}/trigger`, params || {}).then(res => res.data),
 
+  // 设置主任务
+  setPrimaryTask: (id: number): Promise<ScanTask> =>
+    api.post<ScanTask>(`/tasks/${id}/set-primary`).then(res => res.data),
+
   // 批量更新任务排序
   batchUpdateSortOrder: (sortOrders: Array<{ id: number; sortOrder: number }>): Promise<{ message: string; count: number }> =>
     api.post('/tasks/batch-sort', { sortOrders }).then(res => res.data)
 };
-
