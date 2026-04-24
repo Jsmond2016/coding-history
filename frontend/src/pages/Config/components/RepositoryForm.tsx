@@ -15,6 +15,22 @@ interface RepositoryFormProps {
   onSuccess: () => void;
 }
 
+const getLastPathSegment = (path: string): string => {
+  const normalized = path.trim().replace(/[\\/]+$/, '');
+  if (!normalized) return '';
+
+  const segments = normalized.split(/[\\/]/).filter(Boolean);
+  return segments[segments.length - 1] ?? '';
+};
+
+const toRepositoryId = (name: string): string =>
+  name
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
 const RepositoryForm: React.FC<RepositoryFormProps> = ({
   open,
   repository,
@@ -23,6 +39,7 @@ const RepositoryForm: React.FC<RepositoryFormProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = React.useState(false);
+  const lastAutoFilledRef = React.useRef({ name: '', id: '' });
 
   React.useEffect(() => {
     if (open) {
@@ -33,8 +50,10 @@ const RepositoryForm: React.FC<RepositoryFormProps> = ({
           path: repository.path,
           enabled: repository.enabled
         });
+        lastAutoFilledRef.current = { name: repository.name, id: repository.id };
       } else {
         form.resetFields();
+        lastAutoFilledRef.current = { name: '', id: '' };
       }
     }
   }, [open, repository, form]);
@@ -66,7 +85,7 @@ const RepositoryForm: React.FC<RepositoryFormProps> = ({
       }
 
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       if (error?.errorFields) {
         // 表单验证错误
         return;
@@ -93,7 +112,46 @@ const RepositoryForm: React.FC<RepositoryFormProps> = ({
         initialValues={{
           enabled: true
         }}
+        onValuesChange={(changedValues) => {
+          if (repository || !Object.prototype.hasOwnProperty.call(changedValues, 'path')) {
+            return;
+          }
+
+          const path = typeof changedValues.path === 'string' ? changedValues.path : '';
+          const derivedName = getLastPathSegment(path);
+          const derivedId = toRepositoryId(derivedName);
+          const currentName = form.getFieldValue('name');
+          const currentId = form.getFieldValue('id');
+          const { name: lastAutoName, id: lastAutoId } = lastAutoFilledRef.current;
+
+          const nextValues: Record<string, string> = {};
+
+          if (!currentName || currentName === lastAutoName) {
+            nextValues.name = derivedName;
+          }
+
+          if (!currentId || currentId === lastAutoId) {
+            nextValues.id = derivedId;
+          }
+
+          if (Object.keys(nextValues).length > 0) {
+            form.setFieldsValue(nextValues);
+          }
+
+          lastAutoFilledRef.current = {
+            name: nextValues.name ?? lastAutoName,
+            id: nextValues.id ?? lastAutoId
+          };
+        }}
       >
+        <Form.Item
+          name="path"
+          label="仓库路径"
+          rules={[{ required: true, message: '请输入仓库路径' }]}
+        >
+          <Input placeholder="例如: /Users/username/projects/my-repo" />
+        </Form.Item>
+
         <Form.Item
           name="id"
           label="仓库ID"
@@ -115,14 +173,6 @@ const RepositoryForm: React.FC<RepositoryFormProps> = ({
         </Form.Item>
 
         <Form.Item
-          name="path"
-          label="仓库路径"
-          rules={[{ required: true, message: '请输入仓库路径' }]}
-        >
-          <Input placeholder="例如: /Users/username/projects/my-repo" />
-        </Form.Item>
-
-        <Form.Item
           name="enabled"
           label="启用状态"
           valuePropName="checked"
@@ -135,4 +185,3 @@ const RepositoryForm: React.FC<RepositoryFormProps> = ({
 };
 
 export default RepositoryForm;
-
