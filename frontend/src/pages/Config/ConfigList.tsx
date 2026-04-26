@@ -19,12 +19,15 @@ import {
   getRepositoriesConfig,
   deleteRepository,
   batchDeleteRepositories,
+  detectAbnormalRepositories,
+  markAbnormalRepositories,
   backupDatabase,
   getBackupConfig,
   updateBackupDir,
   updateBackupCron,
   type RepositoryConfig,
-  type CommitDateRange
+  type CommitDateRange,
+  type AbnormalRepository
 } from '../../services/configApi';
 import RepositoryForm from './components/RepositoryForm';
 import AuthorsManager from './components/AuthorsManager';
@@ -54,6 +57,7 @@ const ConfigList: React.FC = () => {
   const [savingDir, setSavingDir] = React.useState(false);
   const [backupCronEditing, setBackupCronEditing] = React.useState('');
   const [savingCron, setSavingCron] = React.useState(false);
+  const [detectingAbnormal, setDetectingAbnormal] = React.useState(false);
 
   // 加载仓库配置列表
   const loadRepositories = React.useCallback(async () => {
@@ -117,6 +121,65 @@ const ConfigList: React.FC = () => {
       message.error('批量删除失败');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleDetectAbnormalRepositories = async () => {
+    setDetectingAbnormal(true);
+    try {
+      const abnormalRepos = await detectAbnormalRepositories();
+      if (abnormalRepos.length === 0) {
+        await markAbnormalRepositories([]);
+        await loadRepositories();
+        message.success('未检测到异常项目');
+        return;
+      }
+
+      Modal.confirm({
+        title: `检测到 ${abnormalRepos.length} 个异常项目`,
+        width: 720,
+        okText: '确认删除',
+        cancelText: '否，仅标记异常',
+        okButtonProps: { danger: true },
+        content: (
+          <div>
+            <Typography.Paragraph type="secondary" className="mb-3">
+              异常项目指：仓库中没有任何已配置作者的提交。确认删除将移除这些仓库配置及其提交记录；点击否会在当前列表中标记为异常项目。
+            </Typography.Paragraph>
+            <div className="max-h-[320px] overflow-auto">
+              {abnormalRepos.map((repo) => (
+                <div key={repo.id} className="mb-3 rounded border border-red-100 bg-red-50 px-3 py-2 last:mb-0">
+                  <div className="font-medium text-red-700">{repo.name}</div>
+                  <div className="mt-1 text-xs text-neutral-600">{repo.reason}</div>
+                  <div className="mt-1 text-xs text-neutral-500">{repo.path}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ),
+        onOk: async () => {
+          const ids = abnormalRepos.map((repo) => repo.id);
+          await batchDeleteRepositories(ids);
+          message.success(`已删除 ${ids.length} 个异常项目`);
+          setSelectedRowKeys((keys) => keys.filter((key) => !ids.includes(String(key))));
+          await loadRepositories();
+        },
+        onCancel: async () => {
+          await markAbnormalRepositories(
+            abnormalRepos.map((repo) => ({
+              id: repo.id,
+              reason: repo.reason
+            }))
+          );
+          await loadRepositories();
+          message.warning(`已标记 ${abnormalRepos.length} 个异常项目`);
+        }
+      });
+    } catch (error) {
+      message.error('检测异常项目失败');
+      console.error(error);
+    } finally {
+      setDetectingAbnormal(false);
     }
   };
 
@@ -205,7 +268,17 @@ const ConfigList: React.FC = () => {
       title: '仓库名称',
       dataIndex: 'name',
       key: 'name',
-      width: 200
+      width: 240,
+      render: (name: string, record: RepositoryConfig) => (
+        <Space size={6} wrap>
+          <span>{name}</span>
+          {record.isAbnormal ? (
+            <Tooltip title={record.abnormalReason || '此仓库不含已配置作者任何提交'}>
+              <Tag color="red" className="m-0">异常项目</Tag>
+            </Tooltip>
+          ) : null}
+        </Space>
+      )
     },
     {
       title: '路径',
@@ -377,6 +450,13 @@ const ConfigList: React.FC = () => {
                 loading={loading}
               >
                 刷新
+              </Button>
+              <Button
+                icon={<QuestionCircleOutlined />}
+                loading={detectingAbnormal}
+                onClick={handleDetectAbnormalRepositories}
+              >
+                检测异常项目
               </Button>
               <Button
                 icon={<FolderOpenOutlined />}

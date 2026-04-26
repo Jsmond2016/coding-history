@@ -124,6 +124,13 @@ const BatchDeleteRepositoriesSchema = z.object({
   ids: z.array(z.string()).min(1, '请选择要删除的仓库')
 });
 
+const MarkAbnormalRepositoriesSchema = z.object({
+  items: z.array(z.object({
+    id: z.string().min(1),
+    reason: z.string().min(1)
+  }))
+});
+
 // 扫描目录下的 Git 仓库
 app.post('/scan-directory', zValidator('json', ScanDirectorySchema), async (c) => {
   try {
@@ -144,6 +151,74 @@ app.get('/repositories', async (c) => {
   } catch (error) {
     logger.error('Failed to get repositories config:', error);
     return c.json({ error: 'Failed to get repositories config' }, 500);
+  }
+});
+
+// 检测异常仓库：仓库中没有任何已配置作者的提交
+app.get('/repositories/abnormal-detect', async (c) => {
+  try {
+    const repositories = await prisma.repository.findMany({
+      include: {
+        authors: {
+          orderBy: { createdAt: 'asc' }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    const abnormalRepositories = [];
+
+    for (const repo of repositories) {
+      const authorEmails = Array.from(new Set(repo.authors.map((author) => author.email.trim()).filter(Boolean)));
+      const authorNames = Array.from(new Set(repo.authors.map((author) => author.name.trim()).filter(Boolean)));
+
+      if (authorEmails.length === 0) {
+        abnormalRepositories.push({
+          id: repo.id,
+          name: repo.name,
+          path: repo.path,
+          authorNames,
+          authorEmails,
+          reason: '此仓库未配置作者'
+        });
+        continue;
+      }
+
+      const matchedCommits = await prisma.commit.count({
+        where: {
+          repoId: repo.id,
+          authorEmail: { in: authorEmails }
+        }
+      });
+
+      if (matchedCommits === 0) {
+        abnormalRepositories.push({
+          id: repo.id,
+          name: repo.name,
+          path: repo.path,
+          authorNames,
+          authorEmails,
+          reason: `此仓库不含作者 ${authorNames.length > 0 ? authorNames.join('、') : authorEmails.join('、')} 任何提交`
+        });
+      }
+    }
+
+    return c.json({ data: abnormalRepositories });
+  } catch (error) {
+    logger.error('Failed to detect abnormal repositories:', error);
+    return c.json({ error: 'Failed to detect abnormal repositories' }, 500);
+  }
+});
+
+// 持久化异常仓库标记；传空数组可清空标记
+app.post('/repositories/abnormal-mark', zValidator('json', MarkAbnormalRepositoriesSchema), async (c) => {
+  try {
+    const { items } = c.req.valid('json');
+    await configService.setAbnormalRepositoryMarks(items);
+    return c.json({ success: true, count: items.length });
+  } catch (error) {
+    logger.error('Failed to mark abnormal repositories:', error);
+    return c.json({ error: 'Failed to mark abnormal repositories' }, 500);
   }
 });
 
@@ -461,4 +536,3 @@ app.put('/backup-config', zValidator('json', UpdateBackupConfigSchema), async (c
 });
 
 export default app;
-

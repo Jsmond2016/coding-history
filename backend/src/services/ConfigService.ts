@@ -12,6 +12,8 @@ export interface RepositoryConfig {
   path: string;
   enabled: boolean;
   authors: AuthorConfig[];
+  isAbnormal: boolean;
+  abnormalReason?: string;
   lastScanTime: number | null;
   totalCommits: number;
   commitDateRange: CommitDateRange | null;  // 提交时间范围，无记录时为 null
@@ -26,11 +28,56 @@ export interface AuthorConfig {
   isDefault: boolean;
 }
 
+const ABNORMAL_REPOSITORIES_SETTING_KEY = 'abnormal_repositories';
+
 export class ConfigService {
   private commitService: CommitService;
 
   constructor() {
     this.commitService = new CommitService();
+  }
+
+  private async getAbnormalRepositoryMarks(): Promise<Record<string, string>> {
+    const setting = await prisma.appSetting.findUnique({
+      where: { key: ABNORMAL_REPOSITORIES_SETTING_KEY }
+    });
+
+    if (!setting?.value) return {};
+
+    try {
+      const parsed = JSON.parse(setting.value);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+      return parsed as Record<string, string>;
+    } catch {
+      return {};
+    }
+  }
+
+  async setAbnormalRepositoryMarks(items: Array<{ id: string; reason: string }>): Promise<void> {
+    const now = BigInt(Date.now());
+    const marks = items.reduce<Record<string, string>>((acc, item) => {
+      const id = item.id.trim();
+      const reason = item.reason.trim();
+      if (id && reason) {
+        acc[id] = reason;
+      }
+      return acc;
+    }, {});
+
+    await prisma.appSetting.upsert({
+      where: { key: ABNORMAL_REPOSITORIES_SETTING_KEY },
+      create: {
+        key: ABNORMAL_REPOSITORIES_SETTING_KEY,
+        value: JSON.stringify(marks),
+        updatedAt: now
+      },
+      update: {
+        value: JSON.stringify(marks),
+        updatedAt: now
+      }
+    });
   }
 
   /**
@@ -49,12 +96,16 @@ export class ConfigService {
     if (!repo) return null;
 
     const commitDateRange = await this.commitService.getCommitDateRangeForRepo(repoId);
+    const abnormalMarks = await this.getAbnormalRepositoryMarks();
+    const abnormalReason = abnormalMarks[repo.id];
 
     return {
       id: repo.id,
       name: repo.name,
       path: repo.path,
       enabled: repo.enabled,
+      isAbnormal: Boolean(abnormalReason),
+      abnormalReason,
       authors: repo.authors.map(a => ({
         id: a.id,
         name: a.name,
@@ -86,24 +137,31 @@ export class ConfigService {
     const commitDateRanges = await Promise.all(
       repos.map(repo => this.commitService.getCommitDateRangeForRepo(repo.id))
     );
+    const abnormalMarks = await this.getAbnormalRepositoryMarks();
 
-    return repos.map((repo, index) => ({
-      id: repo.id,
-      name: repo.name,
-      path: repo.path,
-      enabled: repo.enabled,
-      authors: repo.authors.map(a => ({
-        id: a.id,
-        name: a.name,
-        email: a.email,
-        isDefault: a.isDefault
-      })),
-      lastScanTime: repo.lastScanTime ? Number(repo.lastScanTime) : null,
-      totalCommits: repo.totalCommits,
-      commitDateRange: commitDateRanges[index],
-      createdAt: Number(repo.createdAt),
-      updatedAt: Number(repo.updatedAt)
-    }));
+    return repos.map((repo, index) => {
+      const abnormalReason = abnormalMarks[repo.id];
+
+      return {
+        id: repo.id,
+        name: repo.name,
+        path: repo.path,
+        enabled: repo.enabled,
+        isAbnormal: Boolean(abnormalReason),
+        abnormalReason,
+        authors: repo.authors.map(a => ({
+          id: a.id,
+          name: a.name,
+          email: a.email,
+          isDefault: a.isDefault
+        })),
+        lastScanTime: repo.lastScanTime ? Number(repo.lastScanTime) : null,
+        totalCommits: repo.totalCommits,
+        commitDateRange: commitDateRanges[index],
+        createdAt: Number(repo.createdAt),
+        updatedAt: Number(repo.updatedAt)
+      };
+    });
   }
 
   /**
@@ -167,4 +225,3 @@ export class ConfigService {
   }
 
 }
-

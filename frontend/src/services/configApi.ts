@@ -16,6 +16,8 @@ export interface RepositoryConfig {
   path: string;
   enabled: boolean;
   authors: AuthorConfig[];
+  isAbnormal: boolean;
+  abnormalReason?: string;
   lastScanTime: number | null;
   totalCommits: number;
   commitDateRange: CommitDateRange | null;  // 提交时间范围，无记录时为 null
@@ -28,6 +30,15 @@ export interface AuthorConfig {
   name: string;
   email: string;
   isDefault: boolean;
+}
+
+export interface AbnormalRepository {
+  id: string;
+  name: string;
+  path: string;
+  authorNames: string[];
+  authorEmails: string[];
+  reason: string;
 }
 
 export interface CreateRepositoryParams {
@@ -101,6 +112,20 @@ export const deleteRepository = async (repoId: string): Promise<void> => {
 export const batchDeleteRepositories = async (ids: string[]): Promise<{ success: boolean; deleted: number }> => {
   const response = await api.post<{ success: boolean; deleted: number }>('/config/repositories/batch-delete', {
     ids
+  });
+  return response.data;
+};
+
+export const detectAbnormalRepositories = async (): Promise<AbnormalRepository[]> => {
+  const response = await api.get<{ data: AbnormalRepository[] }>('/config/repositories/abnormal-detect');
+  return response.data.data;
+};
+
+export const markAbnormalRepositories = async (
+  items: Array<{ id: string; reason: string }>
+): Promise<{ success: boolean; count: number }> => {
+  const response = await api.post<{ success: boolean; count: number }>('/config/repositories/abnormal-mark', {
+    items
   });
   return response.data;
 };
