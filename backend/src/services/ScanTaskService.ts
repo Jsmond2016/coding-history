@@ -81,11 +81,12 @@ export class ScanTaskService {
   }
 
   /**
-   * 获取所有任务（按 sortOrder 排序）
+   * 获取所有任务：主任务固定第一，其余按 sortOrder 排序
    */
   async getAllTasks(): Promise<ScanTask[]> {
     const tasks = await prismaClient.scanTask.findMany({
       orderBy: [
+        { isPrimary: 'desc' },
         { sortOrder: 'asc' },
         { createdAt: 'desc' }
       ]

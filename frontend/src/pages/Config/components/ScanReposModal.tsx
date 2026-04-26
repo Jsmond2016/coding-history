@@ -26,6 +26,20 @@ interface ScanReposModalProps {
 
 type StepType = 'input' | 'preview' | 'settings';
 
+const getDuplicateRepoIdGroups = (items: EditableScanItem[]) => {
+  const groups = new Map<string, EditableScanItem[]>();
+
+  items.forEach((item) => {
+    const id = item.id.trim();
+    if (!id) return;
+    groups.set(id, [...(groups.get(id) ?? []), item]);
+  });
+
+  return Array.from(groups.entries())
+    .filter(([, repos]) => repos.length > 1)
+    .map(([id, repos]) => ({ id, repos }));
+};
+
 const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSuccess }) => {
   const [rootPath, setRootPath] = React.useState('');
   const [step, setStep] = React.useState<StepType>('input');
@@ -34,6 +48,11 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
   const [list, setList] = useAtom(scannedReposListAtom);
   const store = useStore();
   const [form] = Form.useForm<{ authorName: string; authorEmail: string }>();
+  const duplicateRepoIdGroups = React.useMemo(() => getDuplicateRepoIdGroups(list), [list]);
+  const duplicateRepoIds = React.useMemo(
+    () => new Set(duplicateRepoIdGroups.map((group) => group.id)),
+    [duplicateRepoIdGroups]
+  );
 
   const handleClose = () => {
     setRootPath('');
@@ -89,10 +108,39 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
       message.warning('没有可保存的仓库');
       return;
     }
-    const ids = currentList.map((r) => r.id);
-    const uniqueIds = new Set(ids);
-    if (uniqueIds.size !== ids.length) {
-      message.error('存在重复的仓库 ID，请修改后再保存');
+    const duplicateGroups = getDuplicateRepoIdGroups(currentList);
+    if (duplicateGroups.length > 0) {
+      Modal.warning({
+        title: '存在重复的仓库 ID',
+        width: 620,
+        content: (
+          <div>
+            <Typography.Paragraph className="mb-2">
+              请修改以下重复项后再保存：
+            </Typography.Paragraph>
+            <div className="max-h-[260px] overflow-auto">
+              {duplicateGroups.map((group) => (
+                <div key={group.id} className="mb-3 last:mb-0">
+                  <Typography.Text strong code>
+                    {group.id}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" className="ml-2">
+                    重复 {group.repos.length} 次
+                  </Typography.Text>
+                  <ul className="mb-0 mt-1 pl-5">
+                    {group.repos.map((repo) => (
+                      <li key={repo.key}>
+                        <Typography.Text>{repo.name || '未命名仓库'}</Typography.Text>
+                        <Typography.Text type="secondary"> - {repo.path}</Typography.Text>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      });
       return;
     }
     form.setFieldsValue({
@@ -160,6 +208,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
           value={val}
           onChange={(e) => updateItem(record.key, 'id', e.target.value.replace(/\s/g, '-'))}
           placeholder="唯一标识"
+          status={duplicateRepoIds.has(val.trim()) ? 'error' : undefined}
         />
       )
     },
@@ -247,6 +296,9 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
             pagination={false}
             scroll={{ y: 320 }}
             size="small"
+            rowClassName={(record) =>
+              duplicateRepoIds.has(record.id.trim()) ? 'bg-red-50' : ''
+            }
           />
           <div className="mt-4 flex justify-end gap-2">
             <Button onClick={handleClose}>取消</Button>
