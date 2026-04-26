@@ -11,6 +11,7 @@ import {
   Spin,
   Statistic,
   Tag,
+  Tooltip,
   Typography,
 } from "antd"
 import {
@@ -19,6 +20,7 @@ import {
   CodeOutlined,
   DatabaseOutlined,
   FireOutlined,
+  QuestionCircleOutlined,
   SearchOutlined,
   TeamOutlined,
 } from "@ant-design/icons"
@@ -35,6 +37,10 @@ import type {
 const { RangePicker } = DatePicker
 
 type DrilldownKey =
+  | "totalCommits"
+  | "overtimeCommits"
+  | "activeRepositories"
+  | "activeMonths"
   | "topCommitRepository"
   | "topCommitMonth"
   | "topOvertimeRepository"
@@ -156,8 +162,20 @@ const DataOverview: React.FC = () => {
 
       let range = filter.dateRange
       let repositoryIds: string[] | undefined
-      let title = ""
-      const isOvertimeCard = key === "topOvertimeRepository" || key === "topOvertimeMonth"
+      let title = "提交总数：当前筛选范围"
+      const isOvertimeCard = key === "overtimeCommits" || key === "topOvertimeRepository" || key === "topOvertimeMonth"
+
+      if (key === "overtimeCommits") {
+        title = "加班提交：当前筛选范围"
+      }
+
+      if (key === "activeRepositories") {
+        title = "活跃仓库：当前筛选范围内有提交的仓库"
+      }
+
+      if (key === "activeMonths") {
+        title = "活跃月份数量：当前筛选范围内有提交的月份"
+      }
 
       if (key === "topCommitRepository") {
         if (!overview.topCommitRepository) return
@@ -210,6 +228,40 @@ const DataOverview: React.FC = () => {
     },
     [filter, overview],
   )
+
+  const summaryCards = [
+    {
+      key: "totalCommits" as const,
+      title: "提交总数",
+      value: overview?.totals.commits ?? 0,
+      icon: <CodeOutlined />,
+      tone: "border-l-[#1677ff]",
+    },
+    {
+      key: "overtimeCommits" as const,
+      title: "加班提交",
+      value: overview?.totals.overtimeCommits ?? 0,
+      icon: <FireOutlined />,
+      tone: "border-l-[#ff4d4f]",
+      tip: "当前筛选范围内，提交时间达到加班阈值的提交记录数量。",
+    },
+    {
+      key: "activeRepositories" as const,
+      title: "活跃仓库",
+      value: overview?.totals.repositories ?? 0,
+      icon: <DatabaseOutlined />,
+      tone: "border-l-[#52c41a]",
+      tip: "当前筛选范围内，至少有 1 条提交记录的仓库数量。",
+    },
+    {
+      key: "activeMonths" as const,
+      title: "活跃月份数量",
+      value: overview?.totals.activeMonths ?? 0,
+      icon: <CalendarOutlined />,
+      tone: "border-l-[#fa8c16]",
+      tip: "当前筛选范围内，至少有 1 条提交记录的自然月份数量。",
+    },
+  ]
 
   useMount(async () => {
     try {
@@ -318,26 +370,38 @@ const DataOverview: React.FC = () => {
 
           <Spin spinning={loading}>
             <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12} xl={6}>
-                <Card className="border-0 shadow-sm">
-                  <Statistic title="提交总数" value={overview?.totals.commits ?? 0} prefix={<CodeOutlined />} />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} xl={6}>
-                <Card className="border-0 shadow-sm">
-                  <Statistic title="加班提交" value={overview?.totals.overtimeCommits ?? 0} prefix={<FireOutlined />} />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} xl={6}>
-                <Card className="border-0 shadow-sm">
-                  <Statistic title="活跃仓库" value={overview?.totals.repositories ?? 0} prefix={<DatabaseOutlined />} />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} xl={6}>
-                <Card className="border-0 shadow-sm">
-                  <Statistic title="活跃月份" value={overview?.totals.activeMonths ?? 0} prefix={<CalendarOutlined />} />
-                </Card>
-              </Col>
+              {summaryCards.map((card) => (
+                <Col xs={24} sm={12} xl={6} key={card.key}>
+                  <button
+                    type="button"
+                    className={`h-full w-full cursor-pointer rounded-lg border-0 border-l-4 bg-white p-0 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.tone} ${
+                      activeCard === card.key ? "ring-2 ring-[#1677ff]/35" : ""
+                    }`}
+                    onClick={() => loadDetail(card.key)}
+                    disabled={card.value <= 0}
+                  >
+                    <div className="p-4">
+                      <Statistic
+                        title={
+                          <span className="inline-flex items-center gap-1">
+                            {card.title}
+                            {card.tip ? (
+                              <Tooltip title={card.tip}>
+                                <QuestionCircleOutlined
+                                  className="text-xs text-neutral-400 hover:text-neutral-600"
+                                  onClick={(event) => event.stopPropagation()}
+                                />
+                              </Tooltip>
+                            ) : null}
+                          </span>
+                        }
+                        value={card.value}
+                        prefix={card.icon}
+                      />
+                    </div>
+                  </button>
+                </Col>
+              ))}
             </Row>
 
             <Row gutter={[16, 16]} className="mt-4">
