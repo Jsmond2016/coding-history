@@ -4,6 +4,8 @@ import type {
   CommitsResponse,
   CommitsByDateQuery,
   CommitsByDateResponse,
+  DataOverviewQuery,
+  DataOverviewResponse,
   StatisticsResponse,
   Repository,
   Author
@@ -53,6 +55,9 @@ export const gitStatisticsApi = {
   getStatistics: (params: Omit<CommitsQuery, 'page' | 'pageSize'>): Promise<StatisticsResponse> =>
     api.get<StatisticsResponse>('/statistics', { params }).then(res => res.data),
 
+  getDataOverview: (params: DataOverviewQuery): Promise<DataOverviewResponse> =>
+    api.get<DataOverviewResponse>('/statistics/overview', { params }).then(res => res.data),
+
   // 手动触发扫描（异步）：须传与统计筛选一致的日期范围；可选 repositoryIds 限定仓库
   triggerScan: (body: {
     startDate: number;
@@ -70,4 +75,3 @@ export const gitStatisticsApi = {
     staleThresholdMs?: number;
   }> => api.get('/repositories/scan/status').then(res => res.data)
 };
-

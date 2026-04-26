@@ -3,6 +3,7 @@ import { Layout, Menu } from "antd"
 import { useNavigate, useLocation } from "react-router-dom"
 import {
   BarChartOutlined,
+  DashboardOutlined,
   FileTextOutlined,
   ScheduleOutlined,
   SettingOutlined,
@@ -22,6 +23,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   // 根据当前路径确定选中的菜单项
   const getSelectedKey = () => {
+    if (location.pathname.startsWith("/data-overview")) {
+      return "data-overview"
+    }
     if (location.pathname.startsWith("/logs")) {
       return "logs"
     }
@@ -31,10 +35,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     if (location.pathname.startsWith("/config")) {
       return "config"
     }
-    return "git-statistics"
+    return "data-overview"
   }
 
   const menuItems = [
+    {
+      key: "data-overview",
+      icon: <DashboardOutlined />,
+      label: "数据总览",
+      onClick: () => navigate("/data-overview"),
+    },
     {
       key: "git-statistics",
       icon: <BarChartOutlined />,

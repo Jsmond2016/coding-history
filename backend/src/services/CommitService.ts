@@ -570,4 +570,217 @@ export class CommitService {
       byDate
     };
   }
+
+  async getDataOverview(params: {
+    startDate: number;
+    endDate: number;
+    authorEmails?: string[];
+  }): Promise<{
+    topCommitRepository: {
+      repoId: string;
+      repoName: string;
+      count: number;
+      insertions: number;
+      deletions: number;
+      filesChanged: number;
+    } | null;
+    topCommitMonth: {
+      month: string;
+      count: number;
+      insertions: number;
+      deletions: number;
+      filesChanged: number;
+    } | null;
+    topOvertimeRepository: {
+      repoId: string;
+      repoName: string;
+      count: number;
+      latestCommitDate: number | null;
+    } | null;
+    topOvertimeMonth: {
+      month: string;
+      count: number;
+      latestCommitDate: number | null;
+    } | null;
+    totals: {
+      commits: number;
+      overtimeCommits: number;
+      repositories: number;
+      activeMonths: number;
+    };
+  }> {
+    const { startDate, endDate, authorEmails } = params;
+    const queryParams: any[] = [BigInt(startDate), BigInt(endDate)];
+    let authorClause = '';
+
+    if (authorEmails && authorEmails.length > 0) {
+      const placeholders = authorEmails.map(() => '?').join(',');
+      authorClause = ` AND c.author_email IN (${placeholders})`;
+      queryParams.push(...authorEmails);
+    }
+
+    const overtimeHour = (await this.dataMetricsConfigService.getConfig()).overtimeHour;
+    const baseWhere = `
+      c.commit_date >= ?
+      AND c.commit_date <= ?
+      ${authorClause}
+    `;
+    const overtimeCondition = `CAST(strftime('%H', c.commit_date / 1000, 'unixepoch', 'localtime') AS INTEGER) >= ?`;
+
+    const topCommitRepositoryRows = await prisma.$queryRawUnsafe<Array<{
+      repoId: string;
+      repoName: string;
+      count: bigint;
+      insertions: bigint | null;
+      deletions: bigint | null;
+      filesChanged: bigint | null;
+    }>>(`
+      SELECT
+        c.repo_id as repoId,
+        r.name as repoName,
+        COUNT(*) as count,
+        SUM(c.insertions) as insertions,
+        SUM(c.deletions) as deletions,
+        SUM(c.files_changed) as filesChanged
+      FROM commits c
+      INNER JOIN repositories r ON r.id = c.repo_id
+      WHERE ${baseWhere}
+      GROUP BY c.repo_id, r.name
+      ORDER BY count DESC, repoName ASC
+      LIMIT 1
+    `, ...queryParams);
+
+    const topCommitMonthRows = await prisma.$queryRawUnsafe<Array<{
+      month: string;
+      count: bigint;
+      insertions: bigint | null;
+      deletions: bigint | null;
+      filesChanged: bigint | null;
+    }>>(`
+      SELECT
+        strftime('%Y-%m', c.commit_date / 1000, 'unixepoch', 'localtime') as month,
+        COUNT(*) as count,
+        SUM(c.insertions) as insertions,
+        SUM(c.deletions) as deletions,
+        SUM(c.files_changed) as filesChanged
+      FROM commits c
+      WHERE ${baseWhere}
+      GROUP BY month
+      ORDER BY count DESC, month DESC
+      LIMIT 1
+    `, ...queryParams);
+
+    const overtimeParams = [...queryParams, overtimeHour];
+    const topOvertimeRepositoryRows = await prisma.$queryRawUnsafe<Array<{
+      repoId: string;
+      repoName: string;
+      count: bigint;
+      latestCommitDate: bigint | null;
+    }>>(`
+      SELECT
+        c.repo_id as repoId,
+        r.name as repoName,
+        COUNT(*) as count,
+        MAX(c.commit_date) as latestCommitDate
+      FROM commits c
+      INNER JOIN repositories r ON r.id = c.repo_id
+      WHERE ${baseWhere}
+        AND ${overtimeCondition}
+      GROUP BY c.repo_id, r.name
+      ORDER BY count DESC, repoName ASC
+      LIMIT 1
+    `, ...overtimeParams);
+
+    const topOvertimeMonthRows = await prisma.$queryRawUnsafe<Array<{
+      month: string;
+      count: bigint;
+      latestCommitDate: bigint | null;
+    }>>(`
+      SELECT
+        strftime('%Y-%m', c.commit_date / 1000, 'unixepoch', 'localtime') as month,
+        COUNT(*) as count,
+        MAX(c.commit_date) as latestCommitDate
+      FROM commits c
+      WHERE ${baseWhere}
+        AND ${overtimeCondition}
+      GROUP BY month
+      ORDER BY count DESC, month DESC
+      LIMIT 1
+    `, ...overtimeParams);
+
+    const totalsRows = await prisma.$queryRawUnsafe<Array<{
+      commits: bigint;
+      overtimeCommits: bigint;
+      repositories: bigint;
+      activeMonths: bigint;
+    }>>(`
+      SELECT
+        COUNT(*) as commits,
+        SUM(CASE WHEN ${overtimeCondition} THEN 1 ELSE 0 END) as overtimeCommits,
+        COUNT(DISTINCT c.repo_id) as repositories,
+        COUNT(DISTINCT strftime('%Y-%m', c.commit_date / 1000, 'unixepoch', 'localtime')) as activeMonths
+      FROM commits c
+      WHERE ${baseWhere}
+    `, overtimeHour, ...queryParams);
+
+    const topCommitRepository = topCommitRepositoryRows[0]
+      ? {
+          repoId: topCommitRepositoryRows[0].repoId,
+          repoName: topCommitRepositoryRows[0].repoName,
+          count: Number(topCommitRepositoryRows[0].count),
+          insertions: topCommitRepositoryRows[0].insertions ? Number(topCommitRepositoryRows[0].insertions) : 0,
+          deletions: topCommitRepositoryRows[0].deletions ? Number(topCommitRepositoryRows[0].deletions) : 0,
+          filesChanged: topCommitRepositoryRows[0].filesChanged ? Number(topCommitRepositoryRows[0].filesChanged) : 0
+        }
+      : null;
+
+    const topCommitMonth = topCommitMonthRows[0]
+      ? {
+          month: topCommitMonthRows[0].month,
+          count: Number(topCommitMonthRows[0].count),
+          insertions: topCommitMonthRows[0].insertions ? Number(topCommitMonthRows[0].insertions) : 0,
+          deletions: topCommitMonthRows[0].deletions ? Number(topCommitMonthRows[0].deletions) : 0,
+          filesChanged: topCommitMonthRows[0].filesChanged ? Number(topCommitMonthRows[0].filesChanged) : 0
+        }
+      : null;
+
+    const topOvertimeRepository = topOvertimeRepositoryRows[0]
+      ? {
+          repoId: topOvertimeRepositoryRows[0].repoId,
+          repoName: topOvertimeRepositoryRows[0].repoName,
+          count: Number(topOvertimeRepositoryRows[0].count),
+          latestCommitDate: topOvertimeRepositoryRows[0].latestCommitDate ? Number(topOvertimeRepositoryRows[0].latestCommitDate) : null
+        }
+      : null;
+
+    const topOvertimeMonth = topOvertimeMonthRows[0]
+      ? {
+          month: topOvertimeMonthRows[0].month,
+          count: Number(topOvertimeMonthRows[0].count),
+          latestCommitDate: topOvertimeMonthRows[0].latestCommitDate ? Number(topOvertimeMonthRows[0].latestCommitDate) : null
+        }
+      : null;
+
+    const totals = totalsRows[0]
+      ? {
+          commits: Number(totalsRows[0].commits),
+          overtimeCommits: Number(totalsRows[0].overtimeCommits ?? 0),
+          repositories: Number(totalsRows[0].repositories),
+          activeMonths: Number(totalsRows[0].activeMonths)
+        }
+      : {
+          commits: 0,
+          overtimeCommits: 0,
+          repositories: 0,
+          activeMonths: 0
+        };
+
+    return {
+      topCommitRepository,
+      topCommitMonth,
+      topOvertimeRepository,
+      topOvertimeMonth,
+      totals
+    };
+  }
 }

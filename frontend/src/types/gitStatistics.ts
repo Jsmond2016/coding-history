@@ -100,3 +100,40 @@ export interface StatisticsResponse {
   byDate: StatisticsByDate[];
 }
 
+export interface DataOverviewQuery {
+  startDate: number;
+  endDate: number;
+  authorEmails?: string[];
+}
+
+export interface DataOverviewMetricWithRepo {
+  repoId: string;
+  repoName: string;
+  count: number;
+  insertions?: number;
+  deletions?: number;
+  filesChanged?: number;
+  latestCommitDate?: number | null;
+}
+
+export interface DataOverviewMetricWithMonth {
+  month: string;
+  count: number;
+  insertions?: number;
+  deletions?: number;
+  filesChanged?: number;
+  latestCommitDate?: number | null;
+}
+
+export interface DataOverviewResponse {
+  topCommitRepository: DataOverviewMetricWithRepo | null;
+  topCommitMonth: DataOverviewMetricWithMonth | null;
+  topOvertimeRepository: DataOverviewMetricWithRepo | null;
+  topOvertimeMonth: DataOverviewMetricWithMonth | null;
+  totals: {
+    commits: number;
+    overtimeCommits: number;
+    repositories: number;
+    activeMonths: number;
+  };
+}

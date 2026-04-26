@@ -1,10 +1,22 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { StatisticsQuerySchema } from '../schemas/api.schema.js';
+import { DataOverviewQuerySchema, StatisticsQuerySchema } from '../schemas/api.schema.js';
 import { CommitService } from '../services/CommitService.js';
 
 const app = new Hono();
 const commitService = new CommitService();
+
+app.get('/overview', zValidator('query', DataOverviewQuerySchema), async (c) => {
+  const query = c.req.valid('query');
+
+  const overview = await commitService.getDataOverview({
+    startDate: query.startDate,
+    endDate: query.endDate,
+    authorEmails: query.authorEmails
+  });
+
+  return c.json(overview);
+});
 
 // 获取统计数据
 app.get('/', zValidator('query', StatisticsQuerySchema), async (c) => {
@@ -32,4 +44,3 @@ app.get('/', zValidator('query', StatisticsQuerySchema), async (c) => {
 });
 
 export default app;
-
