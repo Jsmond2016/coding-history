@@ -491,6 +491,7 @@ const ConfigList: React.FC = () => {
             loading={loading}
             rowKey="id"
             pagination={false}
+            scroll={{ x: 'max-content' }}
             locale={{ emptyText: '暂无仓库配置，请点击"添加仓库"按钮添加' }}
             expandable={{
               expandedRowKeys: expandedKeys,
