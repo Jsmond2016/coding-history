@@ -3,6 +3,7 @@ dist/
 *.log
 .DS_Store
 backend/database/*.db
+backend/database/*.db-journal
 backend/database/*.db-shm
 backend/database/*.db-wal
 backend/logs/
