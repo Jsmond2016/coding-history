@@ -339,7 +339,8 @@ const ConfigList: React.FC = () => {
       title: '提交总数',
       dataIndex: 'totalCommits',
       key: 'totalCommits',
-      width: 100
+      width: 140,
+      sorter: (a, b) => a.totalCommits - b.totalCommits
     },
     {
       title: (
@@ -353,6 +354,11 @@ const ConfigList: React.FC = () => {
       dataIndex: 'commitDateRange',
       key: 'commitDateRange',
       width: 220,
+      sorter: (a, b) => {
+        const aTime = a.commitDateRange?.earliest ?? 0;
+        const bTime = b.commitDateRange?.earliest ?? 0;
+        return aTime - bTime;
+      },
       render: (range: CommitDateRange | null) => {
         if (!range) {
           return <span className="text-gray-400">暂无记录</span>;
@@ -374,6 +380,7 @@ const ConfigList: React.FC = () => {
       dataIndex: 'lastScanTime',
       key: 'lastScanTime',
       width: 180,
+      sorter: (a, b) => (a.lastScanTime ?? 0) - (b.lastScanTime ?? 0),
       render: (time: number | null) => time ? dayjs(time).format('YYYY-MM-DD HH:mm:ss') : '-'
     },
     {
