@@ -8,6 +8,8 @@ backend/database/*.db-wal
 backend/logs/
 .start.pid
 .env
+.env.*
+!.env.example
 
 # Claude Code 项目级敏感配置
 .claude/memory/
