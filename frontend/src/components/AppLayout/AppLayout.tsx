@@ -16,6 +16,14 @@ interface AppLayoutProps {
   children: React.ReactNode
 }
 
+const menuRouteKeys = [
+  { key: "data-overview", path: "/data-overview" },
+  { key: "git-statistics", path: "/git-statistics" },
+  { key: "config", path: "/config" },
+  { key: "tasks", path: "/tasks" },
+  { key: "logs", path: "/logs" },
+] as const
+
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -23,19 +31,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   // 根据当前路径确定选中的菜单项
   const getSelectedKey = () => {
-    if (location.pathname.startsWith("/data-overview")) {
-      return "data-overview"
-    }
-    if (location.pathname.startsWith("/logs")) {
-      return "logs"
-    }
-    if (location.pathname.startsWith("/tasks")) {
-      return "tasks"
-    }
-    if (location.pathname.startsWith("/config")) {
-      return "config"
-    }
-    return "data-overview"
+    return (
+      menuRouteKeys.find((item) => location.pathname.startsWith(item.path))
+        ?.key ?? "data-overview"
+    )
   }
 
   const menuItems = [
