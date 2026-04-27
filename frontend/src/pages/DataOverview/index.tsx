@@ -314,6 +314,7 @@ const DataOverview: React.FC = () => {
       tone: "border-l-[#fa8c16]",
       name: overview?.topOvertimeMonth?.month,
       value: overview?.topOvertimeMonth?.count,
+      unit: "天",
       meta: overview?.topOvertimeMonth?.latestCommitDate
         ? `最近 ${dayjs(overview.topOvertimeMonth.latestCommitDate).format("MM-DD HH:mm")}`
         : "暂无数据",
@@ -431,7 +432,7 @@ const DataOverview: React.FC = () => {
                           <span className="text-3xl font-semibold text-neutral-950">
                             {metricNumber(card.value)}
                           </span>
-                          <span className="ml-1 text-sm text-neutral-500">次</span>
+                          <span className="ml-1 text-sm text-neutral-500">{card.unit ?? "次"}</span>
                         </div>
                         <div className="max-w-[48%] truncate text-right text-xs text-neutral-500">{card.meta}</div>
                       </div>

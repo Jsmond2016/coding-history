@@ -698,7 +698,7 @@ export class CommitService {
     }>>(`
       SELECT
         strftime('%Y-%m', c.commit_date / 1000, 'unixepoch', 'localtime') as month,
-        COUNT(*) as count,
+        COUNT(DISTINCT strftime('%Y-%m-%d', c.commit_date / 1000, 'unixepoch', 'localtime')) as count,
         MAX(c.commit_date) as latestCommitDate
       FROM commits c
       WHERE ${baseWhere}
