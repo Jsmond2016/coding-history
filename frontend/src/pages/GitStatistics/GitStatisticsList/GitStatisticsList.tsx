@@ -56,10 +56,10 @@ const GitStatisticsList: React.FC = () => {
   const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
   const { scanning, handleScan } = useScan()
   const [scanTimePreset, setScanTimePreset] =
-    React.useState<ScanTimePresetKey>("two_weeks")
+    React.useState<ScanTimePresetKey>("three_days")
   const [scanConfigOpen, setScanConfigOpen] = React.useState(false)
   const [draftPreset, setDraftPreset] =
-    React.useState<ScanTimePresetKey>("two_weeks")
+    React.useState<ScanTimePresetKey>("three_days")
 
   const scanButtonLabel = `手动扫描-${getScanPresetLabel(scanTimePreset)}`
 
