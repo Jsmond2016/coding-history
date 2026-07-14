@@ -35,6 +35,7 @@ export interface Commit {
 
 export type WorkStatus = 'relaxed' | 'normal' | 'busy' | 'crazy' | 'overtime' | 'superCrazyOvertime';
 export type OvertimeMode = 'all' | 'overtime_days' | 'overtime_commits' | 'non_overtime_days';
+export type CommitType = 'feat' | 'fix' | 'refactor' | 'docs' | 'merge' | 'release' | 'chore' | 'other';
 
 export interface WorkStatusMetricsConfig {
   overtimeHour: number;

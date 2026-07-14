@@ -1,159 +1,140 @@
-import React from 'react';
-import { Card, Row, Col, Statistic, Tooltip } from 'antd';
-import { QuestionCircleOutlined } from '@ant-design/icons';
-import { Line } from '@ant-design/charts';
-import dayjs from 'dayjs';
-import type { CommitsByDate, WorkStatusMetricsConfig } from '../../../../types/gitStatistics';
-import { isRelaxedStatus, isBusyStatus, isOvertimeStatus } from '../../../../utils/workStatus';
+import React from 'react'
+import { Card, Col, Row, Statistic, Tag, Typography } from 'antd'
+import { Line } from '@ant-design/charts'
+import type { Dayjs } from 'dayjs'
+import type { CommitsByDate, OvertimeMode, WorkStatusMetricsConfig } from '../../../../types/gitStatistics'
 
 interface WorkStatusReportProps {
-  data: CommitsByDate[];
+  data: CommitsByDate[]
+  dateRange: [Dayjs, Dayjs]
+  overtimeMode: OvertimeMode
 }
 
-// 工作状态统计卡片组件（单独导出，用于第一行布局）
-export const WorkStatusCards: React.FC<{
-  data: CommitsByDate[];
-  metricsConfig: WorkStatusMetricsConfig | null;
-}> = ({ data, metricsConfig }) => {
-  // 如果没有数据，返回空
-  if (!data || data.length === 0) {
-    return null;
-  }
+const shortDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  month: '2-digit',
+  day: '2-digit',
+})
+const fullDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
 
-  // 统计天数
-  const totalDays = data.length; // 工作总天数（提交代码的天数）
-  const relaxedDays = data.filter(item => isRelaxedStatus(item.workStatus)).length;
-  const busyDays = data.filter(item => isBusyStatus(item.workStatus)).length;
-  const overtimeDays = data.filter(item => isOvertimeStatus(item.workStatus)).length;
-  
-  // 计算占比
-  const relaxedPercentage = totalDays > 0 ? ((relaxedDays / totalDays) * 100).toFixed(1) : '0.0';
-  const busyPercentage = totalDays > 0 ? ((busyDays / totalDays) * 100).toFixed(1) : '0.0';
-  const overtimePercentage = totalDays > 0 ? ((overtimeDays / totalDays) * 100).toFixed(1) : '0.0';
+function toShanghaiDate(date: string): Date {
+  return new Date(`${date}T00:00:00+08:00`)
+}
+
+function getTrendTitle(overtimeMode: OvertimeMode): string {
+  if (overtimeMode === 'overtime_commits') return '加班提交趋势'
+  if (overtimeMode === 'overtime_days') return '加班日期提交趋势'
+  if (overtimeMode === 'non_overtime_days') return '非加班日期提交趋势'
+  return '提交次数趋势'
+}
+
+export const WorkStatusCards: React.FC<{
+  data: CommitsByDate[]
+  metricsConfig: WorkStatusMetricsConfig | null
+}> = ({ data, metricsConfig }) => {
+  if (!data.length) return null
+
+  const thresholds = metricsConfig?.thresholds ?? {
+    relaxed: 6,
+    normal: 10,
+    busy: 15,
+    superCrazy: 20,
+  }
+  const intensity = data.reduce((result, group) => {
+    if (group.totalCommits < thresholds.relaxed) result.relaxed += 1
+    else if (group.totalCommits < thresholds.normal) result.normal += 1
+    else if (group.totalCommits < thresholds.busy) result.busy += 1
+    else result.crazy += 1
+    return result
+  }, { relaxed: 0, normal: 0, busy: 0, crazy: 0 })
+  const overtimeDays = data.filter((group) => group.overtimeCount > 0).length
+
+  const cards = [
+    { key: 'total', title: '活跃天数', value: data.length, color: '#1677ff' },
+    { key: 'relaxed', title: metricsConfig?.labels.relaxed ?? '轻松', value: intensity.relaxed, color: '#52c41a' },
+    { key: 'normal', title: metricsConfig?.labels.normal ?? '正常', value: intensity.normal, color: '#1677ff' },
+    { key: 'busy', title: metricsConfig?.labels.busy ?? '忙碌', value: intensity.busy, color: '#fa8c16' },
+    { key: 'crazy', title: metricsConfig?.labels.crazy ?? '疯狂', value: intensity.crazy, color: '#f5222d' },
+  ]
 
   return (
-    <Card title="工作状态统计">
-      <Row gutter={16}>
-        <Col span={6}>
-          <Statistic
-            title="工作总天数"
-            value={totalDays}
-            valueStyle={{ color: '#1890ff' }}
-            suffix="天"
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title={
-              <span>
-                {metricsConfig?.labels.relaxed ?? '轻松'}天数
-                <Tooltip title={`当日提交次数 < ${metricsConfig?.thresholds.relaxed ?? 6} 次，且无加班记录`}>
-                  <QuestionCircleOutlined className="ml-1 text-gray-400 text-xs" />
-                </Tooltip>
-              </span>
-            }
-            value={relaxedDays}
-            valueStyle={{ color: '#52c41a' }}
-            suffix={<span style={{ fontSize: 14 }}>({relaxedPercentage}%)</span>}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title={
-              <span>
-                忙碌天数
-                <Tooltip title={`当日提交次数 >= ${metricsConfig?.thresholds.normal ?? 10} 次，或达到更高工作强度`}>
-                  <QuestionCircleOutlined className="ml-1 text-gray-400 text-xs" />
-                </Tooltip>
-              </span>
-            }
-            value={busyDays}
-            valueStyle={{ color: '#ff9800' }}
-            suffix={<span style={{ fontSize: 14 }}>({busyPercentage}%)</span>}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title={`${metricsConfig?.labels.overtime ?? '加班'}天数（${metricsConfig?.overtimeHour ?? 19}:00 后）`}
-            value={overtimeDays}
-            valueStyle={{ color: '#ff4d4f' }}
-            suffix={<span style={{ fontSize: 14 }}>({overtimePercentage}%)</span>}
-          />
-        </Col>
+    <Card
+      title="工作强度分布"
+      extra={
+        <Tag color="red">
+          {metricsConfig?.labels.overtime ?? '加班'} {overtimeDays} 天 · {((overtimeDays / data.length) * 100).toFixed(1)}%
+        </Tag>
+      }
+    >
+      <Row gutter={[12, 16]}>
+        {cards.map((item) => (
+          <Col xs={12} sm={8} xl={item.key === 'total' ? 4 : 5} key={item.key}>
+            <Statistic
+              title={item.title}
+              value={item.value}
+              suffix="天"
+              valueStyle={{ color: item.color }}
+            />
+          </Col>
+        ))}
       </Row>
+      <Typography.Text type="secondary" className="mt-3 block text-xs">
+        强度按当天完整提交数划分，4 个区间互斥；加班按 {metricsConfig?.overtimeHour ?? 19}:00 后是否有提交单独统计。
+      </Typography.Text>
     </Card>
-  );
-};
+  )
+}
 
-export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
-  // 如果没有数据，显示空状态
-  if (!data || data.length === 0) {
-    return (
-      <Card title="提交次数趋势" className="mb-3">
-        <div className="p-6 text-center text-gray-400">
-          暂无数据
-        </div>
-      </Card>
-    );
-  }
+export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data, dateRange, overtimeMode }) => {
+  const commitsByDate = React.useMemo(() => new Map(
+    data.map((group) => [group.date, group.totalCommits]),
+  ), [data])
+  const chartData = React.useMemo(() => {
+    const result: Array<{ date: string; totalCommits: number }> = []
+    let cursor = dateRange[0].startOf('day')
+    const end = dateRange[1].startOf('day')
+    while (!cursor.isAfter(end)) {
+      const date = cursor.format('YYYY-MM-DD')
+      result.push({ date, totalCommits: commitsByDate.get(date) ?? 0 })
+      cursor = cursor.add(1, 'day')
+    }
+    return result
+  }, [commitsByDate, dateRange])
 
-  // 准备提交次数折线图数据
-  const commitsChartData = data
-    .map(item => ({
-      date: item.date,
-      dateLabel: dayjs(item.date).format('MM-DD'),
-      totalCommits: item.totalCommits
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date)); // 按日期从左往右排序
-
-  // 提交次数折线图配置
-  const commitsLineConfig = {
-    data: commitsChartData,
-    xField: 'dateLabel',
+  const lineConfig = {
+    data: chartData,
+    xField: 'date',
     yField: 'totalCommits',
-    point: {
-      size: 5,
-      shape: 'circle',
-    },
-    smooth: true,
-    color: '#1890ff',
+    point: chartData.length <= 90 ? { size: 4, shape: 'circle' } : false,
+    smooth: false,
+    color: '#1677ff',
     tooltip: {
-      formatter: (datum: any) => {
-        const dataItem = commitsChartData.find(d => d.dateLabel === datum.dateLabel);
-        if (!dataItem) {
-          return [];
-        }
-        
-        return [
-          {
-            name: '提交次数',
-            value: `${dataItem.totalCommits} 次`
-          }
-        ];
-      },
-      title: (datum: any) => {
-        const dataItem = commitsChartData.find(d => d.dateLabel === datum.dateLabel);
-        return dataItem ? dayjs(dataItem.date).format('YYYY年MM月DD日') : '';
-      },
+      formatter: (datum: { totalCommits: number }) => ({
+        name: '提交次数',
+        value: `${datum.totalCommits} 次`,
+      }),
+      title: (datum: { date: string }) => fullDateFormatter.format(toShanghaiDate(datum.date)),
     },
-    yAxis: {
-      title: {
-        text: '提交次数',
-      },
-    },
+    yAxis: { title: { text: '提交次数' }, min: 0 },
     xAxis: {
       label: {
         autoRotate: false,
         autoHide: true,
+        formatter: (value: string) => shortDateFormatter.format(toShanghaiDate(value)),
       },
     },
-  };
+  }
 
   return (
-    <Card title="提交次数趋势" style={{ marginBottom: '12px' }}>
+    <Card title={getTrendTitle(overtimeMode)}>
       <div className="h-[300px]">
-        <Line {...commitsLineConfig} />
+        <Line {...lineConfig} />
       </div>
     </Card>
-  );
-};
+  )
+}

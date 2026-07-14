@@ -7,34 +7,34 @@ export const StatisticsCards: React.FC = () => {
   const statistics = useAtomValue(statisticsAtom);
 
   return (
-    <Card title="代码提交数据" className="mb-6">
-      <Row gutter={16}>
-        <Col span={6}>
+    <Card title="提交活动汇总">
+      <Row gutter={[16, 16]}>
+        <Col xs={12} xl={6}>
           <Statistic
             title="总提交次数"
             value={statistics.totalCommits}
             valueStyle={{ color: '#1890ff' }}
           />
         </Col>
-        <Col span={6}>
+        <Col xs={12} xl={6}>
           <Statistic
-            title="新增代码行数"
+            title="累计新增代码行数"
             value={statistics.totalInsertions}
             valueStyle={{ color: '#52c41a' }}
             prefix="+"
           />
         </Col>
-        <Col span={6}>
+        <Col xs={12} xl={6}>
           <Statistic
-            title="删除代码行数"
+            title="累计删除代码行数"
             value={statistics.totalDeletions}
             valueStyle={{ color: '#ff4d4f' }}
             prefix="-"
           />
         </Col>
-        <Col span={6}>
+        <Col xs={12} xl={6}>
           <Statistic
-            title="涉及文件数"
+            title="累计文件变更数"
             value={statistics.totalFilesChanged}
             valueStyle={{ color: '#722ed1' }}
           />
@@ -43,4 +43,3 @@ export const StatisticsCards: React.FC = () => {
     </Card>
   );
 };
-

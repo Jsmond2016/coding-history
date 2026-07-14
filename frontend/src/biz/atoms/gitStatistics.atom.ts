@@ -7,6 +7,7 @@ import type {
   StatisticsByDate,
   Commit,
   OvertimeMode,
+  CommitType,
 } from "../../types/gitStatistics"
 
 export interface FilterState {
@@ -14,6 +15,8 @@ export interface FilterState {
   repositoryIds: string[];
   authorEmails: string[];
   overtimeMode: OvertimeMode;
+  keyword: string;
+  commitTypes: CommitType[];
 }
 
 // 默认筛选条件：最近一个月
@@ -21,7 +24,9 @@ export const defaultFilterState: FilterState = {
   dateRange: [dayjs().subtract(1, "month"), dayjs()],
   repositoryIds: [],
   authorEmails: [],
-  overtimeMode: 'all'
+  overtimeMode: 'all',
+  keyword: '',
+  commitTypes: []
 };
 
 export const filterAtom = atom<FilterState>(defaultFilterState);

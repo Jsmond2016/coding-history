@@ -1,5 +1,5 @@
 import React from "react"
-import { Space, DatePicker, Select, Button, message } from "antd"
+import { Space, DatePicker, Select, Button, Input, Tag, message } from "antd"
 import { SearchOutlined, UndoOutlined } from "@ant-design/icons"
 import { useAtom } from "jotai"
 import dayjs, { type Dayjs } from "dayjs"
@@ -10,15 +10,17 @@ import {
   type FilterState,
 } from "../../../../biz/atoms/gitStatistics.atom"
 import type { Repository, Author } from "../../../../types/gitStatistics"
+import { COMMIT_TYPE_OPTIONS } from "../../../../utils/commitFilters"
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 interface StatisticsFilterProps {
   onSearch: (customFilter?: FilterState) => void;
+  isDirty: boolean;
 }
 
-export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) => {
+export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch, isDirty }) => {
   const [filter, setFilter] = useAtom(filterAtom);
   const [repositories] = useAtom(repositoriesAtom);
   const [authors] = useAtom(authorsAtom);
@@ -40,11 +42,13 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
 
   // 重置筛选条件
   const handleReset = () => {
-    const resetFilter = {
+    const resetFilter: FilterState = {
       dateRange: [dayjs().subtract(1, "month"), dayjs()] as [Dayjs, Dayjs],
       repositoryIds: [] as string[],
       authorEmails: [] as string[],
-      overtimeMode: 'all' as const
+      overtimeMode: 'all',
+      keyword: '',
+      commitTypes: []
     };
     setFilter(resetFilter);
     message.success("已重置筛选条件");
@@ -62,7 +66,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
   ];
 
   return (
-    <Space wrap size="small">
+    <Space wrap size="small" aria-label="提交记录筛选">
       <RangePicker
         value={filter.dateRange}
         onChange={handleDateChange}
@@ -70,6 +74,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         allowClear={false}
         presets={rangePresets}
         style={{ width: 260 }}
+        aria-label="日期范围"
       />
 
       <Select
@@ -80,6 +85,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         style={{ width: 180 }}
         allowClear
         maxTagCount={1}
+        aria-label="仓库"
       >
         {(repositories ?? []).map((repo: Repository) => (
           <Option key={repo.id} value={repo.id}>
@@ -96,6 +102,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
         style={{ width: 160 }}
         allowClear
         maxTagCount={1}
+        aria-label="作者"
       >
         {(authors ?? []).map((author: Author) => (
           <Option key={author.email} value={author.email}>
@@ -113,20 +120,46 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
           })
         }}
         style={{ width: 130 }}
+        aria-label="加班模式"
       >
         <Option value="all">全部提交</Option>
         <Option value="overtime_days">加班日期</Option>
         <Option value="overtime_commits">加班提交</Option>
         <Option value="non_overtime_days">非加班日期</Option>
       </Select>
+
+      <Input
+        value={filter.keyword}
+        onChange={(event) => setFilter({ ...filter, keyword: event.target.value })}
+        onPressEnter={() => onSearch()}
+        placeholder="搜索 Hash、提交信息或作者…"
+        prefix={<SearchOutlined />}
+        allowClear
+        aria-label="提交关键字"
+        style={{ width: 230 }}
+      />
+
+      <Select
+        mode="multiple"
+        value={filter.commitTypes}
+        onChange={(commitTypes) => setFilter({ ...filter, commitTypes })}
+        options={COMMIT_TYPE_OPTIONS}
+        placeholder="提交类型"
+        maxTagCount={1}
+        allowClear
+        aria-label="提交类型"
+        style={{ width: 170 }}
+      />
       
       <Button 
         type="primary" 
         icon={<SearchOutlined />}
         onClick={() => onSearch()}
       >
-        搜索
+        应用筛选
       </Button>
+
+      {isDirty ? <Tag color="warning">筛选条件尚未应用</Tag> : null}
 
       <Button 
         icon={<UndoOutlined />}

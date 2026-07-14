@@ -1,330 +1,343 @@
-import React from "react"
-import { useAtomValue, useSetAtom } from "jotai"
-import { useMount } from "ahooks"
+import React from 'react'
+import { Alert, Button, Card, Col, Empty, Row, Space, Spin, Tag, Typography, message } from 'antd'
+import { ReloadOutlined, SyncOutlined } from '@ant-design/icons'
+import { useAtom, useSetAtom } from 'jotai'
+import { useMount } from 'ahooks'
+import { useSearchParams } from 'react-router-dom'
+import dayjs from 'dayjs'
+import { StatisticsFilter } from './components/StatisticsFilter'
+import { StatisticsCards } from './components/StatisticsCards'
+import { WorkStatusCards, WorkStatusReport } from './components/WorkStatusReport'
+import { CommitsWorkbench } from './components/CommitsWorkbench'
+import { SyncDataModal } from './components/SyncDataModal'
 import {
-  message,
-  Empty,
-  Spin,
-  Button,
-  ConfigProvider,
-  Card,
-  Row,
-  Col,
-  Dropdown,
-  Modal,
-  Radio,
-  Space,
-} from "antd"
-import type { MenuProps } from "antd"
-import {
-  ReloadOutlined,
-  DownOutlined,
-  CalendarOutlined,
-} from "@ant-design/icons"
-import { StatisticsFilter } from "./components/StatisticsFilter"
-import { StatisticsCards } from "./components/StatisticsCards"
-import {
-  WorkStatusReport,
-  WorkStatusCards,
-} from "./components/WorkStatusReport"
-import { CommitsByDateList } from "./components/CommitsByDateList"
-import {
+  defaultFilterState,
   filterAtom,
   statisticsAtom,
   repositoriesAtom,
   authorsAtom,
-} from "../../../biz/atoms/gitStatistics.atom"
-import { gitStatisticsApi } from "../../../services/gitStatisticsApi"
-import type { CommitsByDate } from "../../../types/gitStatistics"
-import type { WorkStatusMetricsConfig } from "../../../types/gitStatistics"
-import { ScanProvider } from "../../../biz/contexts/ScanContext"
-import { useScan } from "../../../biz/hooks/useScan"
+  type FilterState,
+} from '../../../biz/atoms/gitStatistics.atom'
+import { gitStatisticsApi } from '../../../services/gitStatisticsApi'
+import { tasksApi } from '../../../services/tasksApi'
+import type {
+  CommitType,
+  CommitsByDate,
+  OvertimeMode,
+  WorkStatusMetricsConfig,
+} from '../../../types/gitStatistics'
+import type { ScanTask } from '../../../types/tasks'
+import { useScan } from '../../../biz/hooks/useScan'
+import { filterCommitGroups } from '../../../utils/commitFilters'
 import {
-  type ScanTimePresetKey,
-  SCAN_TIME_PRESET_OPTIONS,
   getPresetRange,
-  getScanPresetLabel,
   MAX_SCAN_SPAN_MS,
-} from "../../../utils/scanTimeRange"
+  type ScanTimePresetKey,
+} from '../../../utils/scanTimeRange'
 
-const GitStatisticsList: React.FC = () => {
-  const filter = useAtomValue(filterAtom)
-  const setStatistics = useSetAtom(statisticsAtom)
-  const setRepositories = useSetAtom(repositoriesAtom)
-  const setAuthors = useSetAtom(authorsAtom)
-  const [hasSearched, setHasSearched] = React.useState(false)
-  const [loading, setLoading] = React.useState(false)
-  const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
-  const [metricsConfig, setMetricsConfig] = React.useState<WorkStatusMetricsConfig | null>(null)
-  const { scanning, handleScan } = useScan()
-  const [scanTimePreset, setScanTimePreset] =
-    React.useState<ScanTimePresetKey>("three_days")
-  const [scanConfigOpen, setScanConfigOpen] = React.useState(false)
-  const [draftPreset, setDraftPreset] =
-    React.useState<ScanTimePresetKey>("three_days")
+const VALID_OVERTIME_MODES = new Set<OvertimeMode>([
+  'all',
+  'overtime_days',
+  'overtime_commits',
+  'non_overtime_days',
+])
+const VALID_COMMIT_TYPES = new Set<CommitType>([
+  'feat', 'fix', 'refactor', 'docs', 'merge', 'release', 'chore', 'other',
+])
 
-  const scanButtonLabel = `手动扫描-${getScanPresetLabel(scanTimePreset)}`
-
-  const openScanConfigModal = React.useCallback(() => {
-    setDraftPreset(scanTimePreset)
-    setScanConfigOpen(true)
-  }, [scanTimePreset])
-
-  const saveScanConfig = React.useCallback(() => {
-    setScanTimePreset(draftPreset)
-    setScanConfigOpen(false)
-    message.success("扫描时间范围已保存")
-  }, [draftPreset])
-
-  const scanMenuItems: MenuProps["items"] = [
-    {
-      key: "config",
-      label: "配置扫描时间范围",
-      icon: <CalendarOutlined />,
-    },
-  ]
-
-  const handleScanMenuClick: MenuProps["onClick"] = ({ key }) => {
-    if (key === "config") openScanConfigModal()
+function cloneFilter(filter: FilterState): FilterState {
+  return {
+    ...filter,
+    dateRange: [filter.dateRange[0], filter.dateRange[1]],
+    repositoryIds: [...filter.repositoryIds],
+    authorEmails: [...filter.authorEmails],
+    commitTypes: [...filter.commitTypes],
   }
+}
 
-  const handleManualScan = React.useCallback(() => {
-    const [startDate, endDate] = getPresetRange(
-      scanTimePreset,
-      filter.dateRange,
-    )
+function filterSignature(filter: FilterState): string {
+  return JSON.stringify({
+    start: filter.dateRange[0].format('YYYY-MM-DD'),
+    end: filter.dateRange[1].format('YYYY-MM-DD'),
+    repos: [...filter.repositoryIds].sort(),
+    authors: [...filter.authorEmails].sort(),
+    overtimeMode: filter.overtimeMode,
+    keyword: filter.keyword.trim(),
+    commitTypes: [...filter.commitTypes].sort(),
+  })
+}
 
-    if (startDate >= endDate) {
-      message.error("当前扫描时间范围无效，请检查所选预设或筛选日期")
-      return
+function parseFilter(searchParams: URLSearchParams): FilterState {
+  const start = dayjs(searchParams.get('start'))
+  const end = dayjs(searchParams.get('end'))
+  const overtime = searchParams.get('overtime') as OvertimeMode | null
+  const commitTypes = (searchParams.get('types')?.split(',') ?? [])
+    .filter((value): value is CommitType => VALID_COMMIT_TYPES.has(value as CommitType))
+
+  return {
+    dateRange: start.isValid() && end.isValid() && !end.isBefore(start)
+      ? [start, end]
+      : defaultFilterState.dateRange,
+    repositoryIds: searchParams.get('repos')?.split(',').filter(Boolean) ?? [],
+    authorEmails: searchParams.get('authors')?.split(',').filter(Boolean) ?? [],
+    overtimeMode: overtime && VALID_OVERTIME_MODES.has(overtime) ? overtime : 'all',
+    keyword: searchParams.get('q') ?? '',
+    commitTypes,
+  }
+}
+
+function toSearchParams(filter: FilterState): URLSearchParams {
+  const params = new URLSearchParams({
+    start: filter.dateRange[0].format('YYYY-MM-DD'),
+    end: filter.dateRange[1].format('YYYY-MM-DD'),
+  })
+  if (filter.repositoryIds.length) params.set('repos', filter.repositoryIds.join(','))
+  if (filter.authorEmails.length) params.set('authors', filter.authorEmails.join(','))
+  if (filter.overtimeMode !== 'all') params.set('overtime', filter.overtimeMode)
+  if (filter.keyword.trim()) params.set('q', filter.keyword.trim())
+  if (filter.commitTypes.length) params.set('types', filter.commitTypes.join(','))
+  return params
+}
+
+function buildStatistics(groups: CommitsByDate[]) {
+  const commits = groups.flatMap((group) => group.commits)
+  const byRepositoryMap = new Map<string, {
+    repoId: string
+    repoName: string
+    commits: number
+    insertions: number
+    deletions: number
+  }>()
+
+  commits.forEach((commit) => {
+    const current = byRepositoryMap.get(commit.repoId) ?? {
+      repoId: commit.repoId,
+      repoName: commit.repoName,
+      commits: 0,
+      insertions: 0,
+      deletions: 0,
     }
-    if (endDate - startDate > MAX_SCAN_SPAN_MS) {
-      message.error("所选范围超过 186 天，请换更短预设或缩小筛选日期后再扫描")
-      return
-    }
-
-    void handleScan({ startDate, endDate })
-  }, [scanTimePreset, filter.dateRange, handleScan])
-
-  // 加载数据
-  const handleSearch = React.useCallback(
-    async (customFilter?: typeof filter) => {
-      // 使用传入的 filter 或当前的 filter
-      const currentFilter = customFilter || filter
-      // 开始时间设为当天的 0:00:00.000，结束时间设为当天的 23:59:59.999
-      // dayjs 的 startOf/endOf 使用本地时间，valueOf() 返回 UTC 时间戳
-      const startDate = currentFilter.dateRange[0].startOf("day").valueOf()
-      const endDate = currentFilter.dateRange[1].endOf("day").valueOf()
-      const repositoryIds =
-        currentFilter.repositoryIds.length > 0
-          ? currentFilter.repositoryIds
-          : undefined
-      const authorEmails =
-        currentFilter.authorEmails.length > 0
-          ? currentFilter.authorEmails
-          : undefined
-      const overtimeMode = currentFilter.overtimeMode
-
-      setLoading(true)
-      setHasSearched(true)
-
-      try {
-        const commitsByDateResult = await gitStatisticsApi.getCommitsByDate({
-          startDate,
-          endDate,
-          repositoryIds,
-          authorEmails,
-          overtimeMode,
-        })
-
-        const groups = commitsByDateResult?.data ?? []
-        const visibleCommits = groups.flatMap((group) => group.commits)
-        const byRepositoryMap = new Map<string, {
-          repoId: string
-          repoName: string
-          commits: number
-          insertions: number
-          deletions: number
-        }>()
-
-        visibleCommits.forEach((commit) => {
-          const current = byRepositoryMap.get(commit.repoId) ?? {
-            repoId: commit.repoId,
-            repoName: commit.repoName,
-            commits: 0,
-            insertions: 0,
-            deletions: 0,
-          }
-          current.commits += 1
-          current.insertions += commit.insertions
-          current.deletions += commit.deletions
-          byRepositoryMap.set(commit.repoId, current)
-        })
-
-        setCommitsByDate(groups)
-        setMetricsConfig(commitsByDateResult.metricsConfig)
-        setStatistics({
-          totalCommits: visibleCommits.length,
-          totalInsertions: visibleCommits.reduce((sum, commit) => sum + commit.insertions, 0),
-          totalDeletions: visibleCommits.reduce((sum, commit) => sum + commit.deletions, 0),
-          totalFilesChanged: visibleCommits.reduce((sum, commit) => sum + commit.filesChanged, 0),
-          byRepository: Array.from(byRepositoryMap.values()),
-          byDate: groups.map((group) => ({
-            date: group.date,
-            commits: group.totalCommits,
-            insertions: group.commits.reduce((sum, commit) => sum + commit.insertions, 0),
-            deletions: group.commits.reduce((sum, commit) => sum + commit.deletions, 0),
-          })),
-        })
-      } catch (error) {
-        console.error("[Frontend] Search error:", error)
-        message.error("加载数据失败")
-      } finally {
-        setLoading(false)
-      }
-    },
-    [filter, setStatistics],
-  )
-
-  // 加载仓库列表和作者列表
-  useMount(async () => {
-    try {
-      const [repos, authors] = await Promise.all([
-        gitStatisticsApi.getRepositories().catch(() => []),
-        gitStatisticsApi.getAuthors().catch(() => []),
-      ])
-      setRepositories(Array.isArray(repos) ? repos : [])
-      setAuthors(Array.isArray(authors) ? authors : [])
-      // 自动执行一次搜索
-      await handleSearch()
-    } catch (error) {
-      message.error("加载初始数据失败")
-    }
+    current.commits += 1
+    current.insertions += commit.insertions
+    current.deletions += commit.deletions
+    byRepositoryMap.set(commit.repoId, current)
   })
 
+  return {
+    totalCommits: commits.length,
+    totalInsertions: commits.reduce((sum, commit) => sum + commit.insertions, 0),
+    totalDeletions: commits.reduce((sum, commit) => sum + commit.deletions, 0),
+    totalFilesChanged: commits.reduce((sum, commit) => sum + commit.filesChanged, 0),
+    byRepository: Array.from(byRepositoryMap.values()),
+    byDate: groups.map((group) => ({
+      date: group.date,
+      commits: group.totalCommits,
+      insertions: group.commits.reduce((sum, commit) => sum + commit.insertions, 0),
+      deletions: group.commits.reduce((sum, commit) => sum + commit.deletions, 0),
+    })),
+  }
+}
+
+const GitStatisticsList: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialFilter = React.useMemo(() => parseFilter(searchParams), [])
+  const [filter, setFilter] = useAtom(filterAtom)
+  const setStatistics = useSetAtom(statisticsAtom)
+  const [repositories, setRepositories] = useAtom(repositoriesAtom)
+  const setAuthors = useSetAtom(authorsAtom)
+  const [appliedFilter, setAppliedFilter] = React.useState<FilterState>(() => cloneFilter(initialFilter))
+  const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
+  const [workStatusGroups, setWorkStatusGroups] = React.useState<CommitsByDate[]>([])
+  const [metricsConfig, setMetricsConfig] = React.useState<WorkStatusMetricsConfig | null>(null)
+  const [primaryTask, setPrimaryTask] = React.useState<ScanTask | null>(null)
+  const [loading, setLoading] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = React.useState<number | null>(null)
+  const [syncModalOpen, setSyncModalOpen] = React.useState(false)
+  const [scanTimePreset, setScanTimePreset] = React.useState<ScanTimePresetKey>('three_days')
+  const requestIdRef = React.useRef(0)
+  const { scanning, handleScan } = useScan()
+
+  const isDirty = filterSignature(filter) !== filterSignature(appliedFilter)
+
+  const handleSearch = React.useCallback(async (customFilter?: FilterState) => {
+    const nextFilter = cloneFilter(customFilter ?? filter)
+    const requestId = ++requestIdRef.current
+    const startDate = nextFilter.dateRange[0].startOf('day').valueOf()
+    const endDate = nextFilter.dateRange[1].endOf('day').valueOf()
+    const repositoryIds = nextFilter.repositoryIds.length ? nextFilter.repositoryIds : undefined
+    const authorEmails = nextFilter.authorEmails.length ? nextFilter.authorEmails : undefined
+
+    setAppliedFilter(nextFilter)
+    setSearchParams(toSearchParams(nextFilter), { replace: true })
+    setLoading(true)
+    setLoadError(null)
+
+    try {
+      const visibleRequest = gitStatisticsApi.getCommitsByDate({
+        startDate,
+        endDate,
+        repositoryIds,
+        authorEmails,
+        overtimeMode: nextFilter.overtimeMode,
+      })
+      const fullRequest = nextFilter.overtimeMode === 'all'
+        ? visibleRequest
+        : gitStatisticsApi.getCommitsByDate({
+            startDate,
+            endDate,
+            repositoryIds,
+            authorEmails,
+            overtimeMode: 'all',
+          })
+      const [visibleResult, fullResult] = await Promise.all([visibleRequest, fullRequest])
+      if (requestId !== requestIdRef.current) return
+
+      const visibleGroups = filterCommitGroups(
+        visibleResult.data ?? [],
+        nextFilter.keyword,
+        nextFilter.commitTypes,
+      )
+      const fullGroupMap = new Map((fullResult.data ?? []).map((group) => [group.date, group]))
+      setCommitsByDate(visibleGroups.map((group) => ({
+        ...group,
+        workStatus: fullGroupMap.get(group.date)?.workStatus ?? group.workStatus,
+      })))
+      setWorkStatusGroups(fullResult.data ?? [])
+      setMetricsConfig(fullResult.metricsConfig)
+      setStatistics(buildStatistics(visibleGroups))
+      setLastUpdatedAt(Date.now())
+    } catch (error) {
+      if (requestId !== requestIdRef.current) return
+      console.error('[GitStatistics] Search error:', error)
+      setLoadError('提交数据加载失败，请检查服务状态后重新查询。')
+      message.error('提交数据加载失败')
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false)
+    }
+  }, [filter, setSearchParams, setStatistics])
+
+  useMount(async () => {
+    setFilter(initialFilter)
+    const [repos, authors, task] = await Promise.all([
+      gitStatisticsApi.getRepositories().catch(() => null),
+      gitStatisticsApi.getAuthors().catch(() => null),
+      tasksApi.getPrimaryTask().catch(() => null),
+    ])
+    if (repos) setRepositories(repos)
+    else message.warning('仓库列表加载失败，仓库筛选暂不可用')
+    if (authors) setAuthors(authors)
+    else message.warning('作者列表加载失败，作者筛选暂不可用')
+    setPrimaryTask(task)
+    await handleSearch(initialFilter)
+  })
+
+  const handleSyncConfirm = React.useCallback(async () => {
+    const [startDate, endDate] = getPresetRange(scanTimePreset, filter.dateRange)
+    if (startDate >= endDate || endDate - startDate > MAX_SCAN_SPAN_MS) {
+      message.error('同步日期范围无效或超过 186 天')
+      return
+    }
+    const success = await handleScan({
+      startDate,
+      endDate,
+      repositoryIds: filter.repositoryIds.length ? filter.repositoryIds : undefined,
+    })
+    if (success) {
+      setSyncModalOpen(false)
+      await handleSearch(appliedFilter)
+    }
+  }, [appliedFilter, filter.dateRange, filter.repositoryIds, handleScan, handleSearch, scanTimePreset])
+
+  const handleResetAndSearch = React.useCallback(() => {
+    const resetFilter = cloneFilter(defaultFilterState)
+    setFilter(resetFilter)
+    void handleSearch(resetFilter)
+  }, [handleSearch, setFilter])
+
   return (
-    <ScanProvider onScanComplete={handleSearch}>
-      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
-        <header
-          role="banner"
-          className="sticky top-0 z-[1000] h-12 w-full min-w-0 shrink-0"
-        />
-        <Modal
-          title="筛选扫描时间范围"
-          open={scanConfigOpen}
-          onCancel={() => setScanConfigOpen(false)}
-          footer={[
-            <Button key="cancel" onClick={() => setScanConfigOpen(false)}>
-              取消
-            </Button>,
-            <Button key="ok" type="primary" onClick={saveScanConfig}>
-              保存
-            </Button>,
-          ]}
-          destroyOnClose
-          width={420}
-        >
-          <p className="text-neutral-500 text-sm mb-3">
-            单选一项作为手动扫描的时间窗口；保存后主按钮会显示「手动扫描-」加选项名称（如
-            2 周内）。跨度不能超过 186
-            天（选「当前筛选日期」时请留意筛选区间）。
-          </p>
-          <Radio.Group
-            value={draftPreset}
-            onChange={(e) =>
-              setDraftPreset(e.target.value as ScanTimePresetKey)
-            }
-          >
-            <Space direction="vertical" size={10} className="w-full">
-              {SCAN_TIME_PRESET_OPTIONS.map((opt) => (
-                <Radio key={opt.value} value={opt.value} className="!mr-0">
-                  {opt.label}
-                </Radio>
-              ))}
-            </Space>
-          </Radio.Group>
-        </Modal>
-        <div className="flex-1 overflow-auto" style={{ padding: 16 }}>
-          <Card style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <StatisticsFilter onSearch={handleSearch} />
-              </div>
-              <ConfigProvider
-                theme={{
-                  token: {
-                    colorPrimary: "#ff9800",
-                    colorPrimaryHover: "#f57c00",
-                    colorPrimaryActive: "#e65100",
-                  },
-                }}
-              >
-                <Space.Compact>
-                  <Button
-                    type="primary"
-                    icon={<ReloadOutlined />}
-                    loading={scanning}
-                    disabled={scanning}
-                    onClick={handleManualScan}
-                  >
-                    {scanButtonLabel}
-                  </Button>
-                  <Dropdown
-                    menu={{ items: scanMenuItems, onClick: handleScanMenuClick }}
-                    placement="bottomRight"
-                  >
-                    <Button
-                      type="primary"
-                      icon={<DownOutlined />}
-                      loading={scanning}
-                      disabled={scanning}
-                      aria-label="扫描更多操作"
-                    />
-                  </Dropdown>
-                </Space.Compact>
-              </ConfigProvider>
+      <div className="h-full min-h-0 overflow-auto bg-[#f7f8fa] p-4">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <Typography.Title level={1} className="!mb-1 !text-2xl">提交记录工作台</Typography.Title>
+              <Typography.Text type="secondary">
+                按条件定位提交，查看代码活动趋势并复盘单日开发时间线
+              </Typography.Text>
+              {lastUpdatedAt ? (
+                <div className="mt-2 text-xs text-neutral-500">
+                  最近查询：{dayjs(lastUpdatedAt).format('YYYY-MM-DD HH:mm:ss')}
+                </div>
+              ) : null}
             </div>
+            <Button icon={<SyncOutlined />} onClick={() => setSyncModalOpen(true)}>
+              同步数据
+            </Button>
+          </div>
+
+          <Card className="[&_.ant-card-body]:p-4">
+            <StatisticsFilter onSearch={handleSearch} isDirty={isDirty} />
           </Card>
 
-          {hasSearched && !loading && commitsByDate.length === 0 ? (
-            <Card>
-              <Empty description="当前筛选条件下暂无提交记录" />
-            </Card>
-          ) : hasSearched ? (
-            <div>
-              {/* 第一行：代码提交数据（左）和工作状态统计（右） */}
-              <Row gutter={16} style={{ marginBottom: 16, marginLeft: 0, marginRight: 0 }}>
-                <Col span={12} style={{ paddingLeft: 0 }}>
-                  <StatisticsCards />
-                </Col>
-                <Col span={12} style={{ paddingRight: 0 }}>
-                  <WorkStatusCards data={commitsByDate} metricsConfig={metricsConfig} />
-                </Col>
-              </Row>
+          {loadError ? (
+            <Alert
+              type="error"
+              showIcon
+              message={loadError}
+              action={<Button size="small" icon={<ReloadOutlined />} onClick={() => handleSearch(appliedFilter)}>重新查询</Button>}
+            />
+          ) : null}
 
-              {/* 提交次数趋势图 */}
-              <Card style={{ marginBottom: 16 }}>
-                <WorkStatusReport data={commitsByDate} />
+          <Spin spinning={loading}>
+            {!loading && !loadError && commitsByDate.length === 0 ? (
+              <Card>
+                <Empty
+                  description="当前已应用筛选下没有匹配的提交"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                >
+                  <Button onClick={handleResetAndSearch}>重置并查询</Button>
+                </Empty>
               </Card>
+            ) : (
+              <Space direction="vertical" size={16} className="w-full">
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} xl={12}><StatisticsCards /></Col>
+                  <Col xs={24} xl={12}>
+                    <WorkStatusCards data={workStatusGroups} metricsConfig={metricsConfig} />
+                  </Col>
+                </Row>
 
-              {/* 提交记录列表 */}
-              <Card
-                title="提交记录（按日期分组）"
-                className="[&_.ant-card-body]:p-3"
-              >
-                <Spin spinning={loading}>
-                  <CommitsByDateList data={commitsByDate} loading={loading} metricsConfig={metricsConfig} />
-                </Spin>
-              </Card>
-            </div>
-          ) : (
-            <Card>
-              <Empty description="请选择时间范围和仓库，然后点击搜索按钮查看统计数据" />
-            </Card>
-          )}
+                <WorkStatusReport
+                  data={commitsByDate}
+                  dateRange={appliedFilter.dateRange}
+                  overtimeMode={appliedFilter.overtimeMode}
+                />
+
+                <Card
+                  title="提交明细"
+                  extra={isDirty ? <Tag color="warning">结果仍对应上一次已应用筛选</Tag> : null}
+                  className="[&_.ant-card-body]:p-0"
+                >
+                  <CommitsWorkbench data={commitsByDate} metricsConfig={metricsConfig} />
+                </Card>
+              </Space>
+            )}
+          </Spin>
+
+          <SyncDataModal
+            open={syncModalOpen}
+            loading={scanning}
+            preset={scanTimePreset}
+            dateRange={filter.dateRange}
+            repositoryIds={filter.repositoryIds}
+            repositories={repositories}
+            primaryTask={primaryTask}
+            onPresetChange={setScanTimePreset}
+            onCancel={() => setSyncModalOpen(false)}
+            onConfirm={handleSyncConfirm}
+          />
         </div>
       </div>
-    </ScanProvider>
   )
 }
 
