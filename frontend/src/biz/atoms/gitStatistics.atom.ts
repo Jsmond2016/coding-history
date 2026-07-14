@@ -6,13 +6,14 @@ import type {
   StatisticsByRepository,
   StatisticsByDate,
   Commit,
+  OvertimeMode,
 } from "../../types/gitStatistics"
 
 export interface FilterState {
   dateRange: [Dayjs, Dayjs];
   repositoryIds: string[];
   authorEmails: string[];
-  isOvertime?: boolean; // 筛选是否加班：undefined=全部，true=仅加班，false=非加班
+  overtimeMode: OvertimeMode;
 }
 
 // 默认筛选条件：最近一个月
@@ -20,7 +21,7 @@ export const defaultFilterState: FilterState = {
   dateRange: [dayjs().subtract(1, "month"), dayjs()],
   repositoryIds: [],
   authorEmails: [],
-  isOvertime: undefined
+  overtimeMode: 'all'
 };
 
 export const filterAtom = atom<FilterState>(defaultFilterState);
@@ -66,4 +67,3 @@ export const statisticsAtom = atom<StatisticsState>({
 export const repositoriesAtom = atom<Repository[]>([])
 
 export const authorsAtom = atom<Author[]>([])
-

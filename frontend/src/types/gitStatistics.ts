@@ -34,6 +34,19 @@ export interface Commit {
 }
 
 export type WorkStatus = 'relaxed' | 'normal' | 'busy' | 'crazy' | 'overtime' | 'superCrazyOvertime';
+export type OvertimeMode = 'all' | 'overtime_days' | 'overtime_commits' | 'non_overtime_days';
+
+export interface WorkStatusMetricsConfig {
+  overtimeHour: number;
+  thresholds: {
+    relaxed: number;
+    normal: number;
+    busy: number;
+    superCrazy: number;
+  };
+  labels: Record<WorkStatus, string>;
+  colors: Record<WorkStatus, string>;
+}
 
 export interface CommitsByDate {
   date: string; // YYYY-MM-DD
@@ -61,7 +74,7 @@ export interface CommitsByDateQuery {
   endDate: number;
   repositoryIds?: string[];
   authorEmails?: string[];
-  isOvertime?: boolean; // 筛选是否加班
+  overtimeMode?: OvertimeMode;
 }
 
 export interface CommitsResponse {
@@ -74,6 +87,7 @@ export interface CommitsResponse {
 export interface CommitsByDateResponse {
   data: CommitsByDate[];
   total: number;
+  metricsConfig: WorkStatusMetricsConfig;
 }
 
 export interface StatisticsByRepository {
@@ -125,15 +139,31 @@ export interface DataOverviewMetricWithMonth {
   latestCommitDate?: number | null;
 }
 
+export interface DataOverviewRepositoryMetric {
+  repoId: string;
+  repoName: string;
+  count: number;
+  insertions: number;
+  deletions: number;
+  filesChanged: number;
+}
+
+export interface DataOverviewOvertimeMonth {
+  month: string;
+  overtimeDays: number;
+  activeDays: number;
+  latestCommitDate: number | null;
+}
+
 export interface DataOverviewResponse {
-  topCommitRepository: DataOverviewMetricWithRepo | null;
-  topCommitMonth: DataOverviewMetricWithMonth | null;
-  topOvertimeRepository: DataOverviewMetricWithRepo | null;
-  topOvertimeMonth: DataOverviewMetricWithMonth | null;
+  repositoryDistribution: DataOverviewRepositoryMetric[];
+  topOvertimeMonth: DataOverviewOvertimeMonth | null;
   totals: {
     commits: number;
     overtimeCommits: number;
+    overtimeDays: number;
     repositories: number;
-    activeMonths: number;
+    activeDays: number;
   };
+  metricsConfig: WorkStatusMetricsConfig;
 }

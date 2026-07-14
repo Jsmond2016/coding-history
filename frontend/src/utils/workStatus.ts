@@ -1,4 +1,4 @@
-import type { WorkStatus } from '../../types/gitStatistics';
+import type { WorkStatus } from '../types/gitStatistics';
 
 /**
  * 将工作状态转换为数值（用于图表展示）
@@ -58,4 +58,3 @@ export function isBusyStatus(status: WorkStatus): boolean {
 export function isOvertimeStatus(status: WorkStatus): boolean {
   return ['overtime', 'superCrazyOvertime'].includes(status);
 }
-

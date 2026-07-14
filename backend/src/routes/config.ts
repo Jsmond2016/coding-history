@@ -322,7 +322,7 @@ app.put('/repositories/:id', zValidator('json', UpdateRepositorySchema), async (
   }
 });
 
-// 批量删除仓库配置（先删该仓库下的提交记录，因 DB 中外键为 ON DELETE RESTRICT）
+// 永久删除仓库及其历史提交；保留历史数据时应使用 enabled=false 停用仓库。
 app.post('/repositories/batch-delete', zValidator('json', BatchDeleteRepositoriesSchema), async (c) => {
   try {
     const { ids } = c.req.valid('json');
@@ -340,7 +340,7 @@ app.post('/repositories/batch-delete', zValidator('json', BatchDeleteRepositorie
   }
 });
 
-// 删除仓库配置（先删该仓库下的提交记录，因 DB 中外键为 ON DELETE RESTRICT）
+// 永久删除单个仓库及其历史提交。
 app.delete('/repositories/:id', async (c) => {
   try {
     const repoId = c.req.param('id');

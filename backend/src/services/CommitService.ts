@@ -4,6 +4,38 @@ import { calculateWorkStatus, type WorkStatus, type WorkStatusConfig } from '../
 import { DataMetricsConfigService } from './DataMetricsConfigService.js';
 import { logger } from '../config/logger.js';
 
+const SHANGHAI_TIME_ZONE = 'Asia/Shanghai';
+const shanghaiDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: SHANGHAI_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+const shanghaiTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: SHANGHAI_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23'
+});
+const shanghaiHourFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: SHANGHAI_TIME_ZONE,
+  hour: '2-digit',
+  hourCycle: 'h23'
+});
+
+function formatShanghaiDate(timestamp: number): string {
+  return shanghaiDateFormatter.format(new Date(timestamp));
+}
+
+function formatShanghaiTime(timestamp: number): string {
+  return shanghaiTimeFormatter.format(new Date(timestamp));
+}
+
+function getShanghaiHour(timestamp: number): number {
+  const hour = shanghaiHourFormatter.format(new Date(timestamp));
+  return Number(hour);
+}
+
 /**
  * 扫描入库的「时间起点」补洞：
  * 若仅用「最近 N 天」作为 git --since，一旦中间几天同步失败，窗口会向前滑，
@@ -195,19 +227,15 @@ export class CommitService {
   /**
    * 检查提交是否为加班（根据配置的加班时间阈值）
    */
-  private async isOvertimeCommit(commitDate: number): Promise<boolean> {
-    const config = await this.dataMetricsConfigService.getConfig();
-    const date = new Date(commitDate);
-    const hour = date.getHours();
-    return hour >= config.overtimeHour;
+  private isOvertimeCommit(commitDate: number, overtimeHour: number): boolean {
+    return getShanghaiHour(commitDate) >= overtimeHour;
   }
 
   /**
    * 格式化时间为 HH:mm
    */
   private formatTime(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toTimeString().slice(0, 5); // HH:mm
+    return formatShanghaiTime(timestamp);
   }
 
   /**
@@ -218,9 +246,9 @@ export class CommitService {
     endDate: number;
     repositoryIds?: string[];
     authorEmails?: string[];
-    isOvertime?: boolean; // 筛选是否加班
-  }): Promise<{ data: CommitsByDate[]; total: number }> {
-    const { startDate, endDate, repositoryIds, authorEmails, isOvertime } = params;
+    overtimeMode?: 'all' | 'overtime_days' | 'overtime_commits' | 'non_overtime_days';
+  }) {
+    const { startDate, endDate, repositoryIds, authorEmails, overtimeMode = 'all' } = params;
 
     const where: any = {
       commitDate: {
@@ -252,7 +280,7 @@ export class CommitService {
     const commitsWithOvertime: CommitWithOvertime[] = await Promise.all(
       commits.map(async (commit) => {
           const commitDate = Number(commit.commitDate);
-          const isOvertimeCommit = await this.isOvertimeCommit(commitDate);
+          const isOvertimeCommit = this.isOvertimeCommit(commitDate, dataMetricsConfig.overtimeHour);
 
           return {
             id: commit.id,
@@ -280,7 +308,7 @@ export class CommitService {
     const seenCommitsInDate = new Map<string, Map<string, CommitWithOvertime>>(); // date -> Map<repoId:commitHash, commit>
     
     commitsWithOvertime.forEach(commit => {
-      const date = new Date(commit.commitDate).toISOString().split('T')[0]; // YYYY-MM-DD
+      const date = formatShanghaiDate(commit.commitDate);
       const commitKey = `${commit.repoId}:${commit.commitHash}`;
       
       // 初始化该日期的已见 commit Map
@@ -316,8 +344,7 @@ export class CommitService {
     });
 
     // 转换为数组并计算每天的加班情况和工作状态
-    let data: CommitsByDate[] = Array.from(commitsByDateMap.entries())
-      .map(([date, commits]) => {
+    const buildDateGroup = (date: string, commits: CommitWithOvertime[]): CommitsByDate => {
         // 获取当天所有加班提交的时间点（最多5个，按时间降序）
         const overtimeCommits = commits.filter(c => c.isOvertime);
         const overtimeTimes = overtimeCommits
@@ -368,24 +395,29 @@ export class CommitService {
           repositories,
           branches
         };
-      })
+      };
+
+    let data: CommitsByDate[] = Array.from(commitsByDateMap.entries())
+      .map(([date, commits]) => buildDateGroup(date, commits))
       .sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序
 
-    // 根据 isOvertime 参数筛选日期（而不是筛选提交记录）
-    // 筛选逻辑：基于天数，而不是基于提交记录
-    // - isOvertime === true: 只返回包含至少一条加班提交的天数（但该天的所有提交记录都返回）
-    // - isOvertime === false: 只返回不包含任何加班提交的天数（但该天的所有提交记录都返回）
-    if (isOvertime !== undefined) {
-      data = data.filter(dateGroup => {
-        const hasOvertime = dateGroup.overtimeCount > 0;
-        return isOvertime ? hasOvertime : !hasOvertime;
-      });
+    if (overtimeMode === 'overtime_days') {
+      data = data.filter(dateGroup => dateGroup.overtimeCount > 0);
+    } else if (overtimeMode === 'non_overtime_days') {
+      data = data.filter(dateGroup => dateGroup.overtimeCount === 0);
+    } else if (overtimeMode === 'overtime_commits') {
+      data = data
+        .map(dateGroup => buildDateGroup(
+          dateGroup.date,
+          dateGroup.commits.filter(commit => commit.isOvertime)
+        ))
+        .filter(dateGroup => dateGroup.totalCommits > 0);
     }
 
     // 计算总提交数（用于返回）
     const totalCommits = data.reduce((sum, dateGroup) => sum + dateGroup.totalCommits, 0);
 
-    return { data, total: totalCommits };
+    return { data, total: totalCommits, metricsConfig: dataMetricsConfig };
   }
 
   /**
@@ -524,7 +556,7 @@ export class CommitService {
     const queryParams: any[] = [];
     let byDateQuery = `
       SELECT
-        DATE(commit_date / 1000, 'unixepoch') as date,
+        DATE(commit_date / 1000, 'unixepoch', '+8 hours') as date,
         COUNT(*) as commits,
         SUM(insertions) as insertions,
         SUM(deletions) as deletions
@@ -575,40 +607,7 @@ export class CommitService {
     startDate: number;
     endDate: number;
     authorEmails?: string[];
-  }): Promise<{
-    topCommitRepository: {
-      repoId: string;
-      repoName: string;
-      count: number;
-      insertions: number;
-      deletions: number;
-      filesChanged: number;
-    } | null;
-    topCommitMonth: {
-      month: string;
-      count: number;
-      insertions: number;
-      deletions: number;
-      filesChanged: number;
-    } | null;
-    topOvertimeRepository: {
-      repoId: string;
-      repoName: string;
-      count: number;
-      latestCommitDate: number | null;
-    } | null;
-    topOvertimeMonth: {
-      month: string;
-      count: number;
-      latestCommitDate: number | null;
-    } | null;
-    totals: {
-      commits: number;
-      overtimeCommits: number;
-      repositories: number;
-      activeMonths: number;
-    };
-  }> {
+  }) {
     const { startDate, endDate, authorEmails } = params;
     const queryParams: any[] = [BigInt(startDate), BigInt(endDate)];
     let authorClause = '';
@@ -619,15 +618,14 @@ export class CommitService {
       queryParams.push(...authorEmails);
     }
 
-    const overtimeHour = (await this.dataMetricsConfigService.getConfig()).overtimeHour;
+    const metricsConfig = await this.dataMetricsConfigService.getConfig();
+    const overtimeHour = metricsConfig.overtimeHour;
     const baseWhere = `
       c.commit_date >= ?
       AND c.commit_date <= ?
       ${authorClause}
     `;
-    const overtimeCondition = `CAST(strftime('%H', c.commit_date / 1000, 'unixepoch', 'localtime') AS INTEGER) >= ?`;
-
-    const topCommitRepositoryRows = await prisma.$queryRawUnsafe<Array<{
+    const repositoryDistributionRows = await prisma.$queryRawUnsafe<Array<{
       repoId: string;
       repoName: string;
       count: bigint;
@@ -647,116 +645,75 @@ export class CommitService {
       WHERE ${baseWhere}
       GROUP BY c.repo_id, r.name
       ORDER BY count DESC, repoName ASC
-      LIMIT 1
     `, ...queryParams);
-
-    const topCommitMonthRows = await prisma.$queryRawUnsafe<Array<{
-      month: string;
-      count: bigint;
-      insertions: bigint | null;
-      deletions: bigint | null;
-      filesChanged: bigint | null;
-    }>>(`
-      SELECT
-        strftime('%Y-%m', c.commit_date / 1000, 'unixepoch', 'localtime') as month,
-        COUNT(*) as count,
-        SUM(c.insertions) as insertions,
-        SUM(c.deletions) as deletions,
-        SUM(c.files_changed) as filesChanged
-      FROM commits c
-      WHERE ${baseWhere}
-      GROUP BY month
-      ORDER BY count DESC, month DESC
-      LIMIT 1
-    `, ...queryParams);
-
-    const overtimeParams = [...queryParams, overtimeHour];
-    const topOvertimeRepositoryRows = await prisma.$queryRawUnsafe<Array<{
-      repoId: string;
-      repoName: string;
-      count: bigint;
-      latestCommitDate: bigint | null;
-    }>>(`
-      SELECT
-        c.repo_id as repoId,
-        r.name as repoName,
-        COUNT(*) as count,
-        MAX(c.commit_date) as latestCommitDate
-      FROM commits c
-      INNER JOIN repositories r ON r.id = c.repo_id
-      WHERE ${baseWhere}
-        AND ${overtimeCondition}
-      GROUP BY c.repo_id, r.name
-      ORDER BY count DESC, repoName ASC
-      LIMIT 1
-    `, ...overtimeParams);
 
     const topOvertimeMonthRows = await prisma.$queryRawUnsafe<Array<{
       month: string;
-      count: bigint;
+      overtimeDays: bigint;
+      activeDays: bigint;
       latestCommitDate: bigint | null;
     }>>(`
+      WITH scoped AS (
+        SELECT
+          c.commit_date as commitDate,
+          strftime('%Y-%m', c.commit_date / 1000, 'unixepoch', '+8 hours') as month,
+          strftime('%Y-%m-%d', c.commit_date / 1000, 'unixepoch', '+8 hours') as commitDay,
+          CASE WHEN CAST(strftime('%H', c.commit_date / 1000, 'unixepoch', '+8 hours') AS INTEGER) >= ?
+            THEN 1 ELSE 0 END as isOvertime
+        FROM commits c
+        WHERE ${baseWhere}
+      )
       SELECT
-        strftime('%Y-%m', c.commit_date / 1000, 'unixepoch', 'localtime') as month,
-        COUNT(DISTINCT strftime('%Y-%m-%d', c.commit_date / 1000, 'unixepoch', 'localtime')) as count,
-        MAX(c.commit_date) as latestCommitDate
-      FROM commits c
-      WHERE ${baseWhere}
-        AND ${overtimeCondition}
+        month,
+        COUNT(DISTINCT commitDay) as activeDays,
+        COUNT(DISTINCT CASE WHEN isOvertime = 1 THEN commitDay END) as overtimeDays,
+        MAX(CASE WHEN isOvertime = 1 THEN commitDate END) as latestCommitDate
+      FROM scoped
       GROUP BY month
-      ORDER BY count DESC, month DESC
+      HAVING overtimeDays > 0
+      ORDER BY overtimeDays DESC, month DESC
       LIMIT 1
-    `, ...overtimeParams);
+    `, overtimeHour, ...queryParams);
 
     const totalsRows = await prisma.$queryRawUnsafe<Array<{
       commits: bigint;
       overtimeCommits: bigint;
+      overtimeDays: bigint;
       repositories: bigint;
-      activeMonths: bigint;
+      activeDays: bigint;
     }>>(`
+      WITH scoped AS (
+        SELECT
+          c.repo_id as repoId,
+          strftime('%Y-%m-%d', c.commit_date / 1000, 'unixepoch', '+8 hours') as commitDay,
+          CASE WHEN CAST(strftime('%H', c.commit_date / 1000, 'unixepoch', '+8 hours') AS INTEGER) >= ?
+            THEN 1 ELSE 0 END as isOvertime
+        FROM commits c
+        WHERE ${baseWhere}
+      )
       SELECT
         COUNT(*) as commits,
-        SUM(CASE WHEN ${overtimeCondition} THEN 1 ELSE 0 END) as overtimeCommits,
-        COUNT(DISTINCT c.repo_id) as repositories,
-        COUNT(DISTINCT strftime('%Y-%m', c.commit_date / 1000, 'unixepoch', 'localtime')) as activeMonths
-      FROM commits c
-      WHERE ${baseWhere}
+        SUM(isOvertime) as overtimeCommits,
+        COUNT(DISTINCT CASE WHEN isOvertime = 1 THEN commitDay END) as overtimeDays,
+        COUNT(DISTINCT repoId) as repositories,
+        COUNT(DISTINCT commitDay) as activeDays
+      FROM scoped
     `, overtimeHour, ...queryParams);
 
-    const topCommitRepository = topCommitRepositoryRows[0]
-      ? {
-          repoId: topCommitRepositoryRows[0].repoId,
-          repoName: topCommitRepositoryRows[0].repoName,
-          count: Number(topCommitRepositoryRows[0].count),
-          insertions: topCommitRepositoryRows[0].insertions ? Number(topCommitRepositoryRows[0].insertions) : 0,
-          deletions: topCommitRepositoryRows[0].deletions ? Number(topCommitRepositoryRows[0].deletions) : 0,
-          filesChanged: topCommitRepositoryRows[0].filesChanged ? Number(topCommitRepositoryRows[0].filesChanged) : 0
-        }
-      : null;
-
-    const topCommitMonth = topCommitMonthRows[0]
-      ? {
-          month: topCommitMonthRows[0].month,
-          count: Number(topCommitMonthRows[0].count),
-          insertions: topCommitMonthRows[0].insertions ? Number(topCommitMonthRows[0].insertions) : 0,
-          deletions: topCommitMonthRows[0].deletions ? Number(topCommitMonthRows[0].deletions) : 0,
-          filesChanged: topCommitMonthRows[0].filesChanged ? Number(topCommitMonthRows[0].filesChanged) : 0
-        }
-      : null;
-
-    const topOvertimeRepository = topOvertimeRepositoryRows[0]
-      ? {
-          repoId: topOvertimeRepositoryRows[0].repoId,
-          repoName: topOvertimeRepositoryRows[0].repoName,
-          count: Number(topOvertimeRepositoryRows[0].count),
-          latestCommitDate: topOvertimeRepositoryRows[0].latestCommitDate ? Number(topOvertimeRepositoryRows[0].latestCommitDate) : null
-        }
-      : null;
+    const repositoryDistribution = repositoryDistributionRows.map(row => ({
+      repoId: row.repoId,
+      repoName: row.repoName,
+      count: Number(row.count),
+      insertions: Number(row.insertions ?? 0),
+      deletions: Number(row.deletions ?? 0),
+      filesChanged: Number(row.filesChanged ?? 0)
+    }));
 
     const topOvertimeMonth = topOvertimeMonthRows[0]
       ? {
           month: topOvertimeMonthRows[0].month,
-          count: Number(topOvertimeMonthRows[0].count),
+          overtimeDays: Number(topOvertimeMonthRows[0].overtimeDays),
+          activeDays: Number(topOvertimeMonthRows[0].activeDays),
           latestCommitDate: topOvertimeMonthRows[0].latestCommitDate ? Number(topOvertimeMonthRows[0].latestCommitDate) : null
         }
       : null;
@@ -765,22 +722,23 @@ export class CommitService {
       ? {
           commits: Number(totalsRows[0].commits),
           overtimeCommits: Number(totalsRows[0].overtimeCommits ?? 0),
+          overtimeDays: Number(totalsRows[0].overtimeDays),
           repositories: Number(totalsRows[0].repositories),
-          activeMonths: Number(totalsRows[0].activeMonths)
+          activeDays: Number(totalsRows[0].activeDays)
         }
       : {
           commits: 0,
           overtimeCommits: 0,
+          overtimeDays: 0,
           repositories: 0,
-          activeMonths: 0
+          activeDays: 0
         };
 
     return {
-      topCommitRepository,
-      topCommitMonth,
-      topOvertimeRepository,
+      repositoryDistribution,
       topOvertimeMonth,
-      totals
+      totals,
+      metricsConfig
     };
   }
 }

@@ -19,7 +19,8 @@ export const CommitsByDateQuerySchema = z.object({
   isOvertime: z.string().optional().transform(val => {
     if (val === undefined || val === '') return undefined;
     return val === 'true';
-  })
+  }),
+  overtimeMode: z.enum(['all', 'overtime_days', 'overtime_commits', 'non_overtime_days']).optional()
 });
 
 const MAX_SCAN_RANGE_MS = 186 * 24 * 60 * 60 * 1000; // 与任务自定义范围一致，约 6 个月
@@ -116,4 +117,3 @@ export type LogsQuery = z.infer<typeof LogsQuerySchema>;
 export type CreateScanTask = z.infer<typeof CreateScanTaskSchema>;
 export type UpdateScanTask = z.infer<typeof UpdateScanTaskSchema>;
 export type TriggerTask = z.infer<typeof TriggerTaskSchema>;
-

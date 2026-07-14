@@ -26,8 +26,7 @@ import {
   updateBackupDir,
   updateBackupCron,
   type RepositoryConfig,
-  type CommitDateRange,
-  type AbnormalRepository
+  type CommitDateRange
 } from '../../services/configApi';
 import RepositoryForm from './components/RepositoryForm';
 import AuthorsManager from './components/AuthorsManager';
@@ -53,7 +52,6 @@ const ConfigList: React.FC = () => {
   const [backupDir, setBackupDir] = React.useState('');
   const [backupCron, setBackupCron] = React.useState<string | null>(null);
   const [backupDirEditing, setBackupDirEditing] = React.useState('');
-  const [loadingConfig, setLoadingConfig] = React.useState(false);
   const [savingDir, setSavingDir] = React.useState(false);
   const [backupCronEditing, setBackupCronEditing] = React.useState('');
   const [savingCron, setSavingCron] = React.useState(false);
@@ -205,7 +203,6 @@ const ConfigList: React.FC = () => {
   // 打开备份配置弹窗
   const handleOpenBackupModal = async () => {
     setBackupModalOpen(true);
-    setLoadingConfig(true);
     try {
       const config = await getBackupConfig();
       setBackupDir(config.backupDir);
@@ -215,7 +212,6 @@ const ConfigList: React.FC = () => {
     } catch {
       message.error('获取备份配置失败');
     } finally {
-      setLoadingConfig(false);
     }
   };
 
@@ -399,10 +395,12 @@ const ConfigList: React.FC = () => {
             编辑
           </Button>
           <Popconfirm
-            title="确定要删除这个仓库吗？"
+            title={`永久删除仓库「${record.name}」？`}
+            description="将同时删除作者配置和全部历史提交；如需保留历史数据，请改为停用仓库。"
             onConfirm={() => handleDelete(record.id)}
-            okText="确定"
+            okText="永久删除"
             cancelText="取消"
+            okButtonProps={{ danger: true }}
           >
             <Button
               type="link"
@@ -435,10 +433,10 @@ const ConfigList: React.FC = () => {
             </Title>
             <Space>
               <Popconfirm
-                title={`确定要删除选中的 ${selectedRowKeys.length} 个仓库吗？`}
-                description="删除后相关提交记录仍保留在数据库中，仅移除仓库配置。"
+                title={`永久删除选中的 ${selectedRowKeys.length} 个仓库？`}
+                description="将同时删除这些仓库的作者配置和全部历史提交；如需保留历史数据，请改为停用仓库。"
                 onConfirm={handleBatchDelete}
-                okText="确定删除"
+                okText="永久删除"
                 cancelText="取消"
                 okButtonProps={{ danger: true }}
               >

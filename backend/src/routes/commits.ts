@@ -16,13 +16,20 @@ app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => 
     endDate: query.endDate,
     repositoryIds: query.repositoryIds,
     authorEmails: query.authorEmails,
-    isOvertime: query.isOvertime
+    overtimeMode: query.overtimeMode ?? (
+      query.isOvertime === true
+        ? 'overtime_days'
+        : query.isOvertime === false
+          ? 'non_overtime_days'
+          : 'all'
+    )
   });
 
 
   return c.json({
     data: result.data,
-    total: result.total
+    total: result.total,
+    metricsConfig: result.metricsConfig
   });
 });
 
@@ -62,4 +69,3 @@ app.get('/', zValidator('query', CommitsQuerySchema), async (c) => {
 });
 
 export default app;
-

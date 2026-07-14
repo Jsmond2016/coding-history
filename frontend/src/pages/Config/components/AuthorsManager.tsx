@@ -1,9 +1,8 @@
 import React from 'react';
-import { Table, Button, Space, Popconfirm, message, Form, Input, Switch, Modal, Tag } from 'antd';
+import { Table, Button, Popconfirm, message, Form, Input, Switch, Modal, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import {
-  getAuthors,
   createAuthor,
   deleteAuthor,
   type AuthorConfig,
@@ -45,8 +44,8 @@ const AuthorsManager: React.FC<AuthorsManagerProps> = ({
       message.success('作者添加成功');
       setModalOpen(false);
       onUpdate();
-    } catch (error) {
-      if (error?.errorFields) {
+    } catch (error: unknown) {
+      if (typeof error === 'object' && error !== null && 'errorFields' in error) {
         return;
       }
       message.error('添加作者失败');
@@ -172,4 +171,3 @@ const AuthorsManager: React.FC<AuthorsManagerProps> = ({
 };
 
 export default AuthorsManager;
-

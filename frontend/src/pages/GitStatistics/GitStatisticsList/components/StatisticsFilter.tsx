@@ -7,6 +7,7 @@ import {
   filterAtom,
   repositoriesAtom,
   authorsAtom,
+  type FilterState,
 } from "../../../../biz/atoms/gitStatistics.atom"
 import type { Repository, Author } from "../../../../types/gitStatistics"
 
@@ -14,7 +15,7 @@ const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 interface StatisticsFilterProps {
-  onSearch: (customFilter?: { dateRange: [Dayjs, Dayjs]; repositoryIds: string[]; authorEmails: string[]; isOvertime?: boolean }) => void;
+  onSearch: (customFilter?: FilterState) => void;
 }
 
 export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) => {
@@ -43,7 +44,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
       dateRange: [dayjs().subtract(1, "month"), dayjs()] as [Dayjs, Dayjs],
       repositoryIds: [] as string[],
       authorEmails: [] as string[],
-      isOvertime: undefined as boolean | undefined
+      overtimeMode: 'all' as const
     };
     setFilter(resetFilter);
     message.success("已重置筛选条件");
@@ -104,19 +105,19 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
       </Select>
 
       <Select
-        placeholder="加班"
-        value={filter.isOvertime === undefined ? null : filter.isOvertime}
-        onChange={(value) => {
+        value={filter.overtimeMode}
+        onChange={(overtimeMode) => {
           setFilter({
             ...filter,
-            isOvertime: value === null || value === undefined ? undefined : value,
+            overtimeMode,
           })
         }}
-        style={{ width: 100 }}
-        allowClear
+        style={{ width: 130 }}
       >
-        <Option value={true}>仅加班</Option>
-        <Option value={false}>非加班</Option>
+        <Option value="all">全部提交</Option>
+        <Option value="overtime_days">加班日期</Option>
+        <Option value="overtime_commits">加班提交</Option>
+        <Option value="non_overtime_days">非加班日期</Option>
       </Select>
       
       <Button 
@@ -136,4 +137,3 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch }) 
     </Space>
   );
 };
-

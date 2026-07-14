@@ -36,6 +36,7 @@ import {
 } from "../../../biz/atoms/gitStatistics.atom"
 import { gitStatisticsApi } from "../../../services/gitStatisticsApi"
 import type { CommitsByDate } from "../../../types/gitStatistics"
+import type { WorkStatusMetricsConfig } from "../../../types/gitStatistics"
 import { ScanProvider } from "../../../biz/contexts/ScanContext"
 import { useScan } from "../../../biz/hooks/useScan"
 import {
@@ -54,6 +55,7 @@ const GitStatisticsList: React.FC = () => {
   const [hasSearched, setHasSearched] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
+  const [metricsConfig, setMetricsConfig] = React.useState<WorkStatusMetricsConfig | null>(null)
   const { scanning, handleScan } = useScan()
   const [scanTimePreset, setScanTimePreset] =
     React.useState<ScanTimePresetKey>("three_days")
@@ -121,31 +123,59 @@ const GitStatisticsList: React.FC = () => {
         currentFilter.authorEmails.length > 0
           ? currentFilter.authorEmails
           : undefined
-      const isOvertime = currentFilter.isOvertime
+      const overtimeMode = currentFilter.overtimeMode
 
       setLoading(true)
       setHasSearched(true)
 
       try {
-        // 并行加载提交记录和统计数据
-        const [commitsByDateResult, statisticsResult] = await Promise.all([
-          gitStatisticsApi.getCommitsByDate({
-            startDate,
-            endDate,
-            repositoryIds,
-            authorEmails,
-            isOvertime,
-          }),
-          gitStatisticsApi.getStatistics({
-            startDate,
-            endDate,
-            repositoryIds,
-            authorEmails,
-          }),
-        ])
+        const commitsByDateResult = await gitStatisticsApi.getCommitsByDate({
+          startDate,
+          endDate,
+          repositoryIds,
+          authorEmails,
+          overtimeMode,
+        })
 
-        setCommitsByDate(commitsByDateResult?.data ?? [])
-        setStatistics(statisticsResult ?? { totalCommits: 0, totalInsertions: 0, totalDeletions: 0, totalFilesChanged: 0, byRepository: [], byDate: [] })
+        const groups = commitsByDateResult?.data ?? []
+        const visibleCommits = groups.flatMap((group) => group.commits)
+        const byRepositoryMap = new Map<string, {
+          repoId: string
+          repoName: string
+          commits: number
+          insertions: number
+          deletions: number
+        }>()
+
+        visibleCommits.forEach((commit) => {
+          const current = byRepositoryMap.get(commit.repoId) ?? {
+            repoId: commit.repoId,
+            repoName: commit.repoName,
+            commits: 0,
+            insertions: 0,
+            deletions: 0,
+          }
+          current.commits += 1
+          current.insertions += commit.insertions
+          current.deletions += commit.deletions
+          byRepositoryMap.set(commit.repoId, current)
+        })
+
+        setCommitsByDate(groups)
+        setMetricsConfig(commitsByDateResult.metricsConfig)
+        setStatistics({
+          totalCommits: visibleCommits.length,
+          totalInsertions: visibleCommits.reduce((sum, commit) => sum + commit.insertions, 0),
+          totalDeletions: visibleCommits.reduce((sum, commit) => sum + commit.deletions, 0),
+          totalFilesChanged: visibleCommits.reduce((sum, commit) => sum + commit.filesChanged, 0),
+          byRepository: Array.from(byRepositoryMap.values()),
+          byDate: groups.map((group) => ({
+            date: group.date,
+            commits: group.totalCommits,
+            insertions: group.commits.reduce((sum, commit) => sum + commit.insertions, 0),
+            deletions: group.commits.reduce((sum, commit) => sum + commit.deletions, 0),
+          })),
+        })
       } catch (error) {
         console.error("[Frontend] Search error:", error)
         message.error("加载数据失败")
@@ -268,7 +298,7 @@ const GitStatisticsList: React.FC = () => {
                   <StatisticsCards />
                 </Col>
                 <Col span={12} style={{ paddingRight: 0 }}>
-                  <WorkStatusCards data={commitsByDate} />
+                  <WorkStatusCards data={commitsByDate} metricsConfig={metricsConfig} />
                 </Col>
               </Row>
 
@@ -283,7 +313,7 @@ const GitStatisticsList: React.FC = () => {
                 className="[&_.ant-card-body]:p-3"
               >
                 <Spin spinning={loading}>
-                  <CommitsByDateList data={commitsByDate} loading={loading} />
+                  <CommitsByDateList data={commitsByDate} loading={loading} metricsConfig={metricsConfig} />
                 </Spin>
               </Card>
             </div>

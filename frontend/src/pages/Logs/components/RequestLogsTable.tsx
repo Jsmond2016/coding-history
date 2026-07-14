@@ -1,7 +1,7 @@
 import React from 'react';
 import { Table, Tag, Space, Popover } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { RequestLog } from '../../../../types/logs';
+import type { RequestLog } from '../../../types/logs';
 import dayjs from 'dayjs';
 
 interface RequestLogsTableProps {
@@ -174,4 +174,3 @@ const RequestLogsTable: React.FC<RequestLogsTableProps> = ({ data, loading, pagi
 };
 
 export default RequestLogsTable;
-

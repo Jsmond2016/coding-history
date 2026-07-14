@@ -3,7 +3,7 @@ import { Card, Row, Col, Statistic, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import { Line } from '@ant-design/charts';
 import dayjs from 'dayjs';
-import type { CommitsByDate } from '../../../../types/gitStatistics';
+import type { CommitsByDate, WorkStatusMetricsConfig } from '../../../../types/gitStatistics';
 import { isRelaxedStatus, isBusyStatus, isOvertimeStatus } from '../../../../utils/workStatus';
 
 interface WorkStatusReportProps {
@@ -11,7 +11,10 @@ interface WorkStatusReportProps {
 }
 
 // 工作状态统计卡片组件（单独导出，用于第一行布局）
-export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) => {
+export const WorkStatusCards: React.FC<{
+  data: CommitsByDate[];
+  metricsConfig: WorkStatusMetricsConfig | null;
+}> = ({ data, metricsConfig }) => {
   // 如果没有数据，返回空
   if (!data || data.length === 0) {
     return null;
@@ -43,8 +46,8 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
           <Statistic
             title={
               <span>
-                轻松天数
-                <Tooltip title="当日提交次数 < 6 次，且无加班记录">
+                {metricsConfig?.labels.relaxed ?? '轻松'}天数
+                <Tooltip title={`当日提交次数 < ${metricsConfig?.thresholds.relaxed ?? 6} 次，且无加班记录`}>
                   <QuestionCircleOutlined className="ml-1 text-gray-400 text-xs" />
                 </Tooltip>
               </span>
@@ -59,7 +62,7 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
             title={
               <span>
                 忙碌天数
-                <Tooltip title="当日提交次数 >= 10 次且 < 15 次，或 >= 15 次且 < 20 次（疯狂）">
+                <Tooltip title={`当日提交次数 >= ${metricsConfig?.thresholds.normal ?? 10} 次，或达到更高工作强度`}>
                   <QuestionCircleOutlined className="ml-1 text-gray-400 text-xs" />
                 </Tooltip>
               </span>
@@ -71,7 +74,7 @@ export const WorkStatusCards: React.FC<{ data: CommitsByDate[] }> = ({ data }) =
         </Col>
         <Col span={6}>
           <Statistic
-            title="加班天数"
+            title={`${metricsConfig?.labels.overtime ?? '加班'}天数（${metricsConfig?.overtimeHour ?? 19}:00 后）`}
             value={overtimeDays}
             valueStyle={{ color: '#ff4d4f' }}
             suffix={<span style={{ fontSize: 14 }}>({overtimePercentage}%)</span>}
@@ -154,4 +157,3 @@ export const WorkStatusReport: React.FC<WorkStatusReportProps> = ({ data }) => {
     </Card>
   );
 };
-

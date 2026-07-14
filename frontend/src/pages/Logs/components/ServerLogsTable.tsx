@@ -1,7 +1,7 @@
 import React from 'react';
 import { Table, Tag, Space } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { ServerLog } from '../../../../types/logs';
+import type { ServerLog } from '../../../types/logs';
 import dayjs from 'dayjs';
 
 interface ServerLogsTableProps {
@@ -119,4 +119,3 @@ const ServerLogsTable: React.FC<ServerLogsTableProps> = ({ data, loading, pagina
 };
 
 export default ServerLogsTable;
-

@@ -2,7 +2,7 @@ import React from 'react';
 import { Collapse, Tag, Tooltip, Space, Typography, Tabs, Timeline } from 'antd';
 import { ClockCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import type { CommitsByDate, Commit, WorkStatus } from '../../../../types/gitStatistics';
+import type { CommitsByDate, Commit, WorkStatus, WorkStatusMetricsConfig } from '../../../../types/gitStatistics';
 
 const { Panel } = Collapse;
 const { Text } = Typography;
@@ -19,13 +19,26 @@ const workStatusLabels: Record<WorkStatus, string> = {
 };
 
 // 工作状态提示文本
-const workStatusTips: Record<WorkStatus, string> = {
-  relaxed: '当日提交次数 < 6 次，且无加班记录',
-  normal: '当日提交次数 >= 6 次且 < 10 次，且无加班记录',
-  busy: '当日提交次数 >= 10 次且 < 15 次，且无加班记录',
-  crazy: '当日提交次数 >= 15 次且 < 20 次，且无加班记录',
-  overtime: '当日有提交时间 >= 19:00 的记录',
-  superCrazyOvertime: '当日提交次数 >= 20 次，且有加班记录'
+const getWorkStatusTip = (
+  status: WorkStatus,
+  metricsConfig: WorkStatusMetricsConfig | null,
+): string => {
+  const thresholds = metricsConfig?.thresholds ?? {
+    relaxed: 6,
+    normal: 10,
+    busy: 15,
+    superCrazy: 20,
+  };
+  const overtimeHour = metricsConfig?.overtimeHour ?? 19;
+  const tips: Record<WorkStatus, string> = {
+    relaxed: `当日提交次数 < ${thresholds.relaxed} 次，且无加班记录`,
+    normal: `当日提交次数 >= ${thresholds.relaxed} 次且 < ${thresholds.normal} 次，且无加班记录`,
+    busy: `当日提交次数 >= ${thresholds.normal} 次且 < ${thresholds.busy} 次，且无加班记录`,
+    crazy: `当日提交次数 >= ${thresholds.busy} 次，且无加班记录`,
+    overtime: `当日有提交时间达到 ${overtimeHour}:00 的记录`,
+    superCrazyOvertime: `当日提交次数 >= ${thresholds.superCrazy} 次，且有加班记录`,
+  };
+  return tips[status];
 };
 
 // 工作状态标签颜色
@@ -41,6 +54,7 @@ const workStatusColors: Record<WorkStatus, string> = {
 interface CommitsByDateListProps {
   data: CommitsByDate[];
   loading: boolean;
+  metricsConfig?: WorkStatusMetricsConfig | null;
 }
 
 const OVERVIEW_TAB_KEY = '__overview__';
@@ -157,7 +171,7 @@ function buildCommitTimelineItem(
   };
 }
 
-export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, loading }) => {
+export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, loading, metricsConfig = null }) => {
   if (loading) {
     return <div className="p-6 text-center">加载中...</div>;
   }
@@ -204,9 +218,9 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
                   共 {totalCommits} 条提交
                 </Text>
                 {/* 工作状态标签 */}
-                <Tooltip title={workStatusTips[workStatus]}>
-                  <Tag color={workStatusColors[workStatus]}>
-                    {workStatusLabels[workStatus]}
+                <Tooltip title={getWorkStatusTip(workStatus, metricsConfig)}>
+                  <Tag color={metricsConfig?.colors[workStatus] ?? workStatusColors[workStatus]}>
+                    {metricsConfig?.labels[workStatus] ?? workStatusLabels[workStatus]}
                     <QuestionCircleOutlined className="ml-1 text-[10px]" />
                   </Tag>
                 </Tooltip>
@@ -354,4 +368,3 @@ export const CommitsByDateList: React.FC<CommitsByDateListProps> = ({ data, load
     </Collapse>
   );
 };
-

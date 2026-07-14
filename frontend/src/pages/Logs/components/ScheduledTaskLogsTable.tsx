@@ -1,7 +1,7 @@
 import React from 'react';
 import { Table, Tag, Space, Popover } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { ScheduledTaskLog } from '../../../../types/logs';
+import type { ScheduledTaskLog } from '../../../types/logs';
 import dayjs from 'dayjs';
 
 interface ScheduledTaskLogsTableProps {
@@ -146,4 +146,3 @@ const ScheduledTaskLogsTable: React.FC<ScheduledTaskLogsTableProps> = ({ data, l
 };
 
 export default ScheduledTaskLogsTable;
-
