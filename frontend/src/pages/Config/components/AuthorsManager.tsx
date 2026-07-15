@@ -167,7 +167,7 @@ const AuthorsManager: React.FC<AuthorsManagerProps> = ({
         >
           添加作者
         </Button>
-        <Button icon={<SearchOutlined />} loading={discovering} onClick={handleDiscover}>
+        <Button size='small' type='primary' icon={<SearchOutlined />} loading={discovering} onClick={handleDiscover}>
           从 Git 历史发现
         </Button>
       </Space>
