@@ -46,6 +46,7 @@ export interface CreateRepositoryParams {
   name: string;
   path: string;
   enabled?: boolean;
+  addToDefaultPlan?: boolean;
 }
 
 export interface UpdateRepositoryParams {
@@ -79,6 +80,7 @@ export const createRepository = async (params: CreateRepositoryParams): Promise<
 export interface BatchCreateRepositoriesParams {
   repositories: Array<{ id: string; name: string; path: string; enabled?: boolean }>;
   author?: { name: string; email: string };
+  addToDefaultPlan?: boolean;
 }
 
 /**
@@ -142,6 +144,33 @@ export interface ScannedRepoItem {
 export const scanDirectoryForRepos = async (rootPath: string): Promise<ScannedRepoItem[]> => {
   const response = await api.post<{ data: ScannedRepoItem[] }>('/config/scan-directory', { rootPath });
   return response.data.data;
+};
+
+export interface AuthorCandidate {
+  name: string;
+  email: string;
+  commitCount: number;
+}
+
+export const discoverAuthorsByPath = async (
+  path: string,
+  maxCount = 2000
+): Promise<{ candidates: AuthorCandidate[]; inspectedCommits: number }> => {
+  const response = await api.post<{
+    data: { candidates: AuthorCandidate[]; inspectedCommits: number };
+  }>('/config/author-candidates', { path, maxCount });
+  return response.data.data;
+};
+
+export const discoverAuthors = async (repoId: string): Promise<{
+  candidates: AuthorCandidate[];
+  inspectedCommits: number;
+}> => {
+  const response = await api.get<{
+    data: AuthorCandidate[];
+    inspectedCommits: number;
+  }>(`/config/repositories/${repoId}/author-candidates`, { params: { maxCount: 2000 } });
+  return { candidates: response.data.data, inspectedCommits: response.data.inspectedCommits };
 };
 
 /**

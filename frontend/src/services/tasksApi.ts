@@ -16,10 +16,6 @@ export const tasksApi = {
   getTasks: (): Promise<ScanTask[]> =>
     api.get<ScanTask[]>('/tasks').then(res => res.data),
 
-  // 获取预定义默认任务列表
-  getDefaultTasks: (): Promise<Omit<CreateTaskParams, 'enabled'>[]> =>
-    api.get<Omit<CreateTaskParams, 'enabled'>[]>('/tasks/default').then(res => res.data),
-
   // 获取单个任务详情
   getTaskById: (id: number): Promise<ScanTask> =>
     api.get<ScanTask>(`/tasks/${id}`).then(res => res.data),
@@ -49,14 +45,11 @@ export const tasksApi = {
     api.post<ScanTask>(`/tasks/${id}/disable`).then(res => res.data),
 
   // 触发任务执行
-  triggerTask: (id: number, params?: TriggerTaskParams): Promise<{ message: string; taskId: number; taskName: string }> =>
+  triggerTask: (id: number, params?: TriggerTaskParams): Promise<{ runId: number; taskId: number; taskName: string }> =>
     api.post(`/tasks/${id}/trigger`, params || {}).then(res => res.data),
 
   // 设置主任务
   setPrimaryTask: (id: number): Promise<ScanTask> =>
     api.post<ScanTask>(`/tasks/${id}/set-primary`).then(res => res.data),
 
-  // 批量更新任务排序
-  batchUpdateSortOrder: (sortOrders: Array<{ id: number; sortOrder: number }>): Promise<{ message: string; count: number }> =>
-    api.post('/tasks/batch-sort', { sortOrders }).then(res => res.data)
 };

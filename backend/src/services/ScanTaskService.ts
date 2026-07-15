@@ -1,13 +1,11 @@
 import { prisma } from '../db/client.js';
-import { ConfigService } from './ConfigService.js';
-
 // 类型断言：Prisma Client 已包含这些模型，但 TypeScript 类型可能未及时更新
 const prismaClient = prisma as any;
 
 export type TaskType = 'manual' | 'scheduled';
 export type ScanRangeType = '1day' | '3days' | '7days' | '2weeks' | '1month' | '3months' | '6months' | 'custom';
 
-const PRIMARY_TASK_DEFAULT_CRON = '0 9 * * 1-5';
+const PRIMARY_TASK_DEFAULT_CRON = '30 9 * * 1-5';
 const PRIMARY_TASK_DEFAULT_SCAN_RANGE: ScanRangeType = '3days';
 
 export interface ScanTask {
@@ -80,11 +78,10 @@ export class ScanTaskService {
     return this.mapToScanTask(task);
   }
 
-  /**
-   * 获取所有任务：主任务固定第一，其余按 sortOrder 排序
-   */
+  /** 获取定时扫描计划。历史手动任务保留在数据库中，但不再进入业务列表。 */
   async getAllTasks(): Promise<ScanTask[]> {
     const tasks = await prismaClient.scanTask.findMany({
+      where: { taskType: 'scheduled' },
       orderBy: [
         { isPrimary: 'desc' },
         { sortOrder: 'asc' },
@@ -148,7 +145,7 @@ export class ScanTaskService {
    */
   async getPrimaryTask(): Promise<ScanTask | null> {
     const task = await prismaClient.scanTask.findFirst({
-      where: { isPrimary: true }
+      where: { isPrimary: true, taskType: 'scheduled' }
     });
 
     if (!task) return null;
@@ -156,9 +153,7 @@ export class ScanTaskService {
     return this.mapToScanTask(task);
   }
 
-  /**
-   * 设置主任务（全局仅允许一个）
-   */
+  /** 设置默认计划（全局仅允许一个），不隐式改写计划的其他配置。 */
   async setPrimaryTask(id: number): Promise<ScanTask> {
     const now = BigInt(Date.now());
     const targetTask = await prismaClient.scanTask.findUnique({
@@ -167,6 +162,9 @@ export class ScanTaskService {
 
     if (!targetTask) {
       throw new Error('任务不存在');
+    }
+    if (targetTask.taskType !== 'scheduled') {
+      throw new Error('仅定时扫描计划可设为默认计划');
     }
 
     await prismaClient.$transaction(async (tx: any) => {
@@ -182,12 +180,6 @@ export class ScanTaskService {
         where: { id },
         data: {
           isPrimary: true,
-          taskType: 'scheduled',
-          enabled: true,
-          scanRangeType: PRIMARY_TASK_DEFAULT_SCAN_RANGE,
-          startDate: null,
-          endDate: null,
-          cronExpression: targetTask.cronExpression?.trim() || PRIMARY_TASK_DEFAULT_CRON,
           updatedAt: now
         }
       });
@@ -232,6 +224,10 @@ export class ScanTaskService {
    * 删除任务
    */
   async deleteTask(id: number): Promise<void> {
+    const task = await this.getTaskById(id);
+    if (!task) throw new Error('扫描计划不存在');
+    if (task.taskType !== 'scheduled') throw new Error('历史手动任务不可在计划管理中操作');
+    if (task.isPrimary) throw new Error('默认计划不能删除，请先将其他计划设为默认');
     await prismaClient.scanTask.delete({
       where: { id }
     });
@@ -248,7 +244,46 @@ export class ScanTaskService {
    * 禁用任务
    */
   async disableTask(id: number): Promise<ScanTask> {
+    const task = await this.getTaskById(id);
+    if (!task) throw new Error('扫描计划不存在');
+    if (task.isPrimary) throw new Error('默认计划不能停用，请先将其他计划设为默认');
     return this.updateTask(id, { enabled: false });
+  }
+
+  /** 将新数据源加入默认计划；没有默认计划时创建一个。 */
+  async addRepositoriesToPrimaryTask(repositoryIds: string[]): Promise<ScanTask> {
+    const uniqueIds = Array.from(new Set(repositoryIds.filter(Boolean)));
+    let primaryTask = await this.getPrimaryTask();
+
+    if (!primaryTask) {
+      const createdTask = await this.createTask({
+        name: '默认工作日扫描',
+        description: '工作日上午 09:30 自动同步最近 3 天提交',
+        taskType: 'scheduled',
+        scanRangeType: PRIMARY_TASK_DEFAULT_SCAN_RANGE,
+        cronExpression: PRIMARY_TASK_DEFAULT_CRON,
+        repositoryIds: uniqueIds,
+        isPrimary: false,
+        enabled: true
+      });
+      return this.setPrimaryTask(createdTask.id);
+    }
+
+    return this.updateTask(primaryTask.id, {
+      repositoryIds: Array.from(new Set([...(primaryTask.repositoryIds ?? []), ...uniqueIds]))
+    });
+  }
+
+  /** 从所有定时计划中移除已删除的数据源引用。 */
+  async removeRepositoriesFromPlans(repositoryIds: string[]): Promise<void> {
+    const removedIds = new Set(repositoryIds);
+    const plans = await this.getAllTasks();
+    for (const plan of plans) {
+      if (!plan.repositoryIds?.some((id) => removedIds.has(id))) continue;
+      await this.updateTask(plan.id, {
+        repositoryIds: plan.repositoryIds.filter((id) => !removedIds.has(id))
+      });
+    }
   }
 
   /**
@@ -262,130 +297,6 @@ export class ScanTaskService {
         updatedAt: BigInt(Date.now())
       }
     });
-  }
-
-  /**
-   * 获取预定义的默认任务列表（根据仓库配置动态生成）
-   */
-  async getDefaultTasks(): Promise<Omit<CreateScanTaskParams, 'enabled'>[]> {
-    const configService = new ConfigService();
-    const repositories = await configService.getEnabledRepositories();
-    
-    // 为每个仓库生成一个手动任务
-    const repositoryTasks: Omit<CreateScanTaskParams, 'enabled'>[] = repositories.map(repo => ({
-      name: repo.name,
-      description: `手动同步仓库 ${repo.name} 的提交记录`,
-      taskType: 'manual',
-      scanRangeType: '2weeks', // 与统计页「同步」、迁移脚本默认一致（近 2 周）
-      repositoryIds: [repo.id]
-    }));
-
-    // 保留原有的通用扫描任务
-    const commonTasks: Omit<CreateScanTaskParams, 'enabled'>[] = [
-      {
-        name: '扫描近2周代码提交数据',
-        description: '扫描最近2周的代码提交记录',
-        taskType: 'manual',
-        scanRangeType: '2weeks'
-      },
-      {
-        name: '扫描近1个月代码提交数据',
-        description: '扫描最近1个月的代码提交记录',
-        taskType: 'manual',
-        scanRangeType: '1month'
-      },
-      {
-        name: '扫描近3个月代码提交数据',
-        description: '扫描最近3个月的代码提交记录',
-        taskType: 'manual',
-        scanRangeType: '3months'
-      },
-      {
-        name: '扫描近6个月代码提交数据',
-        description: '扫描最近6个月的代码提交记录',
-        taskType: 'manual',
-        scanRangeType: '6months'
-      },
-      {
-        name: '自定义时间范围扫描',
-        description: '自定义指定时间范围扫描，最大支持6个月跨度',
-        taskType: 'manual',
-        scanRangeType: 'custom'
-      }
-    ];
-
-    // 先返回仓库任务，再返回通用任务
-    return [...repositoryTasks, ...commonTasks];
-  }
-
-  /**
-   * 同步默认任务到数据库（确保每个仓库都有对应的手动任务）
-   */
-  async syncDefaultRepositoryTasks(): Promise<void> {
-    const configService = new ConfigService();
-    const repositories = await configService.getEnabledRepositories();
-    
-    for (const repo of repositories) {
-      // 检查是否已存在该仓库的手动任务（通过 repositoryIds 匹配）
-      const existingTask = await prismaClient.scanTask.findFirst({
-        where: {
-          taskType: 'manual',
-          repositoryIds: JSON.stringify([repo.id])
-        }
-      });
-
-      if (!existingTask) {
-        // 如果不存在，创建默认任务
-        const now = BigInt(Date.now());
-        await prismaClient.scanTask.create({
-          data: {
-            name: repo.name,
-            description: `手动同步仓库 ${repo.name} 的提交记录`,
-            taskType: 'manual',
-            scanRangeType: '2weeks', // 与统计页「同步」一致（近 2 周）
-            repositoryIds: JSON.stringify([repo.id]),
-            enabled: true,
-            createdAt: now,
-            updatedAt: now
-          }
-        });
-      } else {
-        // 如果存在，更新任务名称和描述（仓库名称可能变化）
-        const now = BigInt(Date.now());
-        await prismaClient.scanTask.update({
-          where: { id: existingTask.id },
-          data: {
-            name: repo.name,
-            description: `手动同步仓库 ${repo.name} 的提交记录`,
-            updatedAt: now
-          }
-        });
-      }
-    }
-
-    // 清理已删除或禁用的仓库的任务
-    const allTasks = await prismaClient.scanTask.findMany({
-      where: {
-        taskType: 'manual',
-        repositoryIds: { not: null }
-      }
-    });
-
-    for (const task of allTasks) {
-      if (task.repositoryIds) {
-        const repoIds = JSON.parse(task.repositoryIds) as string[];
-        if (repoIds.length === 1) {
-          const repoId = repoIds[0];
-          const repoExists = repositories.some(r => r.id === repoId);
-          if (!repoExists) {
-            // 仓库已删除或禁用，删除对应的任务
-            await prismaClient.scanTask.delete({
-              where: { id: task.id }
-            });
-          }
-        }
-      }
-    }
   }
 
   /**

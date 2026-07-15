@@ -7,7 +7,8 @@ import {
   Space,
   message,
   Typography,
-  Form
+  Form,
+  Checkbox
 } from 'antd';
 import { FolderOpenOutlined, SearchOutlined, DeleteOutlined, ArrowLeftOutlined, UserOutlined } from '@ant-design/icons';
 import { useAtom, useStore } from 'jotai';
@@ -17,6 +18,8 @@ import {
   type ScannedRepoItem
 } from '../../../services/configApi';
 import { scannedReposListAtom, type EditableScanItem } from '../../../biz/atoms/scanRepos.atom';
+import { scanRunsApi } from '../../../services/scanRunsApi';
+import dayjs from 'dayjs';
 
 interface ScanReposModalProps {
   open: boolean;
@@ -47,7 +50,12 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
   const [scanning, setScanning] = React.useState(false);
   const [list, setList] = useAtom(scannedReposListAtom);
   const store = useStore();
-  const [form] = Form.useForm<{ authorName: string; authorEmail: string }>();
+  const [form] = Form.useForm<{
+    authorName: string;
+    authorEmail: string;
+    addToDefaultPlan: boolean;
+    runInitialScan: boolean;
+  }>();
   const duplicateRepoIdGroups = React.useMemo(() => getDuplicateRepoIdGroups(list), [list]);
   const duplicateRepoIds = React.useMemo(
     () => new Set(duplicateRepoIdGroups.map((group) => group.id)),
@@ -153,7 +161,7 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
   const handleSave = async () => {
     const values = await form.validateFields().catch(() => null);
     if (values === null) return;
-    const { authorName, authorEmail } = values;
+    const { authorName, authorEmail, addToDefaultPlan, runInitialScan } = values;
     const currentList = store.get(scannedReposListAtom);
     if (currentList.length === 0) {
       message.warning('没有可保存的仓库，请返回预览步骤确认列表');
@@ -171,9 +179,19 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
     try {
       await batchCreateRepositories({
         repositories,
-        author: { name: authorName, email: authorEmail }
+        author: { name: authorName, email: authorEmail },
+        addToDefaultPlan
       });
-      message.success(`已添加 ${currentList.length} 个仓库并应用批量设置`);
+      if (runInitialScan) {
+        const run = await scanRunsApi.create({
+          repositoryIds: repositories.map((repository) => repository.id),
+          startDate: dayjs().subtract(1, 'month').startOf('day').valueOf(),
+          endDate: dayjs().endOf('day').valueOf()
+        });
+        message.success(`已添加 ${currentList.length} 个数据源，首次扫描执行 #${run.id} 已开始`);
+      } else {
+        message.success(`已添加 ${currentList.length} 个数据源`);
+      }
       handleClose();
       onSuccess();
     } catch (e) {
@@ -319,7 +337,9 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
             layout="vertical"
             initialValues={{
               authorName: '',
-              authorEmail: ''
+              authorEmail: '',
+              addToDefaultPlan: true,
+              runInitialScan: true
             }}
           >
             <Form.Item
@@ -342,6 +362,12 @@ const ScanReposModal: React.FC<ScanReposModalProps> = ({ open, onClose, onSucces
               extra="需与 Git 提交记录中的邮箱一致"
             >
               <Input type="email" placeholder="例如：zhangsan@example.com" />
+            </Form.Item>
+            <Form.Item name="addToDefaultPlan" valuePropName="checked" className="mb-2">
+              <Checkbox>加入默认定时扫描计划</Checkbox>
+            </Form.Item>
+            <Form.Item name="runInitialScan" valuePropName="checked" className="mb-0">
+              <Checkbox>保存后立即回溯近 1 个月提交</Checkbox>
             </Form.Item>
           </Form>
           <div className="mt-4 flex justify-between">

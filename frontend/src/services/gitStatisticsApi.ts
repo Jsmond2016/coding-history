@@ -58,20 +58,4 @@ export const gitStatisticsApi = {
   getDataOverview: (params: DataOverviewQuery): Promise<DataOverviewResponse> =>
     api.get<DataOverviewResponse>('/statistics/overview', { params }).then(res => res.data),
 
-  // 手动触发扫描（异步）：须传与统计筛选一致的日期范围；可选 repositoryIds 限定仓库
-  triggerScan: (body: {
-    startDate: number;
-    endDate: number;
-    repositoryIds?: string[];
-  }): Promise<{ finished: 0 | 1 | 2; scannedCount: number }> =>
-    api.post('/repositories/scan', body).then(res => res.data),
-
-  // 查询扫描状态
-  getScanStatus: (): Promise<{
-    finished: 0 | 1 | 2;
-    scannedCount: number;
-    error?: string;
-    startedAt?: number;
-    staleThresholdMs?: number;
-  }> => api.get('/repositories/scan/status').then(res => res.data)
 };

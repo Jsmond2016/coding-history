@@ -1,250 +1,161 @@
 import React from 'react';
-import { Modal, Form, Input, Select, DatePicker, Checkbox, message } from 'antd';
-import dayjs from 'dayjs';
-import type { CreateTaskParams, ScanTask } from '../../../types/tasks';
-import { gitStatisticsApi } from '../../../services/gitStatisticsApi';
+import { useRequest, useUpdateEffect } from 'ahooks';
+import { Checkbox, Form, Input, Modal, Radio, Select, Switch, message } from 'antd';
+import type { CreateTaskParams, ScanTask, ScanRangeType } from '../../../types/tasks';
+import { getRepositoriesConfig } from '../../../services/configApi';
 import { tasksApi } from '../../../services/tasksApi';
-import type { Repository } from '../../../types/gitStatistics';
 
-const { RangePicker } = DatePicker;
-const { Option } = Select;
 const { TextArea } = Input;
 
 interface CreateTaskModalProps {
   open: boolean;
   onCancel: () => void;
   onSuccess: () => void;
-  initialValues?: CreateTaskParams;
-  isEdit?: boolean;
+  initialValues?: ScanTask;
 }
+
+const schedulePresets = [
+  { label: '工作日 09:30', value: '30 9 * * 1-5' },
+  { label: '每天 09:00', value: '0 9 * * *' },
+  { label: '工作日 19:00', value: '0 19 * * 1-5' },
+  { label: '高级设置', value: 'custom' }
+];
+
+const rangeOptions: Array<{ label: string; value: Exclude<ScanRangeType, 'custom'> }> = [
+  { label: '近 1 天', value: '1day' },
+  { label: '近 3 天', value: '3days' },
+  { label: '近 7 天', value: '7days' },
+  { label: '近 2 周', value: '2weeks' },
+  { label: '近 1 个月', value: '1month' },
+  { label: '近 3 个月', value: '3months' },
+  { label: '近 6 个月', value: '6months' }
+];
+
+const resolveSchedulePreset = (cronExpression?: string): string =>
+  schedulePresets.some((item) => item.value === cronExpression) ? cronExpression! : 'custom';
 
 const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   open,
   onCancel,
   onSuccess,
-  initialValues,
-  isEdit = false
+  initialValues
 }) => {
   const [form] = Form.useForm();
-  const [repositories, setRepositories] = React.useState<Repository[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const taskType = Form.useWatch('taskType', form);
-  const scanRangeType = Form.useWatch('scanRangeType', form);
+  const schedulePreset = Form.useWatch('schedulePreset', form);
+  const { data: repositories = [] } = useRequest(getRepositoriesConfig, { ready: open });
+  const { runAsync: saveTask, loading } = useRequest(
+    async (params: CreateTaskParams) => initialValues
+      ? tasksApi.updateTask(initialValues.id, params)
+      : tasksApi.createTask(params),
+    { manual: true }
+  );
 
-  // 加载仓库列表
-  React.useEffect(() => {
-    if (open) {
-      gitStatisticsApi.getRepositories().then(setRepositories).catch(() => {
-        message.error('加载仓库列表失败');
-      });
-    }
-  }, [open]);
-
-  // 设置初始值
-  React.useEffect(() => {
-    if (open && initialValues) {
-      form.setFieldsValue({
-        name: initialValues.name,
-        description: initialValues.description,
-        taskType: initialValues.taskType,
-        scanRangeType: initialValues.scanRangeType,
-        cronExpression: initialValues.cronExpression,
-        repositoryIds: initialValues.repositoryIds,
-        enabled: initialValues.enabled ?? true,
-        dateRange: initialValues.startDate && initialValues.endDate
-          ? [dayjs(initialValues.startDate), dayjs(initialValues.endDate)]
-          : undefined
-      });
-    } else if (open && !isEdit) {
-      form.resetFields();
-      form.setFieldsValue({
-        taskType: 'manual',
-        scanRangeType: '3days',
-        enabled: true
-      });
-    }
-  }, [open, initialValues, isEdit, form]);
+  useUpdateEffect(() => {
+    if (!open) return;
+    const cronExpression = initialValues?.cronExpression ?? '30 9 * * 1-5';
+    form.setFieldsValue(initialValues ? {
+      name: initialValues.name,
+      description: initialValues.description,
+      schedulePreset: resolveSchedulePreset(cronExpression),
+      cronExpression,
+      scanRangeType: initialValues.scanRangeType,
+      repositoryIds: initialValues.repositoryIds,
+      enabled: initialValues.enabled
+    } : {
+      name: '工作日自动同步',
+      description: undefined,
+      schedulePreset: '30 9 * * 1-5',
+      cronExpression: '30 9 * * 1-5',
+      scanRangeType: '3days',
+      repositoryIds: repositories.filter((repo) => repo.enabled).map((repo) => repo.id),
+      enabled: true
+    });
+  }, [open, initialValues, repositories]);
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      setLoading(true);
-
-      const params: CreateTaskParams = {
-        name: values.name,
-        description: values.description,
-        taskType: values.taskType,
+      const cronExpression = values.schedulePreset === 'custom'
+        ? values.cronExpression?.trim()
+        : values.schedulePreset;
+      await saveTask({
+        name: values.name.trim(),
+        description: values.description?.trim() || undefined,
+        taskType: 'scheduled',
         scanRangeType: values.scanRangeType,
-        cronExpression: values.taskType === 'scheduled' ? values.cronExpression : undefined,
-        repositoryIds: values.repositoryIds && values.repositoryIds.length > 0 ? values.repositoryIds : undefined,
-        enabled: values.enabled ?? true
-      };
-
-      // 处理自定义时间范围
-      if (values.scanRangeType === 'custom') {
-        if (!values.dateRange || !values.dateRange[0] || !values.dateRange[1]) {
-          message.error('自定义时间范围必须选择开始和结束时间');
-          setLoading(false);
-          return;
-        }
-
-        const startDate = values.dateRange[0].startOf('day').valueOf();
-        const endDate = values.dateRange[1].endOf('day').valueOf();
-
-        // 验证6个月跨度
-        const spanDays = values.dateRange[1].diff(values.dateRange[0], 'day');
-        if (spanDays > 180) {
-          message.error('时间跨度不能超过6个月（180天）');
-          setLoading(false);
-          return;
-        }
-
-        params.startDate = startDate;
-        params.endDate = endDate;
-      }
-
-      if (isEdit && initialValues && 'id' in initialValues) {
-        // 更新任务
-        const taskId = (initialValues as ScanTask).id;
-        await tasksApi.updateTask(taskId, params);
-        message.success('任务更新成功');
-      } else {
-        // 创建任务
-        await tasksApi.createTask(params);
-        message.success('任务创建成功');
-      }
-
-      form.resetFields();
+        cronExpression,
+        repositoryIds: values.repositoryIds,
+        enabled: values.enabled
+      });
+      message.success(initialValues ? '扫描计划已更新' : '扫描计划已创建');
       onSuccess();
     } catch (error: any) {
-      if (error?.errorFields) {
-        // 表单验证错误
-        return;
-      }
-      const errorMessage = error instanceof Error ? error.message : '操作失败';
-      message.error(errorMessage);
-    } finally {
-      setLoading(false);
+      if (error?.errorFields) return;
+      message.error(error?.response?.data?.error || '保存扫描计划失败');
     }
   };
 
   return (
     <Modal
-      title={isEdit ? '编辑任务' : '创建任务'}
+      title={initialValues ? '编辑扫描计划' : '新建扫描计划'}
       open={open}
       onCancel={onCancel}
       onOk={handleSubmit}
       confirmLoading={loading}
-      width={600}
+      okText="保存"
+      width={640}
       destroyOnClose
     >
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{
-          taskType: 'manual',
-          scanRangeType: '3days',
-          enabled: true
-        }}
-      >
-        <Form.Item
-          name="name"
-          label="任务名称"
-          rules={[{ required: true, message: '请输入任务名称' }]}
-        >
-          <Input placeholder="请输入任务名称" />
+      <Form form={form} layout="vertical">
+        <Form.Item name="name" label="计划名称" rules={[{ required: true, message: '请输入计划名称' }]}>
+          <Input placeholder="例如：工作日自动同步" />
         </Form.Item>
 
-        <Form.Item
-          name="description"
-          label="任务描述"
-        >
-          <TextArea rows={3} placeholder="请输入任务描述（可选）" />
+        <Form.Item name="schedulePreset" label="执行时间" rules={[{ required: true }]}>
+          <Radio.Group options={schedulePresets} optionType="button" buttonStyle="solid" />
         </Form.Item>
 
-        <Form.Item
-          name="taskType"
-          label="任务类型"
-          rules={[{ required: true, message: '请选择任务类型' }]}
-        >
-          <Select>
-            <Option value="manual">手动任务</Option>
-            <Option value="scheduled">定时任务</Option>
-          </Select>
-        </Form.Item>
-
-        {taskType === 'scheduled' && (
+        {schedulePreset === 'custom' ? (
           <Form.Item
             name="cronExpression"
             label="Cron 表达式"
             rules={[{ required: true, message: '请输入 Cron 表达式' }]}
-            extra="例如：0 10 * * * 表示每天上午10点执行"
+            extra="按中国上海时区执行，格式为：分 时 日 月 周"
           >
-            <Input placeholder="0 10 * * *" />
+            <Input placeholder="30 9 * * 1-5" />
           </Form.Item>
-        )}
+        ) : null}
 
-        <Form.Item
-          name="scanRangeType"
-          label="扫描范围"
-          rules={[{ required: true, message: '请选择扫描范围' }]}
-        >
-          <Select>
-            <Option value="1day">近1天</Option>
-            <Option value="3days">近3天</Option>
-            <Option value="7days">近7天</Option>
-            <Option value="2weeks">近2周</Option>
-            <Option value="1month">近1个月</Option>
-            <Option value="3months">近3个月</Option>
-            <Option value="6months">近6个月</Option>
-            <Option value="custom">自定义时间范围</Option>
-          </Select>
+        <Form.Item name="scanRangeType" label="每次扫描范围" rules={[{ required: true }]}>
+          <Select options={rangeOptions} />
         </Form.Item>
-
-        {scanRangeType === 'custom' && (
-          <Form.Item
-            name="dateRange"
-            label="时间范围"
-            rules={[{ required: true, message: '请选择时间范围' }]}
-            extra="最大支持6个月（180天）跨度"
-          >
-            <RangePicker
-              style={{ width: '100%' }}
-              format="YYYY-MM-DD"
-              disabledDate={(current) => {
-                // 禁用未来日期
-                if (current && current > dayjs().endOf('day')) {
-                  return true;
-                }
-                return false;
-              }}
-            />
-          </Form.Item>
-        )}
 
         <Form.Item
           name="repositoryIds"
-          label="仓库选择"
-          extra="不选择则扫描所有启用的仓库"
+          label="数据源范围"
+          rules={[{ required: true, type: 'array', min: 1, message: '至少选择一个数据源' }]}
         >
           <Select
             mode="multiple"
-            placeholder="选择要扫描的仓库（可选）"
-            allowClear
-          >
-            {repositories.map(repo => (
-              <Option key={repo.id} value={repo.id}>
-                {repo.name}
-              </Option>
-            ))}
-          </Select>
+            optionFilterProp="label"
+            options={repositories.filter((repo) => repo.enabled).map((repo) => ({
+              label: repo.name,
+              value: repo.id
+            }))}
+            placeholder="选择需要定时扫描的数据源"
+          />
         </Form.Item>
 
-        <Form.Item
-          name="enabled"
-          valuePropName="checked"
-        >
-          <Checkbox>启用任务</Checkbox>
+        <Form.Item name="description" label="备注">
+          <TextArea rows={2} placeholder="可选" />
+        </Form.Item>
+
+        <Form.Item name="enabled" valuePropName="checked">
+          {initialValues?.isPrimary ? (
+            <Checkbox checked disabled>默认计划必须保持启用</Checkbox>
+          ) : (
+            <Switch checkedChildren="启用" unCheckedChildren="停用" />
+          )}
         </Form.Item>
       </Form>
     </Modal>
@@ -252,4 +163,3 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 };
 
 export default CreateTaskModal;
-

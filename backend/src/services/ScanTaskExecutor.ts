@@ -11,6 +11,17 @@ export interface ScanTaskExecutionResult {
   success: boolean;
   scannedRepositories: string[];
   totalCommits: number;
+  skippedCommits: number;
+  repositoryResults: Array<{
+    repoId: string;
+    repoName: string;
+    status: 'success' | 'skipped' | 'failed';
+    insertedCommits: number;
+    skippedCommits: number;
+    errorMessage?: string;
+    startedAt: number;
+    finishedAt: number;
+  }>;
   errorMessage?: string;
 }
 
@@ -199,6 +210,8 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
       success: false,
       scannedRepositories: [],
       totalCommits: 0,
+      skippedCommits: 0,
+      repositoryResults: [],
       errorMessage: errorMsg
     };
   }
@@ -210,6 +223,8 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
     success: true,
     scannedRepositories: [],
     totalCommits: 0,
+    skippedCommits: 0,
+    repositoryResults: [],
     errorMessage: undefined
   };
 
@@ -229,12 +244,15 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
       success: false,
       scannedRepositories: [],
       totalCommits: 0,
+      skippedCommits: 0,
+      repositoryResults: [],
       errorMessage
     };
   }
 
   // 遍历仓库执行扫描
   for (const repo of repositoriesToScan) {
+    const repositoryStartedAt = Date.now();
     try {
       logger.info(`[任务执行] 扫描仓库: ${repo.name}`);
 
@@ -242,6 +260,16 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
       const authorEmails = await configService.getAuthorEmailsByRepoId(repo.id);
       if (authorEmails.length === 0) {
         logger.warn(`[任务执行] 仓库 ${repo.name} 没有配置作者，跳过`);
+        result.repositoryResults.push({
+          repoId: repo.id,
+          repoName: repo.name,
+          status: 'skipped',
+          insertedCommits: 0,
+          skippedCommits: 0,
+          errorMessage: '仓库未配置扫描作者',
+          startedAt: repositoryStartedAt,
+          finishedAt: Date.now()
+        });
         continue;
       }
 
@@ -263,34 +291,41 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
 
       logger.info(`[任务执行] 发现 ${commits.length} 个提交记录`);
 
+      let insertedCommits = 0;
+      let skippedCommits = 0;
       if (commits.length > 0) {
         // 保存到数据库（带去重）
         const insertResult = await commitService.batchInsertCommits(repo.id, commits);
         logger.info(`[任务执行] 新增: ${insertResult.inserted} 条, 跳过重复: ${insertResult.skipped} 条`);
 
-        result.totalCommits += insertResult.inserted;
-
-        // 更新仓库信息
-        const dbResult = await commitService.getCommits({
-          startDate: 0,
-          endDate: Date.now(),
-          repositoryIds: [repo.id],
-          page: 1,
-          pageSize: 1
-        });
-
-        await repositoryService.updateRepositoryScanInfo(
-          repo.id,
-          Date.now(),
-          dbResult.total
-        );
-
-        logger.info(`[任务执行] ${repo.name} 总计 ${dbResult.total} 条提交记录`);
+        insertedCommits = insertResult.inserted;
+        skippedCommits = insertResult.skipped;
+        result.totalCommits += insertedCommits;
+        result.skippedCommits += skippedCommits;
       } else {
         logger.info(`[任务执行] ${repo.name} 没有新的提交记录`);
       }
 
+      const dbResult = await commitService.getCommits({
+        startDate: 0,
+        endDate: Date.now(),
+        repositoryIds: [repo.id],
+        page: 1,
+        pageSize: 1
+      });
+      await repositoryService.updateRepositoryScanInfo(repo.id, Date.now(), dbResult.total);
+      logger.info(`[任务执行] ${repo.name} 总计 ${dbResult.total} 条提交记录`);
+
       result.scannedRepositories.push(repo.name);
+      result.repositoryResults.push({
+        repoId: repo.id,
+        repoName: repo.name,
+        status: 'success',
+        insertedCommits,
+        skippedCommits,
+        startedAt: repositoryStartedAt,
+        finishedAt: Date.now()
+      });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error({
@@ -301,6 +336,16 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
       });
 
       result.success = false;
+      result.repositoryResults.push({
+        repoId: repo.id,
+        repoName: repo.name,
+        status: 'failed',
+        insertedCommits: 0,
+        skippedCommits: 0,
+        errorMessage: errorMsg,
+        startedAt: repositoryStartedAt,
+        finishedAt: Date.now()
+      });
       if (!result.errorMessage) {
         result.errorMessage = `扫描仓库 ${repo.name} 失败: ${errorMsg}`;
       } else {
@@ -331,4 +376,3 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
 
   return result;
 }
-

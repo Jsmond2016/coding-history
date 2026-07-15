@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs, Tooltip, Input } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, message, Card, Collapse, Modal, Typography, Flex, Tabs, Tooltip, Input, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   PlusOutlined,
@@ -10,7 +10,8 @@ import {
   BarChartOutlined,
   FolderOpenOutlined,
   QuestionCircleOutlined,
-  CloudUploadOutlined
+  CloudUploadOutlined,
+  ToolOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -133,16 +134,18 @@ const ConfigList: React.FC = () => {
         return;
       }
 
-      Modal.confirm({
-        title: `检测到 ${abnormalRepos.length} 个异常项目`,
+      await markAbnormalRepositories(
+        abnormalRepos.map((repo) => ({ id: repo.id, reason: repo.reason }))
+      );
+      await loadRepositories();
+      Modal.info({
+        title: `发现 ${abnormalRepos.length} 个需要处理的数据源`,
         width: 720,
-        okText: '确认删除',
-        cancelText: '否，仅标记异常',
-        okButtonProps: { danger: true },
+        okText: '知道了',
         content: (
           <div>
             <Typography.Paragraph type="secondary" className="mb-3">
-              异常项目指：仓库中没有任何已配置作者的提交。确认删除将移除这些仓库配置及其提交记录；点击否会在当前列表中标记为异常项目。
+              以下数据源不会自动删除。请核对仓库路径、作者邮箱，修正后重新执行首次同步。
             </Typography.Paragraph>
             <div className="max-h-[320px] overflow-auto">
               {abnormalRepos.map((repo) => (
@@ -154,24 +157,7 @@ const ConfigList: React.FC = () => {
               ))}
             </div>
           </div>
-        ),
-        onOk: async () => {
-          const ids = abnormalRepos.map((repo) => repo.id);
-          await batchDeleteRepositories(ids);
-          message.success(`已删除 ${ids.length} 个异常项目`);
-          setSelectedRowKeys((keys) => keys.filter((key) => !ids.includes(String(key))));
-          await loadRepositories();
-        },
-        onCancel: async () => {
-          await markAbnormalRepositories(
-            abnormalRepos.map((repo) => ({
-              id: repo.id,
-              reason: repo.reason
-            }))
-          );
-          await loadRepositories();
-          message.warning(`已标记 ${abnormalRepos.length} 个异常项目`);
-        }
+        )
       });
     } catch (error) {
       message.error('检测异常项目失败');
@@ -289,15 +275,17 @@ const ConfigList: React.FC = () => {
       )
     },
     {
-      title: '状态',
+      title: '接入状态',
       dataIndex: 'enabled',
       key: 'enabled',
-      width: 100,
-      render: (enabled: boolean) => (
-        <Tag color={enabled ? 'green' : 'default'}>
-          {enabled ? '启用' : '禁用'}
-        </Tag>
-      )
+      width: 130,
+      render: (enabled: boolean, record: RepositoryConfig) => {
+        if (!enabled) return <Tag>已停用</Tag>;
+        if (record.authors.length === 0) return <Tag color="warning">待配置作者</Tag>;
+        if (record.isAbnormal) return <Tag color="error">需要处理</Tag>;
+        if (!record.lastScanTime) return <Tag color="processing">待首次扫描</Tag>;
+        return <Tag color="success">已就绪</Tag>;
+      }
     },
     {
       title: '作者信息',
@@ -427,6 +415,12 @@ const ConfigList: React.FC = () => {
       ),
       children: (
         <div>
+          <Alert
+            className="mb-4"
+            showIcon
+            type={repositories.some((repo) => repo.enabled && (repo.authors.length === 0 || repo.isAbnormal)) ? 'warning' : 'success'}
+            message={`共 ${repositories.length} 个数据源，${repositories.filter((repo) => repo.enabled && repo.authors.length > 0 && !repo.isAbnormal && repo.lastScanTime).length} 个已就绪，${repositories.filter((repo) => repo.enabled && repo.authors.length === 0).length} 个待配置作者，${repositories.filter((repo) => repo.enabled && repo.authors.length > 0 && !repo.lastScanTime).length} 个待首次扫描`}
+          />
           <Flex justify="space-between" align="center" className="mb-4">
             <Title level={4} className="m-0">
               仓库配置
@@ -461,20 +455,13 @@ const ConfigList: React.FC = () => {
                 loading={detectingAbnormal}
                 onClick={handleDetectAbnormalRepositories}
               >
-                检测异常项目
+                检查数据源状态
               </Button>
               <Button
                 icon={<FolderOpenOutlined />}
                 onClick={() => setScanReposModalOpen(true)}
               >
                 扫描仓库
-              </Button>
-              <Button
-                icon={<CloudUploadOutlined />}
-                loading={backingUp}
-                onClick={handleOpenBackupModal}
-              >
-                备份数据库
               </Button>
               <Button
                 type="primary"
@@ -528,6 +515,30 @@ const ConfigList: React.FC = () => {
         </span>
       ),
       children: <DataMetricsConfig />
+    },
+    {
+      key: 'maintenance',
+      label: (
+        <span>
+          <ToolOutlined />
+          系统维护
+        </span>
+      ),
+      children: (
+        <div>
+          <Title level={4}>数据库备份</Title>
+          <Typography.Paragraph type="secondary">
+            管理本地数据库副本和定时备份，不影响仓库扫描计划。
+          </Typography.Paragraph>
+          <Button
+            icon={<CloudUploadOutlined />}
+            loading={backingUp}
+            onClick={handleOpenBackupModal}
+          >
+            备份设置
+          </Button>
+        </div>
+      )
     }
   ];
 

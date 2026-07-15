@@ -1,17 +1,18 @@
 import React from 'react';
 import { message } from 'antd';
-import { gitStatisticsApi } from '../../services/gitStatisticsApi';
+import { scanRunsApi } from '../../services/scanRunsApi';
+import type { ScanRun } from '../../types/tasks';
 import { useScanContext } from '../contexts/ScanContext';
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_COUNT = 150;
 
-async function pollUntilScanFinishes(): Promise<{ timedOut: boolean; error?: string }> {
+async function pollUntilScanFinishes(runId: number): Promise<{ timedOut: boolean; run?: ScanRun }> {
   for (let i = 0; i < MAX_POLL_COUNT; i++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const status = await gitStatisticsApi.getScanStatus();
-    if (status.finished === 2) {
-      return { timedOut: false, error: status.error };
+    const run = await scanRunsApi.get(runId);
+    if (['success', 'partial', 'failed'].includes(run.status)) {
+      return { timedOut: false, run };
     }
   }
   return { timedOut: true };
@@ -31,7 +32,7 @@ export const useScan = () => {
 
   const runDebouncedScan = React.useCallback(
     async (
-      runTrigger: () => Promise<{ finished: 0 | 1 | 2 }>,
+      runTrigger: () => Promise<ScanRun>,
       messages: { started: string; success: string }
     ): Promise<boolean> => {
       const now = Date.now();
@@ -45,38 +46,26 @@ export const useScan = () => {
       setLastScanTime(now);
 
       try {
-        const result = await runTrigger();
-
-        if (result.finished === 1) {
-          message.info(messages.started);
-          const { timedOut, error } = await pollUntilScanFinishes();
-          setScanning(false);
-
-          if (timedOut) {
-            message.warning(
-              '扫描等待超时。若数据仍未更新，请约 1 分钟后再试，或重启后端服务'
-            );
-            return false;
-          }
-          if (error) {
-            message.error(`扫描失败: ${error}`);
-            return false;
-          }
-          message.success(messages.success);
-          onScanComplete?.();
-          return true;
-        }
-
-        if (result.finished === 2) {
-          setScanning(false);
-          message.success(messages.success);
-          onScanComplete?.();
-          return true;
-        }
-
+        const createdRun = await runTrigger();
+        message.info(messages.started);
+        const { timedOut, run } = await pollUntilScanFinishes(createdRun.id);
         setScanning(false);
-        message.warning('扫描状态异常');
-        return false;
+
+        if (timedOut || !run) {
+          message.warning('同步仍在后台执行，可前往“扫描计划”查看执行进度');
+          return false;
+        }
+        if (run.status === 'failed') {
+          message.error(`同步失败: ${run.errorMessage || '请查看执行详情'}`);
+          return false;
+        }
+        if (run.status === 'partial') {
+          message.warning(`同步部分完成，新增 ${run.insertedCommits} 条提交，请查看执行详情`);
+        } else {
+          message.success(`${messages.success}，新增 ${run.insertedCommits} 条提交`);
+        }
+        onScanComplete?.();
+        return true;
       } catch {
         setScanning(false);
         message.error('请求失败');
@@ -89,7 +78,7 @@ export const useScan = () => {
   const handleScan = React.useCallback(
     async (params: ManualScanParams): Promise<boolean> => {
       return runDebouncedScan(
-        () => gitStatisticsApi.triggerScan(params),
+        () => scanRunsApi.create(params),
         {
           started: '同步已开始，将按确认的仓库和日期范围从 Git 拉取并入库…',
           success: '扫描完成（区间内已存在的提交会自动去重跳过）'

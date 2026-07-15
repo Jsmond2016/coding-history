@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import fs from 'node:fs';
 import path from 'node:path';
+import simpleGit from 'simple-git';
 import { ConfigService } from '../services/ConfigService.js';
 import { RepositoryService } from '../services/RepositoryService.js';
 import { DataMetricsConfigService } from '../services/DataMetricsConfigService.js';
@@ -84,7 +85,8 @@ const CreateRepositorySchema = z.object({
   id: z.string(),
   name: z.string(),
   path: z.string(),
-  enabled: z.boolean().default(true)
+  enabled: z.boolean().default(true),
+  addToDefaultPlan: z.boolean().default(true)
 });
 
 const UpdateRepositorySchema = z.object({
@@ -103,6 +105,11 @@ const ScanDirectorySchema = z.object({
   rootPath: z.string().min(1, '请输入根目录路径')
 });
 
+const DiscoverAuthorsSchema = z.object({
+  path: z.string().min(1, '请输入仓库路径'),
+  maxCount: z.number().int().min(1).max(5000).default(2000)
+});
+
 const BatchAuthorSchema = z.object({
   name: z.string().min(1),
   email: z.string().email()
@@ -117,7 +124,8 @@ const BatchCreateRepositoriesSchema = z.object({
       enabled: z.boolean().default(true)
     })
   ),
-  author: BatchAuthorSchema.optional()
+  author: BatchAuthorSchema.optional(),
+  addToDefaultPlan: z.boolean().default(true)
 });
 
 const BatchDeleteRepositoriesSchema = z.object({
@@ -131,6 +139,28 @@ const MarkAbnormalRepositoriesSchema = z.object({
   }))
 });
 
+async function discoverGitAuthors(repositoryPath: string, maxCount: number) {
+  const git = simpleGit(repositoryPath);
+  if (!(await git.checkIsRepo())) throw new Error('配置路径不是有效的 Git 仓库');
+  const output = await git.raw(['log', '--all', `-n${maxCount}`, '--format=%aN%x00%aE']);
+  const candidates = new Map<string, { name: string; email: string; commitCount: number }>();
+  for (const line of output.split('\n')) {
+    const [name, email] = line.split('\0').map((value) => value?.trim());
+    if (!email) continue;
+    const key = email.toLowerCase();
+    const current = candidates.get(key);
+    candidates.set(key, {
+      name: current?.name || name || email.split('@')[0],
+      email,
+      commitCount: (current?.commitCount ?? 0) + 1
+    });
+  }
+  return {
+    candidates: Array.from(candidates.values()).sort((a, b) => b.commitCount - a.commitCount),
+    inspectedCommits: output.trim() ? output.trim().split('\n').length : 0
+  };
+}
+
 // 扫描目录下的 Git 仓库
 app.post('/scan-directory', zValidator('json', ScanDirectorySchema), async (c) => {
   try {
@@ -140,6 +170,15 @@ app.post('/scan-directory', zValidator('json', ScanDirectorySchema), async (c) =
   } catch (error) {
     logger.error('Failed to scan directory:', error);
     return c.json({ error: '扫描目录失败' }, 500);
+  }
+});
+
+app.post('/author-candidates', zValidator('json', DiscoverAuthorsSchema), async (c) => {
+  try {
+    const { path: repositoryPath, maxCount } = c.req.valid('json');
+    return c.json({ data: await discoverGitAuthors(repositoryPath, maxCount) });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : '作者发现失败' }, 400);
   }
 });
 
@@ -225,7 +264,7 @@ app.post('/repositories/abnormal-mark', zValidator('json', MarkAbnormalRepositor
 // 批量创建仓库配置（支持批量作者，用于扫描仓库后一键保存）
 app.post('/repositories/batch', zValidator('json', BatchCreateRepositoriesSchema), async (c) => {
   try {
-    const { repositories, author } = c.req.valid('json');
+    const { repositories, author, addToDefaultPlan } = c.req.valid('json');
     if (repositories.length === 0) {
       return c.json({ error: 'repositories 不能为空' }, 400);
     }
@@ -255,7 +294,12 @@ app.post('/repositories/batch', zValidator('json', BatchCreateRepositoriesSchema
       }
     }
 
-    await taskService.syncDefaultRepositoryTasks();
+    if (addToDefaultPlan) {
+      await taskService.addRepositoriesToPrimaryTask(
+        repositories.filter((repo) => repo.enabled).map((repo) => repo.id)
+      );
+      await restartScheduler();
+    }
 
     const configs = await configService.getAllRepositoriesConfig();
     return c.json({ data: configs }, 201);
@@ -279,9 +323,9 @@ app.post('/repositories', zValidator('json', CreateRepositorySchema), async (c) 
       enabled: data.enabled
     });
 
-    // 如果仓库启用，同步创建对应的默认手动任务
-    if (data.enabled) {
-      await taskService.syncDefaultRepositoryTasks();
+    if (data.enabled && data.addToDefaultPlan) {
+      await taskService.addRepositoriesToPrimaryTask([data.id]);
+      await restartScheduler();
     }
 
     const config = await configService.getRepositoryConfig(data.id);
@@ -309,11 +353,6 @@ app.put('/repositories/:id', zValidator('json', UpdateRepositorySchema), async (
       }
     });
 
-    // 同步默认仓库任务（如果仓库名称或启用状态变化）
-    if (data.name !== undefined || data.enabled !== undefined) {
-      await taskService.syncDefaultRepositoryTasks();
-    }
-
     const config = await configService.getRepositoryConfig(repoId);
     return c.json({ data: config });
   } catch (error) {
@@ -332,7 +371,8 @@ app.post('/repositories/batch-delete', zValidator('json', BatchDeleteRepositorie
     const result = await prisma.repository.deleteMany({
       where: { id: { in: ids } }
     });
-    await taskService.syncDefaultRepositoryTasks();
+    await taskService.removeRepositoriesFromPlans(ids);
+    await restartScheduler();
     return c.json({ success: true, deleted: result.count });
   } catch (error) {
     logger.error('Failed to batch delete repositories:', error);
@@ -352,7 +392,8 @@ app.delete('/repositories/:id', async (c) => {
     await prisma.repository.delete({
       where: { id: repoId }
     });
-    await taskService.syncDefaultRepositoryTasks();
+    await taskService.removeRepositoriesFromPlans([repoId]);
+    await restartScheduler();
 
     return c.json({ success: true });
   } catch (error) {
@@ -370,6 +411,22 @@ app.get('/repositories/:id/authors', async (c) => {
   } catch (error) {
     logger.error('Failed to get authors:', error);
     return c.json({ error: 'Failed to get authors' }, 500);
+  }
+});
+
+// 从最近的 Git 历史中发现作者候选，不写入配置。
+app.get('/repositories/:id/author-candidates', async (c) => {
+  try {
+    const repoId = c.req.param('id');
+    const maxCount = Math.min(Math.max(Number(c.req.query('maxCount') ?? 2000), 1), 5000);
+    const repository = await prisma.repository.findUnique({ where: { id: repoId } });
+    if (!repository) return c.json({ error: '仓库不存在' }, 404);
+
+    const result = await discoverGitAuthors(repository.path, maxCount);
+    return c.json({ data: result.candidates, inspectedCommits: result.inspectedCommits });
+  } catch (error) {
+    logger.error('Failed to discover repository authors:', error);
+    return c.json({ error: error instanceof Error ? error.message : '作者发现失败' }, 500);
   }
 });
 

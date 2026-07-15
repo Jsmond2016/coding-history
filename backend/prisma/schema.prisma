@@ -126,6 +126,47 @@ model ScanTask {
   @@map("scan_tasks")
 }
 
+model ScanRun {
+  id               Int     @id @default(autoincrement())
+  planId           Int?    @map("plan_id")
+  triggerSource    String  @map("trigger_source")
+  status           String
+  requestedRepoIds String  @map("requested_repo_ids")
+  rangeStart       BigInt  @map("range_start")
+  rangeEnd         BigInt  @map("range_end")
+  startedAt        BigInt? @map("started_at")
+  finishedAt       BigInt? @map("finished_at")
+  insertedCommits  Int     @default(0) @map("inserted_commits")
+  skippedCommits   Int     @default(0) @map("skipped_commits")
+  errorMessage     String? @map("error_message")
+  createdAt        BigInt  @map("created_at")
+
+  results ScanRunRepository[]
+
+  @@index([status, createdAt], name: "idx_scan_run_status_created")
+  @@index([planId, createdAt], name: "idx_scan_run_plan_created")
+  @@map("scan_runs")
+}
+
+model ScanRunRepository {
+  id              Int     @id @default(autoincrement())
+  runId           Int     @map("run_id")
+  repoId          String  @map("repo_id")
+  repoName        String  @map("repo_name")
+  status          String
+  insertedCommits Int     @default(0) @map("inserted_commits")
+  skippedCommits  Int     @default(0) @map("skipped_commits")
+  errorMessage    String? @map("error_message")
+  startedAt       BigInt? @map("started_at")
+  finishedAt      BigInt? @map("finished_at")
+
+  run ScanRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId], name: "idx_scan_run_repository_run")
+  @@index([repoId, startedAt], name: "idx_scan_run_repository_repo")
+  @@map("scan_run_repositories")
+}
+
 model Author {
   id        Int     @id @default(autoincrement())
   repoId    String  @map("repo_id")

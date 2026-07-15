@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import type { ScheduledTask } from 'node-cron';
 import { ScanTaskService } from '../services/ScanTaskService.js';
-import { executeScanTask } from '../services/ScanTaskExecutor.js';
+import { ScanRunService } from '../services/ScanRunService.js';
 import { logger } from '../config/logger.js';
 
 /**
@@ -31,17 +31,8 @@ async function executeDatabaseTask(taskId: number): Promise<void> {
 
     logger.info(`[定时任务] 开始执行数据库任务: ${task.name}`);
 
-    // 执行任务
-    const result = await executeScanTask(task, { taskId: task.id });
-
-    // 更新最后执行时间
-    await taskService.updateLastExecuteTime(task.id, Date.now());
-
-    if (result.success) {
-      logger.info(`[定时任务] 任务 ${task.name} 执行成功，扫描 ${result.scannedRepositories.length} 个仓库，新增 ${result.totalCommits} 条提交`);
-    } else {
-      logger.error(`[定时任务] 任务 ${task.name} 执行失败: ${result.errorMessage}`);
-    }
+    const run = await new ScanRunService().createPlanRun(task, 'scheduled');
+    logger.info(`[定时任务] 已创建扫描执行 #${run.id}: ${task.name}`);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error(`[定时任务] 执行数据库任务失败: ${errorMsg}`);

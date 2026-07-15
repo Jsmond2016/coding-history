@@ -11,6 +11,7 @@ import statisticsRoute from './routes/statistics.js';
 import logsRoute from './routes/logs.js';
 import tasksRoute from './routes/tasks.js';
 import configRoute from './routes/config.js';
+import scanRunsRoute from './routes/scanRuns.js';
 import { startScheduler, restartScheduler } from './jobs/scanScheduler.js';
 import { startDbBackupScheduler, stopDbBackupScheduler } from './jobs/dbBackupScheduler.js';
 import { logger, getCurrentResolvedLogPaths } from './config/logger.js';
@@ -116,6 +117,7 @@ app.route('/api/v1/statistics', statisticsRoute);
 app.route('/api/v1/logs', logsRoute);
 app.route('/api/v1/tasks', tasksRoute);
 app.route('/api/v1/config', configRoute);
+app.route('/api/v1/scan-runs', scanRunsRoute);
 
 // 健康检查
 app.get('/health', (c) => c.json({ status: 'ok' }));
@@ -295,4 +297,3 @@ startServer().catch((error) => {
 });
 
 export default app;
-
