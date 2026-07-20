@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
 
 export default defineConfig({
-  plugins: [react(), codeInspectorPlugin({
+  plugins: [codeInspectorPlugin({
     bundler: 'vite',
-  })],
+  }), react()],
   server: {
     port: 5173,
     proxy: {
@@ -16,4 +16,3 @@ export default defineConfig({
     }
   }
 });
-
