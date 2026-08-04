@@ -1,5 +1,5 @@
 import React from 'react'
-import { Empty, Segmented, Space, Tag, Timeline, Tooltip, Typography } from 'antd'
+import { Collapse, Empty, Space, Tag, Timeline, Tooltip, Typography } from 'antd'
 import { ClockCircleOutlined, CopyOutlined } from '@ant-design/icons'
 import { useUpdateEffect } from 'ahooks'
 import type { Commit, CommitsByDate, WorkStatusMetricsConfig } from '../../../../types/gitStatistics'
@@ -60,101 +60,58 @@ function renderCommit(commit: Commit) {
 }
 
 export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metricsConfig }) => {
-  const [selectedDate, setSelectedDate] = React.useState(data[0]?.date ?? '')
-  const [selectedRepository, setSelectedRepository] = React.useState('all')
+  const [activeDates, setActiveDates] = React.useState<string[]>(() => (
+    data[0]?.date ? [data[0].date] : []
+  ))
 
   useUpdateEffect(() => {
-    setSelectedDate(data[0]?.date ?? '')
-    setSelectedRepository('all')
+    setActiveDates(data[0]?.date ? [data[0].date] : [])
   }, [data])
-
-  const selectedGroup = data.find((group) => group.date === selectedDate) ?? data[0]
-  const repositoryOptions = React.useMemo(() => [
-    { label: `全部 (${selectedGroup?.totalCommits ?? 0})`, value: 'all' },
-    ...(selectedGroup?.repositories ?? []).map((repository) => ({
-      label: repository,
-      value: repository,
-    })),
-  ], [selectedGroup])
-  const commits = React.useMemo(() => (
-    (selectedGroup?.commits ?? [])
-      .filter((commit) => selectedRepository === 'all' || commit.repoName === selectedRepository)
-      .sort((a, b) => a.commitDate - b.commitDate)
-  ), [selectedGroup, selectedRepository])
-
-  useUpdateEffect(() => {
-    setSelectedRepository('all')
-  }, [selectedDate])
 
   if (data.length === 0) {
     return <Empty description="当前筛选条件下没有匹配的提交" />
   }
 
   return (
-    <div className="grid min-h-[560px] grid-cols-1 border border-neutral-200 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside className="max-h-[680px] overflow-y-auto border-b border-neutral-200 bg-neutral-50 lg:border-b-0 lg:border-r">
-        {data.map((group) => {
-          const active = group.date === selectedGroup?.date
-          const summary = group.commits.find((commit) => !commit.message.toLowerCase().startsWith('merge '))?.message
-            ?? group.commits[0]?.message
-          return (
-            <button
-              key={group.date}
-              type="button"
-              onClick={() => setSelectedDate(group.date)}
-              className={`w-full border-0 border-b border-neutral-200 px-3 py-3 text-left focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1677ff] ${active ? 'bg-white shadow-[inset_3px_0_0_#1677ff]' : 'bg-transparent hover:bg-white'}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-neutral-900">{formatDate(group.date)}</span>
-                <span className="tabular-nums text-sm text-neutral-500">{group.totalCommits} 条</span>
-              </div>
-              <div className="mt-2 flex items-center gap-1">
-                {group.overtimeCount > 0 ? (
-                  <Tooltip title={group.latestOvertimeCommits.join('、')}>
-                    <Tag color="red" icon={<ClockCircleOutlined />}>{group.overtimeCount}</Tag>
-                  </Tooltip>
-                ) : null}
-                {group.hasRelease ? <Tag color="purple">发版</Tag> : null}
-                <Tag color={metricsConfig?.colors[group.workStatus] ?? 'default'}>
-                  {metricsConfig?.labels[group.workStatus] ?? group.workStatus}
-                </Tag>
-              </div>
-              <div className="mt-2 line-clamp-2 break-words text-xs leading-5 text-neutral-500">{summary}</div>
-            </button>
-          )
-        })}
-      </aside>
-
-      <section className="min-w-0 bg-white">
-        <div className="border-b border-neutral-200 px-4 py-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <Typography.Title level={4} className="!mb-1">
-                {selectedGroup ? formatDate(selectedGroup.date) : ''}
-              </Typography.Title>
-              <Typography.Text type="secondary">
-                按上海时间从早到晚，共 {commits.length} 条提交
-              </Typography.Text>
-            </div>
-            <Segmented
-              value={selectedRepository}
-              onChange={(value) => setSelectedRepository(String(value))}
-              options={repositoryOptions}
-              aria-label="按仓库查看当天提交"
-              className="max-w-full overflow-x-auto"
+    <Collapse
+      activeKey={activeDates}
+      onChange={(keys) => setActiveDates((Array.isArray(keys) ? keys : [keys]).map(String))}
+      className="border-x-0 border-b-0"
+      items={data.map((group) => ({
+        key: group.date,
+        label: (
+          <Space size={[8, 8]} wrap>
+            <Text strong>{formatDate(group.date)}</Text>
+            <Text type="secondary">共 {group.totalCommits} 条提交</Text>
+            <Tag color={metricsConfig?.colors[group.workStatus] ?? 'default'}>
+              {metricsConfig?.labels[group.workStatus] ?? group.workStatus}
+            </Tag>
+            {group.hasRelease ? <Tag color="purple">发版</Tag> : null}
+            {group.overtimeCount > 0 ? (
+              <Tooltip title={group.latestOvertimeCommits.join('、')}>
+                <Tag color="red" icon={<ClockCircleOutlined />}>加班 {group.overtimeCount}</Tag>
+              </Tooltip>
+            ) : null}
+            {group.repositories.map((repository) => <Tag key={repository} color="blue">{repository}</Tag>)}
+          </Space>
+        ),
+        children: (
+          <div className="px-1 py-2">
+            <Text type="secondary" className="mb-3 block">
+              按上海时间从早到晚，共 {group.commits.length} 条提交
+            </Text>
+            <Timeline
+              items={[...group.commits]
+                .sort((a, b) => a.commitDate - b.commitDate)
+                .map((commit) => ({
+                  key: commit.id,
+                  color: commit.isOvertime ? 'red' : 'blue',
+                  children: renderCommit(commit),
+                }))}
             />
           </div>
-        </div>
-        <div className="max-h-[610px] overflow-y-auto px-4 py-4">
-          <Timeline
-            items={commits.map((commit) => ({
-              key: commit.id,
-              color: commit.isOvertime ? 'red' : 'blue',
-              children: renderCommit(commit),
-            }))}
-          />
-        </div>
-      </section>
-    </div>
+        ),
+      }))}
+    />
   )
 }
