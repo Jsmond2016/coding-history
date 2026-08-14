@@ -1,14 +1,33 @@
 import React from 'react'
-import { Collapse, Empty, Space, Tag, Timeline, Tooltip, Typography } from 'antd'
-import { ClockCircleOutlined, CopyOutlined } from '@ant-design/icons'
+import { Alert, Button, Collapse, Empty, message, Modal, Space, Spin, Tag, Timeline, Tooltip, Typography } from 'antd'
+import { ClockCircleOutlined, CopyOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import { useUpdateEffect } from 'ahooks'
 import type { Commit, CommitsByDate, WorkStatusMetricsConfig } from '../../../../types/gitStatistics'
+import { createCommitDayPosterBlob, downloadCommitDayPosterBlob } from './commitDayPoster'
 
 const { Text } = Typography
 
 interface CommitsWorkbenchProps {
   data: CommitsByDate[]
   metricsConfig: WorkStatusMetricsConfig | null
+}
+
+interface PosterPreviewState {
+  open: boolean
+  date: string | null
+  filename: string | null
+  blob: Blob | null
+  loading: boolean
+  error: string | null
+}
+
+const emptyPosterPreview: PosterPreviewState = {
+  open: false,
+  date: null,
+  filename: null,
+  blob: null,
+  loading: false,
+  error: null,
 }
 
 const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
@@ -63,55 +82,181 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
   const [activeDates, setActiveDates] = React.useState<string[]>(() => (
     data[0]?.date ? [data[0].date] : []
   ))
+  const [previewingDate, setPreviewingDate] = React.useState<string | null>(null)
+  const [posterPreview, setPosterPreview] = React.useState<PosterPreviewState>(emptyPosterPreview)
+  const [posterPreviewUrl, setPosterPreviewUrl] = React.useState<string | null>(null)
+  const previewRequestIdRef = React.useRef(0)
+
+  React.useEffect(() => {
+    if (!posterPreview.blob) {
+      setPosterPreviewUrl(null)
+      return undefined
+    }
+
+    const objectUrl = URL.createObjectURL(posterPreview.blob)
+    setPosterPreviewUrl(objectUrl)
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [posterPreview.blob])
 
   useUpdateEffect(() => {
     setActiveDates(data[0]?.date ? [data[0].date] : [])
   }, [data])
+
+  const handleClosePosterPreview = React.useCallback(() => {
+    previewRequestIdRef.current += 1
+    setPreviewingDate(null)
+    setPosterPreview(emptyPosterPreview)
+  }, [])
+
+  const handlePreviewPoster = React.useCallback(async (group: CommitsByDate) => {
+    const requestId = previewRequestIdRef.current + 1
+    previewRequestIdRef.current = requestId
+    setPreviewingDate(group.date)
+    setPosterPreview({
+      ...emptyPosterPreview,
+      open: true,
+      date: group.date,
+      loading: true,
+    })
+
+    try {
+      const { blob, filename } = await createCommitDayPosterBlob(group, metricsConfig)
+      if (requestId !== previewRequestIdRef.current) return
+      setPosterPreview({
+        open: true,
+        date: group.date,
+        filename,
+        blob,
+        loading: false,
+        error: null,
+      })
+    } catch (error) {
+      if (requestId !== previewRequestIdRef.current) return
+      const err = error instanceof Error ? error.message : '导出失败'
+      setPosterPreview((current) => ({
+        ...current,
+        loading: false,
+        error: err,
+      }))
+      message.error(err)
+    } finally {
+      if (requestId === previewRequestIdRef.current) {
+        setPreviewingDate((current) => (current === group.date ? null : current))
+      }
+    }
+  }, [metricsConfig])
+
+  const handleConfirmPoster = React.useCallback(() => {
+    if (!posterPreview.blob || !posterPreview.filename) return
+    downloadCommitDayPosterBlob(posterPreview.blob, posterPreview.filename)
+    message.success(`已生成 ${posterPreview.filename}`)
+    handleClosePosterPreview()
+  }, [handleClosePosterPreview, posterPreview.blob, posterPreview.filename])
 
   if (data.length === 0) {
     return <Empty description="当前筛选条件下没有匹配的提交" />
   }
 
   return (
-    <Collapse
-      activeKey={activeDates}
-      onChange={(keys) => setActiveDates((Array.isArray(keys) ? keys : [keys]).map(String))}
-      className="border-x-0 border-b-0"
-      items={data.map((group) => ({
-        key: group.date,
-        label: (
-          <Space size={[8, 8]} wrap>
-            <Text strong>{formatDate(group.date)}</Text>
-            <Text type="secondary">共 {group.totalCommits} 条提交</Text>
-            <Tag color={metricsConfig?.colors[group.workStatus] ?? 'default'}>
-              {metricsConfig?.labels[group.workStatus] ?? group.workStatus}
-            </Tag>
-            {group.hasRelease ? <Tag color="purple">发版</Tag> : null}
-            {group.overtimeCount > 0 ? (
-              <Tooltip title={group.latestOvertimeCommits.join('、')}>
-                <Tag color="red" icon={<ClockCircleOutlined />}>加班 {group.overtimeCount}</Tag>
+    <>
+      <Collapse
+        activeKey={activeDates}
+        onChange={(keys) => setActiveDates((Array.isArray(keys) ? keys : [keys]).map(String))}
+        className="border-x-0 border-b-0"
+        items={data.map((group) => ({
+          key: group.date,
+          label: (
+            <div className="flex w-full items-start justify-between gap-3 pr-2">
+              <Space size={[8, 8]} wrap className="min-w-0 flex-1">
+                <Text strong>{formatDate(group.date)}</Text>
+                <Text type="secondary">共 {group.totalCommits} 条提交</Text>
+                <Tag color={metricsConfig?.colors[group.workStatus] ?? 'default'}>
+                  {metricsConfig?.labels[group.workStatus] ?? group.workStatus}
+                </Tag>
+                {group.hasRelease ? <Tag color="purple">发版</Tag> : null}
+                {group.overtimeCount > 0 ? (
+                  <Tooltip title={group.latestOvertimeCommits.join('、')}>
+                    <Tag color="red" icon={<ClockCircleOutlined />}>加班 {group.overtimeCount}</Tag>
+                  </Tooltip>
+                ) : null}
+                {group.repositories.map((repository) => <Tag key={repository} color="blue">{repository}</Tag>)}
+              </Space>
+              <Tooltip title="预览当日记录图片">
+                <Button
+                  type="text"
+                  size="small"
+                  className="shrink-0"
+                  icon={<EyeOutlined />}
+                  loading={previewingDate === group.date}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void handlePreviewPoster(group)
+                  }}
+                />
               </Tooltip>
-            ) : null}
-            {group.repositories.map((repository) => <Tag key={repository} color="blue">{repository}</Tag>)}
-          </Space>
-        ),
-        children: (
-          <div className="px-1 py-2">
-            <Text type="secondary" className="mb-3 block">
-              按上海时间从早到晚，共 {group.commits.length} 条提交
-            </Text>
-            <Timeline
-              items={[...group.commits]
-                .sort((a, b) => a.commitDate - b.commitDate)
-                .map((commit) => ({
-                  key: commit.id,
-                  color: commit.isOvertime ? 'red' : 'blue',
-                  children: renderCommit(commit),
-                }))}
-            />
-          </div>
-        ),
-      }))}
-    />
+            </div>
+          ),
+          children: (
+            <div className="px-1 py-2">
+              <Text type="secondary" className="mb-3 block">
+                按上海时间从早到晚，共 {group.commits.length} 条提交
+              </Text>
+              <Timeline
+                items={[...group.commits]
+                  .sort((a, b) => a.commitDate - b.commitDate)
+                  .map((commit) => ({
+                    key: commit.id,
+                    color: commit.isOvertime ? 'red' : 'blue',
+                    children: renderCommit(commit),
+                  }))}
+              />
+            </div>
+          ),
+        }))}
+      />
+
+      <Modal
+        title={posterPreview.date ? `${posterPreview.date} 提交记录图片预览` : '提交记录图片预览'}
+        open={posterPreview.open}
+        width={1120}
+        centered
+        destroyOnClose
+        onCancel={handleClosePosterPreview}
+        footer={[
+          <Button key="cancel" onClick={handleClosePosterPreview}>
+            取消
+          </Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<DownloadOutlined />}
+            disabled={!posterPreview.blob || !posterPreview.filename || posterPreview.loading}
+            onClick={handleConfirmPoster}
+          >
+            确认生成
+          </Button>,
+        ]}
+      >
+        {posterPreview.error ? (
+          <Alert type="error" showIcon message={posterPreview.error} />
+        ) : null}
+        <Spin spinning={posterPreview.loading} tip="正在生成预览...">
+          {posterPreviewUrl ? (
+            <div className="max-h-[68vh] overflow-auto rounded border border-neutral-200 bg-[#f2eee7] p-3">
+              <img
+                src={posterPreviewUrl}
+                alt={posterPreview.filename ?? '提交记录图片预览'}
+                className="mx-auto block h-auto max-w-full rounded bg-white shadow-sm"
+              />
+            </div>
+          ) : (
+            <div className="flex min-h-[320px] items-center justify-center rounded border border-dashed border-neutral-200 bg-neutral-50 text-neutral-500">
+              {posterPreview.loading ? '正在准备预览' : '暂无预览'}
+            </div>
+          )}
+        </Spin>
+      </Modal>
+    </>
   )
 }
