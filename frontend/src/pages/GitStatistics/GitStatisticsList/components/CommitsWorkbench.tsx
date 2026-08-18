@@ -1,5 +1,5 @@
 import React from 'react'
-import { Alert, Button, Collapse, Empty, message, Modal, Space, Spin, Tag, Timeline, Tooltip, Typography } from 'antd'
+import { Alert, Button, Collapse, Empty, message, Modal, Space, Spin, Tabs, Tag, Timeline, Tooltip, Typography } from 'antd'
 import { ClockCircleOutlined, CopyOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import { useUpdateEffect } from 'ahooks'
 import type { Commit, CommitsByDate, WorkStatusMetricsConfig } from '../../../../types/gitStatistics'
@@ -75,6 +75,52 @@ function renderCommit(commit: Commit) {
       </div>
       <div className="mt-2 break-words text-sm text-neutral-800">{commit.message}</div>
     </div>
+  )
+}
+
+function renderCommitTimeline(group: CommitsByDate) {
+  const commitsByRepository = group.commits.reduce<Record<string, Commit[]>>((result, commit) => {
+    if (!result[commit.repoName]) result[commit.repoName] = []
+    result[commit.repoName].push(commit)
+    return result
+  }, {})
+  const repositoryNames = [
+    ...group.repositories,
+    ...Object.keys(commitsByRepository).filter((name) => !group.repositories.includes(name)),
+  ]
+
+  const buildTimeline = (commits: Commit[]) => (
+    <Timeline
+      items={[...commits]
+        .sort((a, b) => a.commitDate - b.commitDate)
+        .map((commit) => ({
+          key: commit.id,
+          color: commit.isOvertime ? 'red' : 'blue',
+          children: renderCommit(commit),
+        }))}
+    />
+  )
+
+  if (repositoryNames.length <= 1) {
+    return buildTimeline(group.commits)
+  }
+
+  return (
+    <Tabs
+      type="card"
+      items={[
+        {
+          key: '__all__',
+          label: `当日全览 (${group.commits.length})`,
+          children: buildTimeline(group.commits),
+        },
+        ...repositoryNames.map((repository) => ({
+          key: repository,
+          label: `${repository} (${commitsByRepository[repository]?.length ?? 0})`,
+          children: buildTimeline(commitsByRepository[repository] ?? []),
+        })),
+      ]}
+    />
   )
 }
 
@@ -199,18 +245,7 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
           ),
           children: (
             <div className="px-1 py-2">
-              <Text type="secondary" className="mb-3 block">
-                按上海时间从早到晚，共 {group.commits.length} 条提交
-              </Text>
-              <Timeline
-                items={[...group.commits]
-                  .sort((a, b) => a.commitDate - b.commitDate)
-                  .map((commit) => ({
-                    key: commit.id,
-                    color: commit.isOvertime ? 'red' : 'blue',
-                    children: renderCommit(commit),
-                  }))}
-              />
+              {renderCommitTimeline(group)}
             </div>
           ),
         }))}

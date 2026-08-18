@@ -1,5 +1,6 @@
 import React from 'react'
-import { Card, Col, Row, Statistic, Tag, Typography } from 'antd'
+import { QuestionCircleOutlined } from '@ant-design/icons'
+import { Card, Col, Row, Space, Statistic, Tag, Tooltip } from 'antd'
 import { Line } from '@ant-design/charts'
 import type { Dayjs } from 'dayjs'
 import type { CommitsByDate, OvertimeMode, WorkStatusMetricsConfig } from '../../../../types/gitStatistics'
@@ -64,7 +65,14 @@ export const WorkStatusCards: React.FC<{
 
   return (
     <Card
-      title="工作强度分布"
+      title={(
+        <Space size={4}>
+          工作强度分布
+          <Tooltip title={`强度按当天完整提交数划分，4 个区间互斥；加班按 ${metricsConfig?.overtimeHour ?? 19}:00 后是否有提交单独统计。`}>
+            <QuestionCircleOutlined className="text-xs text-gray-400" />
+          </Tooltip>
+        </Space>
+      )}
       extra={
         <Tag color="red">
           {metricsConfig?.labels.overtime ?? '加班'} {overtimeDays} 天 · {((overtimeDays / data.length) * 100).toFixed(1)}%
@@ -83,9 +91,6 @@ export const WorkStatusCards: React.FC<{
           </Col>
         ))}
       </Row>
-      <Typography.Text type="secondary" className="mt-3 block text-xs">
-        强度按当天完整提交数划分，4 个区间互斥；加班按 {metricsConfig?.overtimeHour ?? 19}:00 后是否有提交单独统计。
-      </Typography.Text>
     </Card>
   )
 }

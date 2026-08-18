@@ -4,7 +4,7 @@ import { ReloadOutlined, SyncOutlined } from '@ant-design/icons'
 import { useAtom, useSetAtom } from 'jotai'
 import { useMount } from 'ahooks'
 import { useSearchParams } from 'react-router-dom'
-import dayjs from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { StatisticsFilter } from './components/StatisticsFilter'
 import { StatisticsCards } from './components/StatisticsCards'
 import { WorkStatusCards, WorkStatusReport } from './components/WorkStatusReport'
@@ -30,7 +30,6 @@ import type { ScanTask } from '../../../types/tasks'
 import { useScan } from '../../../biz/hooks/useScan'
 import { filterCommitGroups } from '../../../utils/commitFilters'
 import {
-  getPresetRange,
   MAX_SCAN_SPAN_MS,
   type ScanTimePresetKey,
 } from '../../../utils/scanTimeRange'
@@ -232,8 +231,12 @@ const GitStatisticsList: React.FC = () => {
     await handleSearch(initialFilter)
   })
 
-  const handleSyncConfirm = React.useCallback(async () => {
-    const [startDate, endDate] = getPresetRange(scanTimePreset, filter.dateRange)
+  const handleSyncConfirm = React.useCallback(async (
+    repositoryIds: string[],
+    selectedDateRange: [Dayjs, Dayjs],
+  ) => {
+    const startDate = selectedDateRange[0].startOf('day').valueOf()
+    const endDate = selectedDateRange[1].endOf('day').valueOf()
     if (startDate >= endDate || endDate - startDate > MAX_SCAN_SPAN_MS) {
       message.error('同步日期范围无效或超过 186 天')
       return
@@ -241,13 +244,13 @@ const GitStatisticsList: React.FC = () => {
     const success = await handleScan({
       startDate,
       endDate,
-      repositoryIds: filter.repositoryIds.length ? filter.repositoryIds : undefined,
+      repositoryIds: repositoryIds.length ? repositoryIds : undefined,
     })
     if (success) {
       setSyncModalOpen(false)
       await handleSearch(appliedFilter)
     }
-  }, [appliedFilter, filter.dateRange, filter.repositoryIds, handleScan, handleSearch, scanTimePreset])
+  }, [appliedFilter, handleScan, handleSearch])
 
   const handleResetAndSearch = React.useCallback(() => {
     const resetFilter = cloneFilter(defaultFilterState)
