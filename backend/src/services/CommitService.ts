@@ -3,6 +3,7 @@ import type { ScannedCommit } from './GitScanService.js';
 import { calculateWorkStatus, type WorkStatus, type WorkStatusConfig } from '../config/workStatus.config.js';
 import { DataMetricsConfigService } from './DataMetricsConfigService.js';
 import { logger } from '../config/logger.js';
+import { cacheService } from './CacheService.js';
 
 const SHANGHAI_TIME_ZONE = 'Asia/Shanghai';
 const shanghaiDateFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -215,9 +216,13 @@ export class CommitService {
           logger.debug(`Skipped duplicate commit ${commit.hash}`);
         }
       }
+      if (inserted > 0) {
+        await cacheService.invalidate('commits');
+      }
       return { inserted, skipped: commits.length - inserted };
     }
 
+    await cacheService.invalidate('commits');
     return {
       inserted: toInsert.length,
       skipped: commits.length - toInsert.length

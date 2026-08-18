@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { CommitsQuerySchema, CommitsByDateQuerySchema } from '../schemas/api.schema.js';
 import { CommitService } from '../services/CommitService.js';
+import { cacheService } from '../services/CacheService.js';
 
 const app = new Hono();
 const commitService = new CommitService();
@@ -11,7 +12,7 @@ app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => 
   const query = c.req.valid('query');
 
 
-  const result = await commitService.getCommitsByDate({
+  const params = {
     startDate: query.startDate,
     endDate: query.endDate,
     repositoryIds: query.repositoryIds,
@@ -23,7 +24,10 @@ app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => 
           ? 'non_overtime_days'
           : 'all'
     )
-  });
+  };
+  const result = await cacheService.getOrSet('commits', { endpoint: 'by-date', ...params }, 180, () =>
+    commitService.getCommitsByDate(params)
+  );
 
 
   return c.json({
@@ -46,14 +50,17 @@ app.get('/', zValidator('query', CommitsQuerySchema), async (c) => {
     pageSize: query.pageSize
   });
 
-  const result = await commitService.getCommits({
+  const params = {
     startDate: query.startDate,
     endDate: query.endDate,
     repositoryIds: query.repositoryIds,
     authorEmails: query.authorEmails,
     page: query.page,
     pageSize: query.pageSize
-  });
+  };
+  const result = await cacheService.getOrSet('commits', { endpoint: 'list', ...params }, 120, () =>
+    commitService.getCommits(params)
+  );
 
   console.log('[Commits API] Result:', {
     total: result.total,

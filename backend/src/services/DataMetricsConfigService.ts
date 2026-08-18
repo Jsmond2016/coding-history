@@ -1,5 +1,6 @@
 import { prisma } from '../db/client.js';
 import { defaultWorkStatusConfig, workStatusLabels, workStatusColors, type WorkStatusConfig, type WorkStatus } from '../config/workStatus.config.js';
+import { cacheService } from './CacheService.js';
 
 export interface DataMetricsConfig {
   id: number;
@@ -102,6 +103,8 @@ export class DataMetricsConfigService {
         }
       });
 
+      await cacheService.invalidate('metrics');
+      await cacheService.invalidate('commits');
       return {
         id: updated.id,
         thresholds: config.thresholds,
@@ -124,6 +127,8 @@ export class DataMetricsConfigService {
         }
       });
 
+      await cacheService.invalidate('metrics');
+      await cacheService.invalidate('commits');
       return {
         id: created.id,
         thresholds: config.thresholds,
@@ -154,4 +159,3 @@ export class DataMetricsConfigService {
     });
   }
 }
-

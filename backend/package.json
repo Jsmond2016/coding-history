@@ -23,6 +23,7 @@
     "pino": "^8.16.0",
     "pino-pretty": "^10.2.0",
     "ramda": "^0.29.0",
+    "redis": "^6.2.1",
     "rotating-file-stream": "^3.2.9",
     "simple-git": "^3.20.0",
     "zod": "^3.22.0"
