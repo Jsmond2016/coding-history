@@ -30,7 +30,6 @@ import type { ScanTask } from '../../../types/tasks'
 import { useScan } from '../../../biz/hooks/useScan'
 import { filterCommitGroups } from '../../../utils/commitFilters'
 import {
-  MAX_SCAN_SPAN_MS,
   type ScanTimePresetKey,
 } from '../../../utils/scanTimeRange'
 
@@ -237,8 +236,11 @@ const GitStatisticsList: React.FC = () => {
   ) => {
     const startDate = selectedDateRange[0].startOf('day').valueOf()
     const endDate = selectedDateRange[1].endOf('day').valueOf()
-    if (startDate >= endDate || endDate - startDate > MAX_SCAN_SPAN_MS) {
-      message.error('同步日期范围无效或超过 186 天')
+    if (
+      startDate >= endDate
+      || selectedDateRange[1].isAfter(selectedDateRange[0].add(6, 'month').endOf('day'))
+    ) {
+      message.error('同步日期范围无效或超过 6 个月，请拆分时间段后再同步')
       return
     }
     const success = await handleScan({

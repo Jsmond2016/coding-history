@@ -2,6 +2,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 
 /** 手动扫描可选的时间范围维度（单选） */
 export type ScanTimePresetKey =
+  | 'today'
   | 'three_days'
   | 'one_week'
   | 'two_weeks'
@@ -12,13 +13,13 @@ export type ScanTimePresetKey =
 
 /** 用于 Modal 与主按钮后缀「手动扫描-{label}」 */
 export const SCAN_TIME_PRESET_OPTIONS: { value: ScanTimePresetKey; label: string }[] = [
+  { value: 'today', label: '今天' },
   { value: 'three_days', label: '3 天内' },
   { value: 'one_week', label: '1 周内' },
   { value: 'two_weeks', label: '2 周内' },
   { value: 'one_month', label: '1 个月内' },
   { value: 'three_months', label: '3 个月内' },
   { value: 'six_months', label: '6 个月内' },
-  { value: 'filter_range', label: '当前筛选日期' }
 ]
 
 export function getScanPresetLabel(key: ScanTimePresetKey): string {
@@ -34,6 +35,8 @@ export function getPresetRange(
 ): [number, number] {
   const end = dayjs().endOf('day')
   switch (key) {
+    case 'today':
+      return [dayjs().startOf('day').valueOf(), end.valueOf()]
     case 'three_days':
       return [dayjs().subtract(3, 'day').startOf('day').valueOf(), end.valueOf()]
     case 'one_week':
