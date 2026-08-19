@@ -78,46 +78,62 @@ function renderCommit(commit: Commit) {
   )
 }
 
-function renderCommitTimeline(group: CommitsByDate) {
-  const commitsByRepository = group.commits.reduce<Record<string, Commit[]>>((result, commit) => {
+interface CommitTimelineProps {
+  commits: Commit[]
+}
+
+const CommitTimeline: React.FC<CommitTimelineProps> = ({ commits }) => (
+  <Timeline
+    items={[...commits]
+      .sort((a, b) => a.commitDate - b.commitDate)
+      .map((commit) => ({
+        key: commit.id,
+        color: commit.isOvertime ? 'red' : 'blue',
+        children: renderCommit(commit),
+      }))}
+  />
+)
+
+interface CommitDetailsProps {
+  group: CommitsByDate
+}
+
+/**
+ * 日期面板明细：只有日期面板展开后才会挂载，因此不会为折叠日期创建提交卡片。
+ */
+const CommitDetails: React.FC<CommitDetailsProps> = ({ group }) => {
+  const commitsByRepository = React.useMemo(() => group.commits.reduce<Record<string, Commit[]>>((result, commit) => {
     if (!result[commit.repoName]) result[commit.repoName] = []
     result[commit.repoName].push(commit)
     return result
-  }, {})
+  }, {}), [group.commits])
+  const [activeRepository, setActiveRepository] = React.useState('__all__')
   const repositoryNames = [
     ...group.repositories,
     ...Object.keys(commitsByRepository).filter((name) => !group.repositories.includes(name)),
   ]
 
-  const buildTimeline = (commits: Commit[]) => (
-    <Timeline
-      items={[...commits]
-        .sort((a, b) => a.commitDate - b.commitDate)
-        .map((commit) => ({
-          key: commit.id,
-          color: commit.isOvertime ? 'red' : 'blue',
-          children: renderCommit(commit),
-        }))}
-    />
-  )
-
   if (repositoryNames.length <= 1) {
-    return buildTimeline(group.commits)
+    return <CommitTimeline commits={group.commits} />
   }
 
   return (
     <Tabs
       type="card"
+      activeKey={activeRepository}
+      onChange={setActiveRepository}
       items={[
         {
           key: '__all__',
           label: `当日全览 (${group.commits.length})`,
-          children: buildTimeline(group.commits),
+          children: activeRepository === '__all__' ? <CommitTimeline commits={group.commits} /> : null,
         },
         ...repositoryNames.map((repository) => ({
           key: repository,
           label: `${repository} (${commitsByRepository[repository]?.length ?? 0})`,
-          children: buildTimeline(commitsByRepository[repository] ?? []),
+          children: activeRepository === repository
+            ? <CommitTimeline commits={commitsByRepository[repository] ?? []} />
+            : null,
         })),
       ]}
     />
@@ -126,12 +142,13 @@ function renderCommitTimeline(group: CommitsByDate) {
 
 export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metricsConfig }) => {
   const [activeDates, setActiveDates] = React.useState<string[]>(() => (
-    data[0]?.date ? [data[0].date] : []
+    []
   ))
   const [previewingDate, setPreviewingDate] = React.useState<string | null>(null)
   const [posterPreview, setPosterPreview] = React.useState<PosterPreviewState>(emptyPosterPreview)
   const [posterPreviewUrl, setPosterPreviewUrl] = React.useState<string | null>(null)
   const previewRequestIdRef = React.useRef(0)
+  const activeDateSet = React.useMemo(() => new Set(activeDates), [activeDates])
 
   React.useEffect(() => {
     if (!posterPreview.blob) {
@@ -145,7 +162,7 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
   }, [posterPreview.blob])
 
   useUpdateEffect(() => {
-    setActiveDates(data[0]?.date ? [data[0].date] : [])
+    setActiveDates([])
   }, [data])
 
   const handleClosePosterPreview = React.useCallback(() => {
@@ -244,9 +261,11 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
             </div>
           ),
           children: (
-            <div className="px-1 py-2">
-              {renderCommitTimeline(group)}
-            </div>
+            activeDateSet.has(group.date) ? (
+              <div className="px-1 py-2">
+                <CommitDetails group={group} />
+              </div>
+            ) : null
           ),
         }))}
       />
