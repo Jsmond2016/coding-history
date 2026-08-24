@@ -6,6 +6,7 @@ type RedisClient = ReturnType<typeof createClient>;
 
 const DEFAULT_PREFIX = 'coding-history:';
 const CONNECT_RETRY_DELAY_MS = 10_000;
+const REDIS_CONNECT_TIMEOUT_MS = 1_000;
 
 function normalize(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -40,12 +41,24 @@ export class CacheService {
     if (this.connectPromise) return this.connectPromise;
 
     this.connectPromise = (async () => {
-      const client = this.client ?? createClient({ url: process.env.REDIS_URL || 'redis://127.0.0.1:6379' });
+      const client = this.client ?? createClient({
+        url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+        socket: {
+          connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
+          // A cache outage must fall back to SQLite instead of keeping API requests pending.
+          reconnectStrategy: false
+        }
+      });
       client.on('error', (error) => {
         logger.warn({ msg: '[Redis] connection error', error: error instanceof Error ? error.message : String(error) });
       });
       try {
-        await client.connect();
+        await Promise.race([
+          client.connect(),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Redis connection timeout after ${REDIS_CONNECT_TIMEOUT_MS}ms`)), REDIS_CONNECT_TIMEOUT_MS);
+          })
+        ]);
         this.client = client;
         this.unavailableUntil = 0;
         logger.info('[Redis] cache connection ready');
