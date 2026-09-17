@@ -27,13 +27,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch, is
 
   const handleDateChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
     if (!dates || !dates[0] || !dates[1]) return;
-    
-    const diffYears = dates[1].diff(dates[0], "year", true);
-    if (diffYears > 2) {
-      message.error("时间范围不能超过2年");
-      return;
-    }
-    
+
     setFilter({
       ...filter,
       dateRange: [dates[0], dates[1]]

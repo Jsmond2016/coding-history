@@ -236,11 +236,8 @@ const GitStatisticsList: React.FC = () => {
   ) => {
     const startDate = selectedDateRange[0].startOf('day').valueOf()
     const endDate = selectedDateRange[1].endOf('day').valueOf()
-    if (
-      startDate >= endDate
-      || selectedDateRange[1].isAfter(selectedDateRange[0].add(6, 'month').endOf('day'))
-    ) {
-      message.error('同步日期范围无效或超过 6 个月，请拆分时间段后再同步')
+    if (startDate >= endDate) {
+      message.error('同步日期范围无效')
       return
     }
     const success = await handleScan({

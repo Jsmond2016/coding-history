@@ -5,17 +5,12 @@ import { ScanRunService } from '../services/ScanRunService.js';
 
 const app = new Hono();
 const scanRunService = new ScanRunService();
-const MAX_RANGE_MS = 186 * 24 * 60 * 60 * 1000;
-
 const CreateScanRunSchema = z.object({
   startDate: z.number().int().positive(),
   endDate: z.number().int().positive(),
   repositoryIds: z.array(z.string().min(1)).optional()
 }).refine((value) => value.startDate < value.endDate, {
   message: '开始时间必须早于结束时间',
-  path: ['endDate']
-}).refine((value) => value.endDate - value.startDate <= MAX_RANGE_MS, {
-  message: '扫描日期跨度不能超过 186 天',
   path: ['endDate']
 });
 

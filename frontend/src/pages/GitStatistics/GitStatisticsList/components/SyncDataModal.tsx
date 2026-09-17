@@ -77,11 +77,19 @@ export const SyncDataModal: React.FC<SyncDataModalProps> = ({
       message.error('开始日期不能晚于结束日期')
       return
     }
-    if (selectedDateRange[1].isAfter(selectedDateRange[0].add(6, 'month').endOf('day'))) {
-      message.warning('同步日期范围超过 6 个月，请拆分多个时间段后再同步')
+    const start = selectedDateRange[0]
+    const end = selectedDateRange[1]
+    if (end.isAfter(start.add(6, 'month').endOf('day'))) {
+      Modal.confirm({
+        title: '确认扫描长时间范围？',
+        content: '当前日期范围超过 6 个月，扫描可能耗时较长或执行失败。若失败，可拆分为更短的时间范围后重新扫描。',
+        okText: '确认扫描',
+        cancelText: '返回修改',
+        onOk: () => onConfirm(selectedRepositoryIds, [start, end]),
+      })
       return
     }
-    onConfirm(selectedRepositoryIds, selectedDateRange)
+    onConfirm(selectedRepositoryIds, [start, end])
   }
 
   return (
@@ -132,7 +140,7 @@ export const SyncDataModal: React.FC<SyncDataModalProps> = ({
           </Form.Item>
 
           <Typography.Text type="secondary">
-            可直接选择快捷范围，也可以手动选择日期；点击开始同步时校验单次范围不超过 6 个月。
+            可直接选择快捷范围，也可以手动选择日期；超过 6 个月时需确认，扫描可能耗时较长或失败。
           </Typography.Text>
         </Space>
       </Form>

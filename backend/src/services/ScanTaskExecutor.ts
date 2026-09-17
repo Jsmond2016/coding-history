@@ -70,28 +70,11 @@ async function pullRepository(repoPath: string, repoName: string): Promise<boole
   }
 }
 
-/**
- * 验证自定义时间范围（最大6个月跨度）
- * 
- * @param startDate 开始时间
- * @param endDate 结束时间
- * @returns {boolean} 是否有效
- * @throws {Error} 当时间范围无效时抛出异常
- */
+/** 验证自定义时间范围。长范围由调用方在发起前进行用户确认。 */
 export function validateDateRange(startDate: Date, endDate: Date): boolean {
   if (startDate >= endDate) {
     throw new Error('开始时间必须早于结束时间');
   }
-
-  // 计算时间跨度（毫秒）
-  const spanMs = endDate.getTime() - startDate.getTime();
-  // 6个月 = 180天 = 180 * 24 * 60 * 60 * 1000 毫秒
-  const maxSpanMs = 180 * 24 * 60 * 60 * 1000;
-
-  if (spanMs > maxSpanMs) {
-    throw new Error(`时间跨度不能超过6个月（当前跨度：${Math.ceil(spanMs / (24 * 60 * 60 * 1000))}天）`);
-  }
-
   return true;
 }
 
@@ -277,8 +260,11 @@ export async function executeScanTask(task: ScanTask, options?: ExecuteScanTaskO
       await pullRepository(repo.path, repo.name);
 
       const dbTip = await commitService.getMaxCommitDateMsForRepo(repo.id);
-      const effectiveFrom = resolveScanFromDateWithGapFill(fromDate, dbTip);
-      if (dbTip != null && effectiveFrom.getTime() < fromDate.getTime()) {
+      // 手动扫描必须严格使用已确认的区间；补洞窗口只适用于周期性扫描。
+      const effectiveFrom = task.taskType === 'manual'
+        ? fromDate
+        : resolveScanFromDateWithGapFill(fromDate, dbTip);
+      if (task.taskType !== 'manual' && dbTip != null && effectiveFrom.getTime() < fromDate.getTime()) {
         logger.info(
           `[任务执行] ${repo.name} 库内最新早于任务窗口起点，前推 --since: ` +
             `${fromDate.toISOString()} → ${effectiveFrom.toISOString()}`

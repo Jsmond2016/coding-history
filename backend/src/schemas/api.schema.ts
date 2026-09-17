@@ -23,8 +23,6 @@ export const CommitsByDateQuerySchema = z.object({
   overtimeMode: z.enum(['all', 'overtime_days', 'overtime_commits', 'non_overtime_days']).optional()
 });
 
-const MAX_SCAN_RANGE_MS = 186 * 24 * 60 * 60 * 1000; // 与任务自定义范围一致，约 6 个月
-
 // 手动扫描：须带页面筛选的日期区间（毫秒，建议 startOf/endOf('day')）；可选限定仓库
 export const ScanRequestSchema = z
   .object({
@@ -34,10 +32,6 @@ export const ScanRequestSchema = z
   })
   .refine((d) => d.startDate < d.endDate, {
     message: '开始时间必须早于结束时间',
-    path: ['endDate']
-  })
-  .refine((d) => d.endDate - d.startDate <= MAX_SCAN_RANGE_MS, {
-    message: '扫描日期跨度不能超过约 6 个月（186 天）',
     path: ['endDate']
   });
 
