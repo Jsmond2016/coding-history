@@ -203,12 +203,48 @@ export const WorkStatusCards: React.FC<{
   }, { relaxed: 0, normal: 0, busy: 0, crazy: 0 })
   const overtimeDays = data.filter((group) => group.overtimeCount > 0).length
 
+  const labels = {
+    relaxed: metricsConfig?.labels.relaxed ?? '轻松',
+    normal: metricsConfig?.labels.normal ?? '正常',
+    busy: metricsConfig?.labels.busy ?? '忙碌',
+    crazy: metricsConfig?.labels.crazy ?? '疯狂',
+  }
   const cards = [
-    { key: 'total', title: '活跃天数', value: data.length, color: '#1677ff' },
-    { key: 'relaxed', title: metricsConfig?.labels.relaxed ?? '轻松', value: intensity.relaxed, color: '#52c41a' },
-    { key: 'normal', title: metricsConfig?.labels.normal ?? '正常', value: intensity.normal, color: '#1677ff' },
-    { key: 'busy', title: metricsConfig?.labels.busy ?? '忙碌', value: intensity.busy, color: '#fa8c16' },
-    { key: 'crazy', title: metricsConfig?.labels.crazy ?? '疯狂', value: intensity.crazy, color: '#f5222d' },
+    {
+      key: 'total',
+      title: '活跃天数',
+      tip: '当前筛选范围内，按上海自然日统计；当天至少有 1 条完整提交即计为 1 天。',
+      value: data.length,
+      color: '#1677ff',
+    },
+    {
+      key: 'relaxed',
+      title: labels.relaxed,
+      tip: `当天完整提交数少于 ${thresholds.relaxed} 次。`,
+      value: intensity.relaxed,
+      color: '#52c41a',
+    },
+    {
+      key: 'normal',
+      title: labels.normal,
+      tip: `当天完整提交数不少于 ${thresholds.relaxed} 次且少于 ${thresholds.normal} 次。`,
+      value: intensity.normal,
+      color: '#1677ff',
+    },
+    {
+      key: 'busy',
+      title: labels.busy,
+      tip: `当天完整提交数不少于 ${thresholds.normal} 次且少于 ${thresholds.busy} 次。`,
+      value: intensity.busy,
+      color: '#fa8c16',
+    },
+    {
+      key: 'crazy',
+      title: labels.crazy,
+      tip: `当天完整提交数不少于 ${thresholds.busy} 次。`,
+      value: intensity.crazy,
+      color: '#f5222d',
+    },
   ]
 
   return (
@@ -231,7 +267,20 @@ export const WorkStatusCards: React.FC<{
         {cards.map((item) => (
           <Col xs={12} sm={8} xl={item.key === 'total' ? 4 : 5} key={item.key}>
             <Statistic
-              title={item.title}
+              title={(
+                <span className="inline-flex items-center gap-1">
+                  {item.title}
+                  <Tooltip title={item.tip}>
+                    <button
+                      type="button"
+                      aria-label={`${item.title}指标说明`}
+                      className="inline-flex border-0 bg-transparent p-0 text-neutral-400 hover:text-neutral-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                    >
+                      <QuestionCircleOutlined className="text-xs" />
+                    </button>
+                  </Tooltip>
+                </span>
+              )}
               value={item.value}
               suffix="天"
               valueStyle={{ color: item.color }}
