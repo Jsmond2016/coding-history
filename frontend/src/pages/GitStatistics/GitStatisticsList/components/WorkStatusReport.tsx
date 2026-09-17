@@ -222,6 +222,7 @@ export const WorkStatusCards: React.FC<{
       title: labels.relaxed,
       tip: `当天完整提交数少于 ${thresholds.relaxed} 次。`,
       value: intensity.relaxed,
+      percentage: `${((intensity.relaxed / data.length) * 100).toFixed(1)}%`,
       color: '#52c41a',
     },
     {
@@ -229,6 +230,7 @@ export const WorkStatusCards: React.FC<{
       title: labels.normal,
       tip: `当天完整提交数不少于 ${thresholds.relaxed} 次且少于 ${thresholds.normal} 次。`,
       value: intensity.normal,
+      percentage: `${((intensity.normal / data.length) * 100).toFixed(1)}%`,
       color: '#1677ff',
     },
     {
@@ -236,6 +238,7 @@ export const WorkStatusCards: React.FC<{
       title: labels.busy,
       tip: `当天完整提交数不少于 ${thresholds.normal} 次且少于 ${thresholds.busy} 次。`,
       value: intensity.busy,
+      percentage: `${((intensity.busy / data.length) * 100).toFixed(1)}%`,
       color: '#fa8c16',
     },
     {
@@ -243,6 +246,7 @@ export const WorkStatusCards: React.FC<{
       title: labels.crazy,
       tip: `当天完整提交数不少于 ${thresholds.busy} 次。`,
       value: intensity.crazy,
+      percentage: `${((intensity.crazy / data.length) * 100).toFixed(1)}%`,
       color: '#f5222d',
     },
   ]
@@ -282,7 +286,11 @@ export const WorkStatusCards: React.FC<{
                 </span>
               )}
               value={item.value}
-              suffix="天"
+              suffix={item.percentage ? (
+                <>
+                  天 <span className="text-xs font-normal text-neutral-500">({item.percentage})</span>
+                </>
+              ) : '天'}
               valueStyle={{ color: item.color }}
             />
           </Col>
