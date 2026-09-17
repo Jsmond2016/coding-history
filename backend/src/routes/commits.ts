@@ -7,6 +7,15 @@ import { cacheService } from '../services/CacheService.js';
 const app = new Hono();
 const commitService = new CommitService();
 
+// 获取全部已入库提交的时间范围
+app.get('/date-range', async (c) => {
+  const result = await cacheService.getOrSet('commits', { endpoint: 'date-range' }, 300, () =>
+    commitService.getCommitDateRange()
+  );
+
+  return c.json(result);
+});
+
 // 获取提交记录列表（按日期分组）
 app.get('/by-date', zValidator('query', CommitsByDateQuerySchema), async (c) => {
   const query = c.req.valid('query');

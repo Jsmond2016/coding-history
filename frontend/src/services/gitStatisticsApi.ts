@@ -8,7 +8,8 @@ import type {
   DataOverviewResponse,
   StatisticsResponse,
   Repository,
-  Author
+  Author,
+  CommitDateRange
 } from '../types/gitStatistics';
 
 const api = axios.create({
@@ -42,6 +43,10 @@ export const gitStatisticsApi = {
   // 获取作者列表
   getAuthors: (): Promise<Author[]> =>
     api.get('/repositories/authors').then(res => res.data),
+
+  // 获取所有已入库提交的时间范围
+  getCommitDateRange: (): Promise<CommitDateRange | null> =>
+    api.get('/commits/date-range').then(res => res.data),
 
   // 获取提交记录（按日期分组）
   getCommitsByDate: (params: CommitsByDateQuery): Promise<CommitsByDateResponse> =>

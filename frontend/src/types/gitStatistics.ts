@@ -15,6 +15,11 @@ export interface Author {
   isDefault?: boolean;
 }
 
+export interface CommitDateRange {
+  earliest: number;
+  latest: number;
+}
+
 export interface Commit {
   id: number;
   repoId: string;

@@ -153,6 +153,7 @@ const GitStatisticsList: React.FC = () => {
   const [lastUpdatedAt, setLastUpdatedAt] = React.useState<number | null>(null)
   const [syncModalOpen, setSyncModalOpen] = React.useState(false)
   const [scanTimePreset, setScanTimePreset] = React.useState<ScanTimePresetKey>('three_days')
+  const [allTimeRange, setAllTimeRange] = React.useState<[Dayjs, Dayjs] | null>(null)
   const requestIdRef = React.useRef(0)
   const { scanning, handleScan } = useScan()
 
@@ -217,16 +218,23 @@ const GitStatisticsList: React.FC = () => {
 
   useMount(async () => {
     setFilter(initialFilter)
-    const [repos, authors, task] = await Promise.all([
+    const [repos, authors, task, commitDateRange] = await Promise.all([
       gitStatisticsApi.getRepositories().catch(() => null),
       gitStatisticsApi.getAuthors().catch(() => null),
       tasksApi.getPrimaryTask().catch(() => null),
+      gitStatisticsApi.getCommitDateRange().catch(() => null),
     ])
     if (repos) setRepositories(repos)
     else message.warning('仓库列表加载失败，仓库筛选暂不可用')
     if (authors) setAuthors(authors)
     else message.warning('作者列表加载失败，作者筛选暂不可用')
     setPrimaryTask(task)
+    if (commitDateRange) {
+      setAllTimeRange([
+        dayjs(commitDateRange.earliest).startOf('day'),
+        dayjs().endOf('day'),
+      ])
+    }
     await handleSearch(initialFilter)
   })
 
@@ -278,7 +286,11 @@ const GitStatisticsList: React.FC = () => {
           </div>
 
           <Card className="[&_.ant-card-body]:p-4">
-            <StatisticsFilter onSearch={handleSearch} isDirty={isDirty} />
+            <StatisticsFilter
+              allTimeRange={allTimeRange}
+              onSearch={handleSearch}
+              isDirty={isDirty}
+            />
           </Card>
 
           {loadError ? (

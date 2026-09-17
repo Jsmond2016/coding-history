@@ -144,6 +144,28 @@ export class CommitService {
   }
 
   /**
+   * 获取所有已入库提交的时间范围。
+   */
+  async getCommitDateRange(): Promise<{ earliest: number; latest: number } | null> {
+    const result = await prisma.commit.aggregate({
+      _min: { commitDate: true },
+      _max: { commitDate: true }
+    });
+
+    const earliest = result._min.commitDate;
+    const latest = result._max.commitDate;
+
+    if (earliest == null || latest == null) {
+      return null;
+    }
+
+    return {
+      earliest: Number(earliest),
+      latest: Number(latest)
+    };
+  }
+
+  /**
    * 批量插入提交记录（按 repoId + commitHash 去重，同一 commit 只插一次）
    * 来自未上线分支的写 branch=分支名，来自 release 的写 branch=null
    */

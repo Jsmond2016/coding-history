@@ -16,11 +16,12 @@ const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 interface StatisticsFilterProps {
+  allTimeRange: [Dayjs, Dayjs] | null;
   onSearch: (customFilter?: FilterState) => void;
   isDirty: boolean;
 }
 
-export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch, isDirty }) => {
+export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ allTimeRange, onSearch, isDirty }) => {
   const [filter, setFilter] = useAtom(filterAtom);
   const [repositories] = useAtom(repositoriesAtom);
   const [authors] = useAtom(authorsAtom);
@@ -57,6 +58,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ onSearch, is
     { label: "最近三个月", value: [dayjs().subtract(3, "month"), dayjs()] as [Dayjs, Dayjs] },
     { label: "最近半年", value: [dayjs().subtract(6, "month"), dayjs()] as [Dayjs, Dayjs] },
     { label: "最近一年", value: [dayjs().subtract(1, "year"), dayjs()] as [Dayjs, Dayjs] },
+    ...(allTimeRange ? [{ label: "全部时间", value: allTimeRange }] : []),
   ];
 
   return (
