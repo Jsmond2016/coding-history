@@ -1,11 +1,14 @@
 import React from 'react'
 import { Alert, Button, Collapse, Empty, message, Modal, Space, Spin, Tabs, Tag, Timeline, Tooltip, Typography } from 'antd'
-import { ClockCircleOutlined, CopyOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
+import { ClockCircleOutlined, CopyOutlined, DownloadOutlined, DownOutlined, EyeOutlined } from '@ant-design/icons'
 import { useUpdateEffect } from 'ahooks'
 import type { Commit, CommitsByDate, WorkStatusMetricsConfig } from '../../../../types/gitStatistics'
 import { createCommitDayPosterBlob, downloadCommitDayPosterBlob } from './commitDayPoster'
 
 const { Text } = Typography
+const INITIAL_DATE_COUNT = 30
+const DATE_BATCH_SIZE = 60
+const weekDayLabels = ['日', '一', '二', '三', '四', '五', '六']
 
 interface CommitsWorkbenchProps {
   data: CommitsByDate[]
@@ -30,12 +33,6 @@ const emptyPosterPreview: PosterPreviewState = {
   error: null,
 }
 
-const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
-  timeZone: 'Asia/Shanghai',
-  month: '2-digit',
-  day: '2-digit',
-  weekday: 'short',
-})
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   timeZone: 'Asia/Shanghai',
   hour: '2-digit',
@@ -45,7 +42,9 @@ const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
 })
 
 function formatDate(date: string): string {
-  return dateFormatter.format(new Date(`${date}T00:00:00+08:00`))
+  const [year, month, day] = date.split('-')
+  const weekday = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))).getUTCDay()
+  return `${year}/${month}/${day} 周${weekDayLabels[weekday]}`
 }
 
 function renderCommit(commit: Commit) {
@@ -144,6 +143,7 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
   const [activeDates, setActiveDates] = React.useState<string[]>(() => (
     []
   ))
+  const [visibleDateCount, setVisibleDateCount] = React.useState(INITIAL_DATE_COUNT)
   const [previewingDate, setPreviewingDate] = React.useState<string | null>(null)
   const [posterPreview, setPosterPreview] = React.useState<PosterPreviewState>(emptyPosterPreview)
   const [posterPreviewUrl, setPosterPreviewUrl] = React.useState<string | null>(null)
@@ -163,7 +163,14 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
 
   useUpdateEffect(() => {
     setActiveDates([])
+    setVisibleDateCount(INITIAL_DATE_COUNT)
   }, [data])
+
+  const visibleGroups = React.useMemo(
+    () => data.slice(0, visibleDateCount),
+    [data, visibleDateCount],
+  )
+  const nextBatchSize = Math.min(DATE_BATCH_SIZE, data.length - visibleGroups.length)
 
   const handleClosePosterPreview = React.useCallback(() => {
     previewRequestIdRef.current += 1
@@ -226,7 +233,7 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
         activeKey={activeDates}
         onChange={(keys) => setActiveDates((Array.isArray(keys) ? keys : [keys]).map(String))}
         className="border-x-0 border-b-0"
-        items={data.map((group) => ({
+        items={visibleGroups.map((group) => ({
           key: group.date,
           label: (
             <div className="flex w-full items-start justify-between gap-3 pr-2">
@@ -269,6 +276,23 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
           ),
         }))}
       />
+
+      {nextBatchSize > 0 ? (
+        <div className="flex justify-center border-t border-neutral-100 py-3">
+          <Space size="middle">
+            <Button
+              type="link"
+              icon={<DownOutlined />}
+              onClick={() => setVisibleDateCount((count) => Math.min(count + DATE_BATCH_SIZE, data.length))}
+            >
+              展开后续 {nextBatchSize} 天
+            </Button>
+            <Button type="link" onClick={() => setVisibleDateCount(data.length)}>
+              展开所有（剩余 {data.length - visibleGroups.length} 天）
+            </Button>
+          </Space>
+        </div>
+      ) : null}
 
       <Modal
         title={posterPreview.date ? `${posterPreview.date} 提交记录图片预览` : '提交记录图片预览'}
