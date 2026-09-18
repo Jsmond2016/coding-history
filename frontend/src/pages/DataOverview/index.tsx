@@ -27,12 +27,19 @@ import {
 import { useMount } from "ahooks"
 import dayjs, { type Dayjs } from "dayjs"
 import { gitStatisticsApi } from "../../services/gitStatisticsApi"
+import { createCommitDateRangePresets } from "../../utils/commitDateRange"
 import { CommitsByDateList } from "../GitStatistics/GitStatisticsList/components/CommitsByDateList"
+import {
+  OverviewPieChart,
+  type OverviewPieDatum,
+} from "./components/OverviewPieChart"
 import type {
   Author,
   CommitsByDate,
   DataOverviewResponse,
   OvertimeMode,
+  Repository,
+  WorkIntensity,
 } from "../../types/gitStatistics"
 
 const { RangePicker } = DatePicker
@@ -43,21 +50,14 @@ type DrilldownKey =
   | "overtimeDays"
   | "overtimeCommits"
   | "topOvertimeMonth"
+  | `intensity:${WorkIntensity}`
   | `repository:${string}`
 
 interface OverviewFilter {
   dateRange: [Dayjs, Dayjs]
+  repositoryIds: string[]
   authorEmails: string[]
 }
-
-const currentYear = dayjs().year()
-const rangePresets: Array<{ label: string; value: [Dayjs, Dayjs] }> = [
-  { label: "近一个月", value: [dayjs().subtract(1, "month"), dayjs()] },
-  { label: "近 3 个月", value: [dayjs().subtract(3, "month"), dayjs()] },
-  { label: "近 6 个月", value: [dayjs().subtract(6, "month"), dayjs()] },
-  { label: "近 1 年", value: [dayjs().subtract(1, "year"), dayjs()] },
-  { label: `${currentYear} 年`, value: [dayjs(`${currentYear}-01-01`), dayjs(`${currentYear}-12-31`)] },
-]
 
 const getQueryRange = (range: [Dayjs, Dayjs]) => ({
   startDate: range[0].startOf("day").valueOf(),
@@ -67,12 +67,41 @@ const getQueryRange = (range: [Dayjs, Dayjs]) => ({
 const metricNumber = (value?: number | null) =>
   typeof value === "number" ? value.toLocaleString() : "-"
 
+const repositoryChartColors = [
+  "#1677ff", "#52c41a", "#fa8c16", "#f5222d", "#722ed1", "#13c2c2",
+  "#eb2f96", "#2f54eb", "#a0d911", "#faad14", "#fa541c", "#8c8c8c",
+]
+
+const intensityChartColors: Record<WorkIntensity, string> = {
+  relaxed: "#52c41a",
+  normal: "#1677ff",
+  busy: "#fa8c16",
+  crazy: "#f5222d",
+}
+
+const intensityOrder: WorkIntensity[] = ["relaxed", "normal", "busy", "crazy"]
+
+const matchesIntensity = (
+  commits: number,
+  status: WorkIntensity,
+  thresholds: DataOverviewResponse["metricsConfig"]["thresholds"],
+) => {
+  if (status === "relaxed") return commits < thresholds.relaxed
+  if (status === "normal") return commits >= thresholds.relaxed && commits < thresholds.normal
+  if (status === "busy") return commits >= thresholds.normal && commits < thresholds.busy
+  return commits >= thresholds.busy
+}
+
 const DataOverview: React.FC = () => {
   const [filter, setFilter] = React.useState<OverviewFilter>({
     dateRange: [dayjs().subtract(1, "month"), dayjs()],
+    repositoryIds: [],
     authorEmails: [],
   })
+  const [appliedFilter, setAppliedFilter] = React.useState<OverviewFilter>(filter)
+  const [repositories, setRepositories] = React.useState<Repository[]>([])
   const [authors, setAuthors] = React.useState<Author[]>([])
+  const [allTimeRange, setAllTimeRange] = React.useState<[Dayjs, Dayjs] | null>(null)
   const [overview, setOverview] = React.useState<DataOverviewResponse | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [detailLoading, setDetailLoading] = React.useState(false)
@@ -82,14 +111,8 @@ const DataOverview: React.FC = () => {
 
   const handleDateChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
     if (!dates?.[0] || !dates?.[1]) return
-    const [start, end] = dates as [Dayjs, Dayjs]
-
-    if (end.diff(start, "year", true) > 3) {
-      message.error("自定义时间周期不能超过 3 年")
-      return
-    }
-
-    setFilter((current) => ({ ...current, dateRange: [start, end] }))
+    const dateRange: [Dayjs, Dayjs] = [dates[0], dates[1]]
+    setFilter((current) => ({ ...current, dateRange }))
   }
 
   const loadOverview = React.useCallback(async () => {
@@ -103,9 +126,11 @@ const DataOverview: React.FC = () => {
       const result = await gitStatisticsApi.getDataOverview({
         startDate,
         endDate,
+        repositoryIds: filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined,
         authorEmails: filter.authorEmails.length > 0 ? filter.authorEmails : undefined,
       })
       setOverview(result)
+      setAppliedFilter(filter)
     } catch (error) {
       console.error("[DataOverview] Load overview error:", error)
       message.error("加载数据总览失败")
@@ -117,9 +142,12 @@ const DataOverview: React.FC = () => {
   const loadDetail = React.useCallback(async (key: DrilldownKey) => {
     if (!overview) return
 
-    let range = filter.dateRange
-    let repositoryIds: string[] | undefined
+    let range = appliedFilter.dateRange
+    let repositoryIds = appliedFilter.repositoryIds.length > 0
+      ? appliedFilter.repositoryIds
+      : undefined
     let overtimeMode: OvertimeMode = "all"
+    let intensity: WorkIntensity | undefined
     let title = "提交总数：当前筛选范围"
 
     if (key === "activeDays") title = "活跃日期：当前筛选范围"
@@ -135,8 +163,8 @@ const DataOverview: React.FC = () => {
       const monthStart = dayjs(`${overview.topOvertimeMonth.month}-01`).startOf("month")
       const monthEnd = monthStart.endOf("month")
       range = [
-        monthStart.isBefore(filter.dateRange[0]) ? filter.dateRange[0] : monthStart,
-        monthEnd.isAfter(filter.dateRange[1]) ? filter.dateRange[1] : monthEnd,
+        monthStart.isBefore(appliedFilter.dateRange[0]) ? appliedFilter.dateRange[0] : monthStart,
+        monthEnd.isAfter(appliedFilter.dateRange[1]) ? appliedFilter.dateRange[1] : monthEnd,
       ]
       title = `${overview.topOvertimeMonth.month} 加班日期：展示每天全部提交`
       overtimeMode = "overtime_days"
@@ -146,6 +174,10 @@ const DataOverview: React.FC = () => {
       const repository = overview.repositoryDistribution.find((item) => item.repoId === repoId)
       repositoryIds = [repoId]
       title = `仓库活动：${repository?.repoName ?? repoId}`
+    }
+    if (key.startsWith("intensity:")) {
+      intensity = key.slice("intensity:".length) as WorkIntensity
+      title = `工作强度：${overview.metricsConfig.labels[intensity]}`
     }
 
     setActiveCard(key)
@@ -158,22 +190,40 @@ const DataOverview: React.FC = () => {
         startDate,
         endDate,
         repositoryIds,
-        authorEmails: filter.authorEmails.length > 0 ? filter.authorEmails : undefined,
+        authorEmails: appliedFilter.authorEmails.length > 0 ? appliedFilter.authorEmails : undefined,
         overtimeMode,
       })
-      setDetailGroups(result.data ?? [])
+      const groups = result.data ?? []
+      setDetailGroups(intensity
+        ? groups.filter((group) => matchesIntensity(
+            group.totalCommits,
+            intensity,
+            overview.metricsConfig.thresholds,
+          ))
+        : groups)
     } catch (error) {
       console.error("[DataOverview] Load detail error:", error)
       message.error("加载明细失败")
     } finally {
       setDetailLoading(false)
     }
-  }, [filter, overview])
+  }, [appliedFilter, overview])
 
   useMount(async () => {
     try {
-      const authorResult = await gitStatisticsApi.getAuthors().catch(() => [])
+      const [repositoryResult, authorResult, commitDateRange] = await Promise.all([
+        gitStatisticsApi.getRepositories().catch(() => []),
+        gitStatisticsApi.getAuthors().catch(() => []),
+        gitStatisticsApi.getCommitDateRange().catch(() => null),
+      ])
+      setRepositories(Array.isArray(repositoryResult) ? repositoryResult : [])
       setAuthors(Array.isArray(authorResult) ? authorResult : [])
+      if (commitDateRange) {
+        setAllTimeRange([
+          dayjs(commitDateRange.earliest).startOf("day"),
+          dayjs().endOf("day"),
+        ])
+      }
       await loadOverview()
     } catch {
       message.error("加载数据总览初始数据失败")
@@ -183,6 +233,30 @@ const DataOverview: React.FC = () => {
   const overtimeDayRate = overview?.totals.activeDays
     ? (overview.totals.overtimeDays / overview.totals.activeDays) * 100
     : 0
+  const rangePresets = React.useMemo(
+    () => createCommitDateRangePresets(allTimeRange),
+    [allTimeRange],
+  )
+  const repositoryPieData = React.useMemo<OverviewPieDatum[]>(() => (
+    overview?.repositoryDistribution.map((repository, index) => ({
+      key: repository.repoId,
+      name: repository.repoName,
+      value: repository.count,
+      color: repositoryChartColors[index % repositoryChartColors.length],
+    })) ?? []
+  ), [overview])
+  const intensityPieData = React.useMemo<OverviewPieDatum[]>(() => {
+    if (!overview) return []
+    const daysByStatus = new Map(
+      (overview.workIntensityDistribution ?? []).map((item) => [item.status, item.days]),
+    )
+    return intensityOrder.map((status) => ({
+      key: status,
+      name: overview.metricsConfig.labels[status],
+      value: daysByStatus.get(status) ?? 0,
+      color: intensityChartColors[status],
+    }))
+  }, [overview])
 
   const summaryCards = [
     {
@@ -237,7 +311,22 @@ const DataOverview: React.FC = () => {
                 allowClear={false}
                 format="YYYY-MM-DD"
                 presets={rangePresets}
-                style={{ width: 300 }}
+                style={{ width: 260 }}
+                aria-label="日期范围"
+              />
+              <Select
+                mode="multiple"
+                placeholder="仓库"
+                value={filter.repositoryIds}
+                onChange={(repositoryIds) => setFilter((current) => ({ ...current, repositoryIds }))}
+                allowClear
+                maxTagCount={1}
+                style={{ width: 180 }}
+                aria-label="仓库"
+                options={repositories.map((repository) => ({
+                  value: repository.id,
+                  label: repository.name,
+                }))}
               />
               <Select
                 mode="multiple"
@@ -248,6 +337,7 @@ const DataOverview: React.FC = () => {
                 maxTagCount={1}
                 style={{ width: 240 }}
                 suffixIcon={<TeamOutlined />}
+                aria-label="作者"
                 options={authors.map((author) => ({
                   value: author.email,
                   label: `${author.name}（${author.email}）`,
@@ -290,6 +380,31 @@ const DataOverview: React.FC = () => {
             </Row>
 
             <Row gutter={[16, 16]} className="mt-4" align="stretch">
+              <Col xs={24} xl={12}>
+                <OverviewPieChart
+                  title="仓库提交次数占比"
+                  data={repositoryPieData}
+                  unit="次提交"
+                  selectedKey={activeCard?.startsWith("repository:")
+                    ? activeCard.slice("repository:".length)
+                    : undefined}
+                  onSelect={(datum) => loadDetail(`repository:${datum.key}`)}
+                />
+              </Col>
+              <Col xs={24} xl={12}>
+                <OverviewPieChart
+                  title="工作强度占比"
+                  data={intensityPieData}
+                  unit="个活跃日"
+                  selectedKey={activeCard?.startsWith("intensity:")
+                    ? activeCard.slice("intensity:".length)
+                    : undefined}
+                  onSelect={(datum) => loadDetail(`intensity:${datum.key as WorkIntensity}`)}
+                />
+              </Col>
+            </Row>
+
+            <Row gutter={[16, 16]} className="mt-4" align="top">
               <Col xs={24} xl={16}>
                 <Card
                   title="仓库活动分布"
@@ -304,25 +419,27 @@ const DataOverview: React.FC = () => {
                           : 0
                         const key = `repository:${repository.repoId}` as const
                         return (
-                          <button
-                            key={repository.repoId}
-                            type="button"
-                            className={`w-full border-0 bg-transparent p-0 text-left ${activeCard === key ? "rounded ring-2 ring-[#1677ff]/25" : ""}`}
-                            onClick={() => loadDetail(key)}
-                          >
-                            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                              <span className="min-w-0 truncate font-medium text-neutral-900">{repository.repoName}</span>
-                              <span className="text-sm text-neutral-600">
-                                {metricNumber(repository.count)} 次 · {share.toFixed(1)}%
-                              </span>
-                            </div>
-                            <Progress percent={Number(share.toFixed(1))} showInfo={false} strokeColor="#1677ff" />
-                            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-                              <span>{metricNumber(repository.filesChanged)} 个文件变化</span>
-                              <span className="text-green-700">+{metricNumber(repository.insertions)}</span>
-                              <span className="text-red-700">-{metricNumber(repository.deletions)}</span>
-                            </div>
-                          </button>
+                          <Tooltip key={repository.repoId} title="点击可筛选该仓库的提交历史">
+                            <button
+                              type="button"
+                              className={`w-full cursor-pointer border-0 bg-transparent p-0 text-left transition-colors hover:bg-neutral-50 ${activeCard === key ? "rounded ring-2 ring-[#1677ff]/25" : ""}`}
+                              onClick={() => loadDetail(key)}
+                              aria-label={`查看 ${repository.repoName} 的提交历史`}
+                            >
+                              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                                <span className="min-w-0 truncate font-medium text-neutral-900">{repository.repoName}</span>
+                                <span className="text-sm text-neutral-600">
+                                  {metricNumber(repository.count)} 次 · {share.toFixed(1)}%
+                                </span>
+                              </div>
+                              <Progress percent={Number(share.toFixed(1))} showInfo={false} strokeColor="#1677ff" />
+                              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
+                                <span>{metricNumber(repository.filesChanged)} 个文件变化</span>
+                                <span className="text-green-700">+{metricNumber(repository.insertions)}</span>
+                                <span className="text-red-700">-{metricNumber(repository.deletions)}</span>
+                              </div>
+                            </button>
+                          </Tooltip>
                         )
                       })}
                     </div>
@@ -333,29 +450,27 @@ const DataOverview: React.FC = () => {
               <Col xs={24} xl={8}>
                 <button
                   type="button"
-                  className={`h-full w-full border-0 bg-transparent p-0 text-left ${activeCard === "topOvertimeMonth" ? "rounded ring-2 ring-[#1677ff]/25" : ""}`}
+                  className={`w-full cursor-pointer border-0 bg-transparent p-0 text-left ${activeCard === "topOvertimeMonth" ? "rounded ring-2 ring-[#1677ff]/25" : ""}`}
                   onClick={() => overview?.topOvertimeMonth && loadDetail("topOvertimeMonth")}
                   disabled={!overview?.topOvertimeMonth}
                 >
-                  <Card title="加班天数最多的月份" className="h-full border-0 shadow-sm">
+                  <Card title="加班天数最多的月份" className="border-0 shadow-sm" styles={{ body: { padding: 16 } }}>
                     {overview?.topOvertimeMonth ? (
-                      <div className="flex h-full min-h-[220px] flex-col justify-between">
+                      <div className="flex flex-wrap items-end justify-between gap-4">
                         <div>
-                          <div className="text-3xl font-semibold text-neutral-950">{overview.topOvertimeMonth.month}</div>
-                          <div className="mt-2 text-sm text-neutral-500">按加班自然日去重统计</div>
+                          <div className="text-2xl font-semibold text-neutral-950">{overview.topOvertimeMonth.month}</div>
+                          <div className="mt-1 text-xs text-neutral-500">按加班自然日去重统计</div>
                         </div>
-                        <div>
-                          <Statistic
-                            title="加班天数"
-                            value={overview.topOvertimeMonth.overtimeDays}
-                            suffix="天"
-                            prefix={<FireOutlined />}
-                          />
-                          <div className="mt-3 text-sm text-neutral-600">
-                            该月活跃 {overview.topOvertimeMonth.activeDays} 天，加班日占比 {(
-                              overview.topOvertimeMonth.overtimeDays / overview.topOvertimeMonth.activeDays * 100
-                            ).toFixed(1)}%
-                          </div>
+                        <Statistic
+                          title="加班天数"
+                          value={overview.topOvertimeMonth.overtimeDays}
+                          suffix="天"
+                          prefix={<FireOutlined />}
+                        />
+                        <div className="w-full border-t border-neutral-100 pt-3 text-sm text-neutral-600">
+                          该月活跃 {overview.topOvertimeMonth.activeDays} 天，加班日占比 {(
+                            overview.topOvertimeMonth.overtimeDays / overview.topOvertimeMonth.activeDays * 100
+                          ).toFixed(1)}%
                         </div>
                       </div>
                     ) : <Empty description="当前范围没有加班日期" />}
@@ -363,6 +478,7 @@ const DataOverview: React.FC = () => {
                 </button>
               </Col>
             </Row>
+
           </Spin>
 
           <Card
@@ -379,7 +495,7 @@ const DataOverview: React.FC = () => {
               />
             ) : (
               <div className="py-12">
-                <Empty description="选择上方指标、仓库或月份查看具体提交记录" />
+                <Empty description="选择上方指标、仓库、工作强度或月份查看具体提交记录" />
               </div>
             )}
           </Card>

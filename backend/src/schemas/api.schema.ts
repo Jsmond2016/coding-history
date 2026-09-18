@@ -38,20 +38,15 @@ export const ScanRequestSchema = z
 // 统计数据查询参数（与提交记录相同）
 export const StatisticsQuerySchema = CommitsQuerySchema;
 
-const MAX_OVERVIEW_RANGE_MS = 3 * 366 * 24 * 60 * 60 * 1000;
-
 export const DataOverviewQuerySchema = z
   .object({
     startDate: z.string().transform(val => parseInt(val)),
     endDate: z.string().transform(val => parseInt(val)),
+    repositoryIds: z.string().optional().transform(val => val?.split(',')),
     authorEmails: z.string().optional().transform(val => val?.split(','))
   })
   .refine((d) => d.startDate < d.endDate, {
     message: '开始时间必须早于结束时间',
-    path: ['endDate']
-  })
-  .refine((d) => d.endDate - d.startDate <= MAX_OVERVIEW_RANGE_MS, {
-    message: '数据总览时间跨度不能超过 3 年',
     path: ['endDate']
   });
 

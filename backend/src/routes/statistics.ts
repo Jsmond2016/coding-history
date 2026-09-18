@@ -13,6 +13,7 @@ app.get('/overview', zValidator('query', DataOverviewQuerySchema), async (c) => 
   const params = {
     startDate: query.startDate,
     endDate: query.endDate,
+    repositoryIds: query.repositoryIds,
     authorEmails: query.authorEmails
   };
   const overview = await cacheService.getOrSet('commits', { endpoint: 'overview', ...params }, 300, () =>

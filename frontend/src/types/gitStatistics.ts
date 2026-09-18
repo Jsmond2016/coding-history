@@ -123,6 +123,7 @@ export interface StatisticsResponse {
 export interface DataOverviewQuery {
   startDate: number;
   endDate: number;
+  repositoryIds?: string[];
   authorEmails?: string[];
 }
 
@@ -161,8 +162,16 @@ export interface DataOverviewOvertimeMonth {
   latestCommitDate: number | null;
 }
 
+export type WorkIntensity = 'relaxed' | 'normal' | 'busy' | 'crazy';
+
+export interface DataOverviewWorkIntensityMetric {
+  status: WorkIntensity;
+  days: number;
+}
+
 export interface DataOverviewResponse {
   repositoryDistribution: DataOverviewRepositoryMetric[];
+  workIntensityDistribution: DataOverviewWorkIntensityMetric[];
   topOvertimeMonth: DataOverviewOvertimeMonth | null;
   totals: {
     commits: number;

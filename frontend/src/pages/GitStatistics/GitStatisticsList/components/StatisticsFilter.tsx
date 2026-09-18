@@ -11,6 +11,7 @@ import {
 } from "../../../../biz/atoms/gitStatistics.atom"
 import type { Repository, Author } from "../../../../types/gitStatistics"
 import { COMMIT_TYPE_OPTIONS } from "../../../../utils/commitFilters"
+import { createCommitDateRangePresets } from "../../../../utils/commitDateRange"
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -51,15 +52,7 @@ export const StatisticsFilter: React.FC<StatisticsFilterProps> = ({ allTimeRange
     onSearch(resetFilter);
   };
 
-  // DatePicker 预设范围
-  const rangePresets = [
-    { label: "最近一周", value: [dayjs().subtract(7, "day"), dayjs()] as [Dayjs, Dayjs] },
-    { label: "最近一个月", value: [dayjs().subtract(1, "month"), dayjs()] as [Dayjs, Dayjs] },
-    { label: "最近三个月", value: [dayjs().subtract(3, "month"), dayjs()] as [Dayjs, Dayjs] },
-    { label: "最近半年", value: [dayjs().subtract(6, "month"), dayjs()] as [Dayjs, Dayjs] },
-    { label: "最近一年", value: [dayjs().subtract(1, "year"), dayjs()] as [Dayjs, Dayjs] },
-    ...(allTimeRange ? [{ label: "全部时间", value: allTimeRange }] : []),
-  ];
+  const rangePresets = createCommitDateRangePresets(allTimeRange)
 
   return (
     <Space wrap size="small" aria-label="提交记录筛选">

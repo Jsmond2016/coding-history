@@ -633,11 +633,19 @@ export class CommitService {
   async getDataOverview(params: {
     startDate: number;
     endDate: number;
+    repositoryIds?: string[];
     authorEmails?: string[];
   }) {
-    const { startDate, endDate, authorEmails } = params;
+    const { startDate, endDate, repositoryIds, authorEmails } = params;
     const queryParams: any[] = [BigInt(startDate), BigInt(endDate)];
+    let repositoryClause = '';
     let authorClause = '';
+
+    if (repositoryIds && repositoryIds.length > 0) {
+      const placeholders = repositoryIds.map(() => '?').join(',');
+      repositoryClause = ` AND c.repo_id IN (${placeholders})`;
+      queryParams.push(...repositoryIds);
+    }
 
     if (authorEmails && authorEmails.length > 0) {
       const placeholders = authorEmails.map(() => '?').join(',');
@@ -650,6 +658,7 @@ export class CommitService {
     const baseWhere = `
       c.commit_date >= ?
       AND c.commit_date <= ?
+      ${repositoryClause}
       ${authorClause}
     `;
     const repositoryDistributionRows = await prisma.$queryRawUnsafe<Array<{
@@ -673,6 +682,37 @@ export class CommitService {
       GROUP BY c.repo_id, r.name
       ORDER BY count DESC, repoName ASC
     `, ...queryParams);
+
+    const workIntensityDistributionRows = await prisma.$queryRawUnsafe<Array<{
+      status: 'relaxed' | 'normal' | 'busy' | 'crazy';
+      days: bigint;
+    }>>(`
+      WITH daily AS (
+        SELECT
+          strftime('%Y-%m-%d', c.commit_date / 1000, 'unixepoch', '+8 hours') as commitDay,
+          COUNT(*) as commitCount
+        FROM commits c
+        WHERE ${baseWhere}
+        GROUP BY commitDay
+      ), intensity AS (
+        SELECT
+          CASE
+            WHEN commitCount < ? THEN 'relaxed'
+            WHEN commitCount < ? THEN 'normal'
+            WHEN commitCount < ? THEN 'busy'
+            ELSE 'crazy'
+          END as status
+        FROM daily
+      )
+      SELECT status, COUNT(*) as days
+      FROM intensity
+      GROUP BY status
+    `,
+      ...queryParams,
+      metricsConfig.thresholds.relaxed,
+      metricsConfig.thresholds.normal,
+      metricsConfig.thresholds.busy
+    );
 
     const topOvertimeMonthRows = await prisma.$queryRawUnsafe<Array<{
       month: string;
@@ -735,6 +775,10 @@ export class CommitService {
       deletions: Number(row.deletions ?? 0),
       filesChanged: Number(row.filesChanged ?? 0)
     }));
+    const workIntensityDistribution = workIntensityDistributionRows.map(row => ({
+      status: row.status,
+      days: Number(row.days)
+    }));
 
     const topOvertimeMonth = topOvertimeMonthRows[0]
       ? {
@@ -763,6 +807,7 @@ export class CommitService {
 
     return {
       repositoryDistribution,
+      workIntensityDistribution,
       topOvertimeMonth,
       totals,
       metricsConfig
