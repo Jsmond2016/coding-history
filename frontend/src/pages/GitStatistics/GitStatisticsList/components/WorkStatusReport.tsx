@@ -262,9 +262,11 @@ export const WorkStatusCards: React.FC<{
         </Space>
       )}
       extra={
-        <Tag color="red">
-          {metricsConfig?.labels.overtime ?? '加班'} {overtimeDays} 天 · {((overtimeDays / data.length) * 100).toFixed(1)}%
-        </Tag>
+        <Tooltip title={`加班按 ${metricsConfig?.overtimeHour ?? 19}:00 后是否有提交单独统计。`}>
+          <Tag color="red">
+            {metricsConfig?.labels.overtime ?? '加班'} {overtimeDays} 天 · {((overtimeDays / data.length) * 100).toFixed(1)}%
+          </Tag>
+        </Tooltip>
       }
     >
       <Row gutter={[12, 16]}>
