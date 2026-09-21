@@ -202,6 +202,9 @@ export const WorkStatusCards: React.FC<{
     return result
   }, { relaxed: 0, normal: 0, busy: 0, crazy: 0 })
   const overtimeDays = data.filter((group) => group.overtimeCount > 0).length
+  const tenureDays = metricsConfig?.hireDate === null || metricsConfig?.hireDate === undefined
+    ? null
+    : dayjs().startOf('day').diff(dayjs(metricsConfig.hireDate).startOf('day'), 'day') + 1
 
   const labels = {
     relaxed: metricsConfig?.labels.relaxed ?? '轻松',
@@ -262,11 +265,19 @@ export const WorkStatusCards: React.FC<{
         </Space>
       )}
       extra={
-        <Tooltip title={`加班按 ${metricsConfig?.overtimeHour ?? 19}:00 后是否有提交单独统计。`}>
-          <Tag color="red">
-            {metricsConfig?.labels.overtime ?? '加班'} {overtimeDays} 天 · {((overtimeDays / data.length) * 100).toFixed(1)}%
-          </Tag>
-        </Tooltip>
+        <Space size={8} wrap>
+          <span className="text-xs text-neutral-500">
+            入职时间：{metricsConfig?.hireDate ? dayjs(metricsConfig.hireDate).format('YYYY.MM.DD') : '未配置'}
+          </span>
+          <span className="text-xs text-neutral-500">
+            在职天数：{tenureDays === null ? '-' : `${tenureDays} 天`}
+          </span>
+          <Tooltip title={`加班按 ${metricsConfig?.overtimeHour ?? 19}:00 后是否有提交单独统计。`}>
+            <Tag color="red">
+              {metricsConfig?.labels.overtime ?? '加班'} {overtimeDays} 天 · {((overtimeDays / data.length) * 100).toFixed(1)}%
+            </Tag>
+          </Tooltip>
+        </Space>
       }
     >
       <Row gutter={[12, 16]}>

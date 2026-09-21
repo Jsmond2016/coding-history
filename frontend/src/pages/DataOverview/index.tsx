@@ -407,7 +407,7 @@ const DataOverview: React.FC = () => {
                   unit="个活跃日"
                   extraContent={(
                     <span className="flex flex-wrap items-center justify-end gap-2 text-xs text-neutral-500">
-                      <span>入职时间：{hireDate ? dayjs(hireDate).format("YYYY-MM-DD") : "未配置"}</span>
+                      <span>入职时间：{hireDate ? dayjs(hireDate).format("YYYY.MM.DD") : "未配置"}</span>
                       <span>在职天数：{tenureDays === null ? "-" : `${tenureDays} 天`}</span>
                       <Tag>{intensityPieData.reduce((sum, item) => sum + item.value, 0).toLocaleString()} 个活跃日</Tag>
                     </span>

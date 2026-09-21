@@ -245,7 +245,18 @@ export const CommitsWorkbench: React.FC<CommitsWorkbenchProps> = ({ data, metric
                 </Tag>
                 {group.hasRelease ? <Tag color="purple">发版</Tag> : null}
                 {group.overtimeCount > 0 ? (
-                  <Tooltip title={group.latestOvertimeCommits.join('、')}>
+                  <Tooltip
+                    title={(
+                      <div>
+                        <div className="mb-1 font-medium">加班提交时间</div>
+                        {group.latestOvertimeCommits.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {group.latestOvertimeCommits.map((time) => <div key={time}>{time}</div>)}
+                          </div>
+                        ) : '暂无数据'}
+                      </div>
+                    )}
+                  >
                     <Tag color="red" icon={<ClockCircleOutlined />}>加班 {group.overtimeCount}</Tag>
                   </Tooltip>
                 ) : null}

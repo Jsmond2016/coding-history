@@ -19,6 +19,7 @@ import {
   type FilterState,
 } from '../../../biz/atoms/gitStatistics.atom'
 import { gitStatisticsApi } from '../../../services/gitStatisticsApi'
+import { getDataMetricsConfig } from '../../../services/configApi'
 import { tasksApi } from '../../../services/tasksApi'
 import type {
   CommitType,
@@ -218,20 +219,22 @@ const GitStatisticsList: React.FC = () => {
 
   useMount(async () => {
     setFilter(initialFilter)
-    const [repos, authors, task, commitDateRange] = await Promise.all([
+    const [repos, authors, task, commitDateRange, dataMetricsConfig] = await Promise.all([
       gitStatisticsApi.getRepositories().catch(() => null),
       gitStatisticsApi.getAuthors().catch(() => null),
       tasksApi.getPrimaryTask().catch(() => null),
       gitStatisticsApi.getCommitDateRange().catch(() => null),
+      getDataMetricsConfig().catch(() => null),
     ])
     if (repos) setRepositories(repos)
     else message.warning('仓库列表加载失败，仓库筛选暂不可用')
     if (authors) setAuthors(authors)
     else message.warning('作者列表加载失败，作者筛选暂不可用')
     setPrimaryTask(task)
-    if (commitDateRange) {
+    const allTimeStart = dataMetricsConfig?.hireDate ?? commitDateRange?.earliest
+    if (allTimeStart) {
       setAllTimeRange([
-        dayjs(commitDateRange.earliest).startOf('day'),
+        dayjs(allTimeStart).startOf('day'),
         dayjs().endOf('day'),
       ])
     }
