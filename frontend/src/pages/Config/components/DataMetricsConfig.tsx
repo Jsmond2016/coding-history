@@ -116,7 +116,7 @@ const DataMetricsConfig: React.FC = () => {
           onFinish={handleSubmit}
         >
           {/* 阈值配置 */}
-          <Card title="提交次数阈值配置" className="mb-4" size="small">
+          <Card title="提交次数阈值配置" className="mb-1" size="small">
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
@@ -174,7 +174,7 @@ const DataMetricsConfig: React.FC = () => {
           </Card>
 
           {/* 加班时间阈值 */}
-          <Card title="加班时间阈值" className="mb-4" size="small">
+          <Card title="加班时间阈值" className="mb-1" size="small">
             <Form.Item
               name="overtimeHour"
               label="加班时间（小时）"
@@ -188,7 +188,7 @@ const DataMetricsConfig: React.FC = () => {
             </Form.Item>
           </Card>
 
-          <Card title="入职时间" className="mb-4" size="small">
+          <Card title="入职时间" className="mb-1" size="small">
             <Form.Item
               name="hireDate"
               label="入职日期"
@@ -199,7 +199,7 @@ const DataMetricsConfig: React.FC = () => {
           </Card>
 
           {/* 标签文本配置 */}
-          <Card title="工作状态标签文本" className="mb-4" size="small">
+          <Card title="工作状态标签文本" className="mb-1" size="small">
             <Row gutter={16}>
               {workStatusKeys.map((status) => (
                 <Col span={12} key={status}>
@@ -216,7 +216,7 @@ const DataMetricsConfig: React.FC = () => {
           </Card>
 
           {/* 标签颜色配置 */}
-          <Card title="工作状态标签颜色" className="mb-4" size="small">
+          <Card title="工作状态标签颜色" className="mb-1" size="small">
             <Row gutter={16}>
               {workStatusKeys.map((status) => (
                 <Col span={12} key={status}>
@@ -251,7 +251,7 @@ const DataMetricsConfig: React.FC = () => {
           </Card>
 
           {/* 预览 */}
-          <Card title="预览效果" className="mb-4" size="small">
+          <Card title="预览效果" className="mb-1" size="small">
             <Space direction="vertical" className="w-full">
               {workStatusKeys.map((status) => {
                 const values = getFormValues();
