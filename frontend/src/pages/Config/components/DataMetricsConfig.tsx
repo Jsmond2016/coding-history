@@ -1,6 +1,7 @@
 import React from 'react';
-import { Card, Form, InputNumber, Input, Button, Space, Tag, message, Row, Col, Typography } from 'antd';
+import { Card, Form, InputNumber, Input, Button, Space, Tag, message, Row, Col, Typography, DatePicker } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import {
   getDataMetricsConfig,
   updateDataMetricsConfig,
@@ -46,7 +47,8 @@ const DataMetricsConfig: React.FC = () => {
         thresholds: data.thresholds,
         overtimeHour: data.overtimeHour,
         labels: data.labels,
-        colors: data.colors
+        colors: data.colors,
+        hireDate: data.hireDate ? dayjs(data.hireDate) : null
       });
     } catch (error) {
       message.error('加载数据指标配置失败');
@@ -68,7 +70,8 @@ const DataMetricsConfig: React.FC = () => {
         thresholds: values.thresholds,
         overtimeHour: values.overtimeHour,
         labels: values.labels,
-        colors: values.colors
+        colors: values.colors,
+        hireDate: values.hireDate ? values.hireDate.startOf('day').valueOf() : null
       };
 
       await updateDataMetricsConfig(params);
@@ -185,6 +188,16 @@ const DataMetricsConfig: React.FC = () => {
             </Form.Item>
           </Card>
 
+          <Card title="入职时间" className="mb-4" size="small">
+            <Form.Item
+              name="hireDate"
+              label="入职日期"
+              tooltip="用于数据看板的全部时间起点和在职天数计算"
+            >
+              <DatePicker format="YYYY-MM-DD" className="w-full" disabledDate={(date) => date.isAfter(dayjs(), 'day')} />
+            </Form.Item>
+          </Card>
+
           {/* 标签文本配置 */}
           <Card title="工作状态标签文本" className="mb-4" size="small">
             <Row gutter={16}>
@@ -272,4 +285,3 @@ const DataMetricsConfig: React.FC = () => {
 };
 
 export default DataMetricsConfig;
-

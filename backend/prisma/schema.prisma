@@ -189,6 +189,7 @@ model DataMetricsConfig {
   overtimeHour Int   // 加班时间阈值（小时）
   labels      String // JSON 字符串，存储标签文本配置
   colors      String // JSON 字符串，存储标签颜色配置
+  hireDate    BigInt? @map("hire_date") // 入职时间（时间戳，毫秒）
   createdAt   BigInt @map("created_at")
   updatedAt   BigInt @map("updated_at")
 

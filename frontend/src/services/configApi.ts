@@ -207,6 +207,7 @@ export interface DataMetricsConfig {
   overtimeHour: number;
   labels: Record<string, string>;
   colors: Record<string, string>;
+  hireDate: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -221,6 +222,7 @@ export interface UpdateDataMetricsConfigParams {
   overtimeHour: number;
   labels: Record<string, string>;
   colors: Record<string, string>;
+  hireDate: number | null;
 }
 
 /**

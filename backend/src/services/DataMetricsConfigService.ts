@@ -8,6 +8,7 @@ export interface DataMetricsConfig {
   overtimeHour: number;
   labels: Record<WorkStatus, string>;
   colors: Record<WorkStatus, string>;
+  hireDate: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -23,6 +24,7 @@ export class DataMetricsConfigService {
       overtimeHour: defaultWorkStatusConfig.overtimeHour,
       labels: workStatusLabels,
       colors: workStatusColors,
+      hireDate: null,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
@@ -46,6 +48,7 @@ export class DataMetricsConfigService {
       overtimeHour: config.overtimeHour,
       labels: JSON.parse(config.labels),
       colors: JSON.parse(config.colors),
+      hireDate: config.hireDate === null ? null : Number(config.hireDate),
       createdAt: Number(config.createdAt),
       updatedAt: Number(config.updatedAt)
     };
@@ -59,6 +62,7 @@ export class DataMetricsConfigService {
     overtimeHour: number;
     labels: Record<WorkStatus, string>;
     colors: Record<WorkStatus, string>;
+    hireDate: number | null;
   }): Promise<DataMetricsConfig> {
     const now = BigInt(Date.now());
 
@@ -75,6 +79,10 @@ export class DataMetricsConfigService {
     // 验证加班时间阈值
     if (config.overtimeHour < 0 || config.overtimeHour > 23) {
       throw new Error('加班时间阈值必须在 0-23 之间');
+    }
+
+    if (config.hireDate !== null && (!Number.isFinite(config.hireDate) || config.hireDate > Date.now())) {
+      throw new Error('入职时间不能晚于当前时间');
     }
 
     // 验证颜色值（Ant Design Tag 支持的颜色）
@@ -99,6 +107,7 @@ export class DataMetricsConfigService {
           overtimeHour: config.overtimeHour,
           labels: JSON.stringify(config.labels),
           colors: JSON.stringify(config.colors),
+          hireDate: config.hireDate === null ? null : BigInt(config.hireDate),
           updatedAt: now
         }
       });
@@ -111,6 +120,7 @@ export class DataMetricsConfigService {
         overtimeHour: config.overtimeHour,
         labels: config.labels,
         colors: config.colors,
+        hireDate: config.hireDate,
         createdAt: Number(updated.createdAt),
         updatedAt: Number(updated.updatedAt)
       };
@@ -122,6 +132,7 @@ export class DataMetricsConfigService {
           overtimeHour: config.overtimeHour,
           labels: JSON.stringify(config.labels),
           colors: JSON.stringify(config.colors),
+          hireDate: config.hireDate === null ? null : BigInt(config.hireDate),
           createdAt: now,
           updatedAt: now
         }
@@ -135,6 +146,7 @@ export class DataMetricsConfigService {
         overtimeHour: config.overtimeHour,
         labels: config.labels,
         colors: config.colors,
+        hireDate: config.hireDate,
         createdAt: Number(created.createdAt),
         updatedAt: Number(created.updatedAt)
       };
@@ -155,7 +167,8 @@ export class DataMetricsConfigService {
       thresholds: defaultConfig.thresholds,
       overtimeHour: defaultConfig.overtimeHour,
       labels: defaultConfig.labels,
-      colors: defaultConfig.colors
+      colors: defaultConfig.colors,
+      hireDate: defaultConfig.hireDate
     });
   }
 }

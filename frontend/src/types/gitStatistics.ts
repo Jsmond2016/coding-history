@@ -44,6 +44,7 @@ export type CommitType = 'feat' | 'fix' | 'refactor' | 'docs' | 'merge' | 'relea
 
 export interface WorkStatusMetricsConfig {
   overtimeHour: number;
+  hireDate: number | null;
   thresholds: {
     relaxed: number;
     normal: number;

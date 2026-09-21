@@ -16,6 +16,7 @@ interface OverviewPieChartProps {
   unit: string
   selectedKey?: string
   onSelect?: (datum: OverviewPieDatum) => void
+  extraContent?: React.ReactNode
 }
 
 export const OverviewPieChart: React.FC<OverviewPieChartProps> = ({
@@ -24,6 +25,7 @@ export const OverviewPieChart: React.FC<OverviewPieChartProps> = ({
   unit,
   selectedKey,
   onSelect,
+  extraContent,
 }) => {
   const visibleData = data.filter((item) => item.value > 0)
   const total = visibleData.reduce((sum, item) => sum + item.value, 0)
@@ -32,7 +34,7 @@ export const OverviewPieChart: React.FC<OverviewPieChartProps> = ({
   return (
     <Card
       title={title}
-      extra={<Tag>{total.toLocaleString()} {unit}</Tag>}
+      extra={extraContent ?? <Tag>{total.toLocaleString()} {unit}</Tag>}
       className="h-full border-0 shadow-sm"
     >
       {total > 0 ? (

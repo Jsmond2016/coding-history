@@ -489,7 +489,8 @@ const UpdateDataMetricsConfigSchema = z.object({
   }),
   overtimeHour: z.number().int().min(0).max(23),
   labels: z.record(z.string(), z.string()),
-  colors: z.record(z.string(), z.string())
+  colors: z.record(z.string(), z.string()),
+  hireDate: z.number().int().nonnegative().nullable()
 });
 
 // 获取数据指标配置

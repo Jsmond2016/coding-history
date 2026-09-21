@@ -27,6 +27,7 @@ import {
 import { useMount } from "ahooks"
 import dayjs, { type Dayjs } from "dayjs"
 import { gitStatisticsApi } from "../../services/gitStatisticsApi"
+import { getDataMetricsConfig } from "../../services/configApi"
 import { createCommitDateRangePresets } from "../../utils/commitDateRange"
 import { CommitsByDateList } from "../GitStatistics/GitStatisticsList/components/CommitsByDateList"
 import {
@@ -80,6 +81,10 @@ const intensityChartColors: Record<WorkIntensity, string> = {
 }
 
 const intensityOrder: WorkIntensity[] = ["relaxed", "normal", "busy", "crazy"]
+
+const getTenureDays = (hireDate: number | null) => (
+  hireDate === null ? null : dayjs().startOf("day").diff(dayjs(hireDate).startOf("day"), "day") + 1
+)
 
 const matchesIntensity = (
   commits: number,
@@ -211,16 +216,18 @@ const DataOverview: React.FC = () => {
 
   useMount(async () => {
     try {
-      const [repositoryResult, authorResult, commitDateRange] = await Promise.all([
+      const [repositoryResult, authorResult, commitDateRange, metricsConfig] = await Promise.all([
         gitStatisticsApi.getRepositories().catch(() => []),
         gitStatisticsApi.getAuthors().catch(() => []),
         gitStatisticsApi.getCommitDateRange().catch(() => null),
+        getDataMetricsConfig().catch(() => null),
       ])
       setRepositories(Array.isArray(repositoryResult) ? repositoryResult : [])
       setAuthors(Array.isArray(authorResult) ? authorResult : [])
-      if (commitDateRange) {
+      const allTimeStart = metricsConfig?.hireDate ?? commitDateRange?.earliest
+      if (allTimeStart) {
         setAllTimeRange([
-          dayjs(commitDateRange.earliest).startOf("day"),
+          dayjs(allTimeStart).startOf("day"),
           dayjs().endOf("day"),
         ])
       }
@@ -257,6 +264,8 @@ const DataOverview: React.FC = () => {
       color: intensityChartColors[status],
     }))
   }, [overview])
+  const hireDate = overview?.metricsConfig.hireDate ?? null
+  const tenureDays = getTenureDays(hireDate)
 
   const summaryCards = [
     {
@@ -396,6 +405,13 @@ const DataOverview: React.FC = () => {
                   title="工作强度占比"
                   data={intensityPieData}
                   unit="个活跃日"
+                  extraContent={(
+                    <span className="flex flex-wrap items-center justify-end gap-2 text-xs text-neutral-500">
+                      <span>入职时间：{hireDate ? dayjs(hireDate).format("YYYY-MM-DD") : "未配置"}</span>
+                      <span>在职天数：{tenureDays === null ? "-" : `${tenureDays} 天`}</span>
+                      <Tag>{intensityPieData.reduce((sum, item) => sum + item.value, 0).toLocaleString()} 个活跃日</Tag>
+                    </span>
+                  )}
                   selectedKey={activeCard?.startsWith("intensity:")
                     ? activeCard.slice("intensity:".length)
                     : undefined}
