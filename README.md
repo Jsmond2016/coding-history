@@ -127,6 +127,10 @@ cd ..
 
 常用配置可直接参考 `backend/.env.example`。
 
+Redis 查询缓存为可选能力，单机开发可以不启用，不要求本机安装 Redis 或 `redis-cli`。
+如果需要启用缓存、在 macOS 上安装客户端或排查 Key/TTL，请参阅
+[Redis 查询缓存快速使用](./docs/redis-cache-quickstart.md)。
+
 
 
 ### 3. 配置仓库
@@ -498,6 +502,8 @@ pnpm build
 3. **检查配置文件**: `cat ecosystem.config.cjs`
 
 ## 📚 相关文档
+
+- [Redis 查询缓存快速使用](./docs/redis-cache-quickstart.md) - Redis 启用、macOS `redis-cli` 安装与基础命令
 
 - [快速上手指南](./QUICKSTART.md) - 新维护人员详细指南
 - [Volta 配置说明](./VOLTA.md) - 工具版本管理

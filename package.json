@@ -19,13 +19,15 @@
     "build:backend": "pnpm --filter coding-history-backend build",
     "build:frontend": "pnpm --filter coding-history-frontend build",
     "init-scan": "pnpm --filter coding-history-backend init-scan",
-    "start": "pnpm exec pm2 start ecosystem.config.cjs",
-    "stop": "pnpm exec pm2 stop ecosystem.config.cjs",
-    "restart": "pnpm exec pm2 restart ecosystem.config.cjs",
-    "delete": "pnpm exec pm2 delete ecosystem.config.cjs",
+    "redis:start": "bash scripts/redis.sh start",
+    "redis:stop": "bash scripts/redis.sh stop",
+    "start": "pnpm redis:start && pnpm exec pm2 start ecosystem.config.cjs",
+    "stop": "pnpm exec pm2 stop ecosystem.config.cjs || true; pnpm redis:stop",
+    "restart": "pnpm redis:start && pnpm exec pm2 restart ecosystem.config.cjs",
+    "delete": "pnpm exec pm2 delete ecosystem.config.cjs || true; pnpm redis:stop",
     "logs": "pnpm exec pm2 logs",
     "status": "pnpm exec pm2 status",
-    "reset": "pnpm exec pm2 kill"
+    "reset": "pnpm exec pm2 kill; pnpm redis:stop"
   },
   "devDependencies": {
     "pm2": "^6.0.14"

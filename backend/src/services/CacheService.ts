@@ -3,6 +3,7 @@ import { createClient } from 'redis';
 import { logger } from '../config/logger.js';
 
 type RedisClient = ReturnType<typeof createClient>;
+type MemoryEntry = { value: unknown; expiresAt: number };
 
 const DEFAULT_PREFIX = 'coding-history:';
 const CONNECT_RETRY_DELAY_MS = 10_000;
@@ -26,6 +27,8 @@ export class CacheService {
   private client?: RedisClient;
   private connectPromise?: Promise<RedisClient | null>;
   private unavailableUntil = 0;
+  private readonly memoryCache = new Map<string, MemoryEntry>();
+  private readonly memoryVersions = new Map<string, number>();
 
   private get enabled(): boolean {
     return process.env.REDIS_ENABLED?.toLowerCase() === 'true';
@@ -33,6 +36,24 @@ export class CacheService {
 
   private get prefix(): string {
     return process.env.REDIS_KEY_PREFIX?.trim() || DEFAULT_PREFIX;
+  }
+
+  private getMemoryVersion(namespace: string): string {
+    return String(this.memoryVersions.get(namespace) ?? 0);
+  }
+
+  private getMemory<T>(key: string): T | undefined {
+    const entry = this.memoryCache.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt <= Date.now()) {
+      this.memoryCache.delete(key);
+      return undefined;
+    }
+    return entry.value as T;
+  }
+
+  private setMemory(key: string, value: unknown, ttlSeconds: number): void {
+    this.memoryCache.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
   }
 
   private async getClient(): Promise<RedisClient | null> {
@@ -45,7 +66,7 @@ export class CacheService {
         url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
         socket: {
           connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
-          // A cache outage must fall back to SQLite instead of keeping API requests pending.
+          // A cache outage must fall back to the in-process cache instead of keeping API requests pending.
           reconnectStrategy: false
         }
       });
@@ -66,7 +87,7 @@ export class CacheService {
       } catch (error) {
         this.unavailableUntil = Date.now() + CONNECT_RETRY_DELAY_MS;
         this.client = undefined;
-        logger.warn({ msg: '[Redis] unavailable, falling back to SQLite', error: error instanceof Error ? error.message : String(error) });
+        logger.warn({ msg: '[Redis] unavailable, falling back to in-process cache', error: error instanceof Error ? error.message : String(error) });
         return null;
       } finally {
         this.connectPromise = undefined;
@@ -80,14 +101,14 @@ export class CacheService {
     return `${this.prefix}version:${namespace}`;
   }
 
-  private async getVersion(namespace: string): Promise<string | null> {
+  private async getVersion(namespace: string): Promise<string> {
     const client = await this.getClient();
-    if (!client) return null;
+    if (!client) return this.getMemoryVersion(namespace);
     try {
       return (await client.get(this.versionKey(namespace))) || '0';
     } catch (error) {
       logger.warn({ msg: '[Redis] get version failed', namespace, error: error instanceof Error ? error.message : String(error) });
-      return null;
+      return this.getMemoryVersion(namespace);
     }
   }
 
@@ -99,9 +120,9 @@ export class CacheService {
 
   async getOrSet<T>(namespace: string, query: unknown, ttlSeconds: number, loader: () => Promise<T>): Promise<T> {
     const version = await this.getVersion(namespace);
-    if (!version) return loader();
     const key = this.createQueryKey(namespace, query, version);
     const client = await this.getClient();
+    let useMemory = !client;
 
     if (client) {
       try {
@@ -109,21 +130,30 @@ export class CacheService {
         if (cached !== null) return JSON.parse(cached) as T;
       } catch (error) {
         logger.warn({ msg: '[Redis] read cache failed', namespace, error: error instanceof Error ? error.message : String(error) });
+        useMemory = true;
       }
+    }
+    if (useMemory) {
+      const cached = this.getMemory<T>(key);
+      if (cached !== undefined) return cached;
     }
 
     const result = await loader();
-    if (client) {
+    if (client && !useMemory) {
       try {
         await client.set(key, JSON.stringify(result), { EX: ttlSeconds });
       } catch (error) {
         logger.warn({ msg: '[Redis] write cache failed', namespace, error: error instanceof Error ? error.message : String(error) });
+        this.setMemory(key, result, ttlSeconds);
       }
+    } else {
+      this.setMemory(key, result, ttlSeconds);
     }
     return result;
   }
 
   async invalidate(namespace: string): Promise<void> {
+    this.memoryVersions.set(namespace, (this.memoryVersions.get(namespace) ?? 0) + 1);
     const client = await this.getClient();
     if (!client) return;
     try {

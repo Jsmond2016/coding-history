@@ -9,7 +9,7 @@
 ### 目标
 
 - 缓存常用统计、概览、按日提交和分页提交查询结果。
-- Redis 不可用、连接失败或未启用时不影响接口，自动回源 SQLite。
+- Redis 不可用、连接失败或未启用时不影响接口，优先使用 Node 进程内 TTL 缓存，未命中再回源 SQLite。
 - 提交数据或指标配置发生变化后，不返回旧的统计结果。
 - 不改变现有 API 路径、请求参数和响应结构。
 
@@ -54,18 +54,20 @@ REDIS_URL=redis://127.0.0.1:6379
 REDIS_KEY_PREFIX=coding-history:
 ```
 
-生产环境启用时设置 `REDIS_ENABLED=true`。单机开发默认关闭，不要求本地必须安装 Redis。
+生产环境启用时设置 `REDIS_ENABLED=true`。单机开发不要求本地必须安装 Redis，
+也不要求安装 `redis-cli`；Redis 不可用或未启用时使用 Node 进程内 TTL 缓存。需要排查缓存时，可使用 Docker 容器内置客户端，或按
+[Redis 查询缓存快速使用](./redis-cache-quickstart.md) 安装 macOS 客户端。
 
 ## 7. 风险与验证
 
 - 缓存值使用 JSON；当前服务层已将 `BigInt` 转为 number 后再返回，因此不会出现 JSON 序列化异常。
-- Redis 网络故障会增加一次连接/超时开销，但查询会回源 SQLite，保证可用性。
+- Redis 网络故障会增加一次连接/超时开销，但查询会降级到 Node 进程内 TTL 缓存并最终回源 SQLite，保证可用性。
 - 验证包括 TypeScript 构建、Redis 关闭时接口回源、Redis 开启时重复查询命中，以及写入后结果刷新。
 
 ## 8. 实施状态
 
 - 已实现：`CacheService`、四个提交查询接口的缓存包装、提交写入和指标配置更新后的版本失效、环境变量示例。
-- 已验证：后端 TypeScript 构建通过；关闭 Redis 后健康检查和统计接口正常回源 SQLite。
+- 已验证：后端 TypeScript 构建通过；关闭 Redis 后健康检查和统计接口正常使用 Node 缓存并在未命中时回源 SQLite。
 - 待部署验证：启用 Redis 后检查同一查询的命中、TTL 过期和扫描写入后的版本失效。
 
 快速配置和验证步骤见 [Redis 查询缓存快速使用](./redis-cache-quickstart.md)。
