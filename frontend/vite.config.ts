@@ -10,7 +10,7 @@ export default defineConfig({
     // Keep localhost on IPv4 so a different service cannot answer the user's URL
     // while Vite silently falls back to an IPv6 listener.
     host: '127.0.0.1',
-    port: Number(process.env.FRONTEND_PORT || 5173),
+    port: Number(process.env.FRONTEND_PORT || 35173),
     strictPort: true,
     proxy: {
       '/api': {

@@ -12,5 +12,5 @@ pnpm dev
 
 ```bash
 pnpm dev:backend    # 仅后端 (默认 http://localhost:3000)
-pnpm dev:frontend   # 仅前端 (默认 http://localhost:5173)
+pnpm dev:frontend   # 仅前端 (默认 http://localhost:35173)
 ```

@@ -218,14 +218,14 @@ pnpm delete
 `pnpm start` 和 `pnpm restart` 默认会尝试启动本机 `redis-server`，并用 `redis-cli ping`
 检查可用性；缺少 Redis 工具时只会输出警告，后端自动使用 Node 进程内缓存。`pnpm stop`、
 `pnpm delete` 和 `pnpm reset` 会关闭由本项目启动的 Redis，不会影响用户已有的 Redis 服务。
-前端固定使用 `127.0.0.1:5173`；如果该端口被其他项目占用，启动会提前失败并显示占用进程，
+前端固定使用 `127.0.0.1:35173`；如果该端口被其他项目占用，启动会提前失败并显示占用进程，
 需要先停止占用者后再执行 `pnpm start`。如果不希望停止其他项目，可以指定备用端口：
 
 ```bash
-FRONTEND_PORT=5174 pnpm start
+FRONTEND_PORT=35174 pnpm start
 ```
 
-此时访问 `http://localhost:5174`，API 代理仍指向后端 `5188` 端口。
+此时访问 `http://localhost:35174`，API 代理仍指向后端 `5188` 端口。
 
 **PM2 启动的优势：**
 - 服务在后台运行，不占用终端窗口
@@ -236,7 +236,7 @@ FRONTEND_PORT=5174 pnpm start
 ### 5. 首次使用
 
 1. **配置仓库**（如果还没有配置）:
-   - 访问前端页面 `http://localhost:5173`
+   - 访问前端页面 `http://localhost:35173`
    - 点击左侧菜单的"配置管理"
    - 添加仓库、配置作者
 
@@ -329,7 +329,7 @@ pnpm logs
 curl http://localhost:5188/health
 
 # 检查前端是否可访问
-curl -I http://localhost:5173
+curl -I http://localhost:35173
 ```
 
 ### 🐛 常见问题解决
@@ -345,12 +345,12 @@ pnpm install
 ```
 
 #### 问题 2: 端口被占用
-**错误信息**: `Port 5173 is in use` 或 `Port 5188 is in use`
+**错误信息**: `Port 35173 is in use` 或 `Port 5188 is in use`
 
 **解决方案**:
 ```bash
 # 查找占用端口的进程
-lsof -i :5173
+lsof -i :35173
 lsof -i :5188
 
 # 停止占用进程或修改端口配置
@@ -498,7 +498,7 @@ pnpm build
 
 1. **检查 Node.js 版本**: `node --version` (需要 20.19.6，volta 自动管理)
 2. **重新安装依赖**: `rm -rf node_modules && pnpm install`
-3. **检查端口占用**: `lsof -i :5173` 和 `lsof -i :5188`
+3. **检查端口占用**: `lsof -i :35173` 和 `lsof -i :5188`
 4. **查看详细日志**: `pm2 logs` 或 `pnpm logs:pm2`
 
 ### 🔍 数据库问题

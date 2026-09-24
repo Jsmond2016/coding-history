@@ -97,7 +97,7 @@ pnpm logs:pm2
 curl http://localhost:5188/health
 
 # 检查前端是否可访问
-curl -I http://localhost:5173
+curl -I http://localhost:35173
 
 # 预期结果：
 # 后端: {"status":"ok"}
@@ -125,12 +125,12 @@ pnpm install
 **根本原因**: better-sqlite3 是二进制模块，需要与 Node.js 版本匹配。
 
 ### 问题 2: 端口被占用
-**错误信息**: `Port 5173 is in use` 或 `Port 5188 is in use`
+**错误信息**: `Port 35173 is in use` 或 `Port 5188 is in use`
 
 **解决方案**:
 ```bash
 # 查找占用端口的进程
-lsof -i :5173
+lsof -i :35173
 lsof -i :5188
 
 # 停止占用进程
@@ -298,7 +298,7 @@ cd frontend && pnpm dev
 
 ### ✅ 基础服务
 - [ ] 后端健康检查: `curl http://localhost:5188/health`
-- [ ] 前端页面可访问: `http://localhost:5173`
+- [ ] 前端页面可访问: `http://localhost:35173`
 - [ ] PM2 进程状态正常: `pnpm status:pm2`
 
 ### ✅ 功能验证

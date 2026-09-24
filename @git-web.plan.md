@@ -453,7 +453,7 @@ const app = new Hono();
 // 中间件
 app.use('*', logger());
 app.use('*', cors({
-  origin: 'http://localhost:5173',
+  origin: 'http://localhost:35173',
   credentials: true
 }));
 
@@ -1013,7 +1013,7 @@ cd frontend
 pnpm dev
 ```
 
-前端应用将在 `http://localhost:5173` 启动。
+前端应用将在 `http://localhost:35173` 启动。
 
 ### 9.5 首次使用
 

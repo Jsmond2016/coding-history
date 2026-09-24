@@ -14,7 +14,7 @@ tsx watch/ Vite` 多层进程，旧进程不能及时退出，日志出现
 本次让 PM2 脚本直接执行项目本地的 `tsx` 和 `vite` 启动器：后端运行单次
 `tsx src/index.ts`，前端运行 Vite 开发服务器。PM2 负责重启和进程守护，避免
 后端 watcher 与 PM2 双重管理；前端仍保留 HMR。Redis 生命周期脚本和应用缓存行为
-不在本次变更中调整。前端开发服务器固定绑定 `127.0.0.1:5173` 并启用严格端口；
+不在本次变更中调整。前端开发服务器固定绑定 `127.0.0.1:35173` 并启用严格端口；
 根启动命令会先检查该端口，避免端口被其他项目占用时 Vite 改绑 IPv6、而用户访问到
 其他服务返回 404。
 
@@ -22,17 +22,18 @@ tsx watch/ Vite` 多层进程，旧进程不能及时退出，日志出现
 
 | 需求 ID | 开发方案 | 影响范围 | 风险与非目标 | 验证方式 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R1 | PM2 后端直接执行本地 `tsx src/index.ts`，前端直接执行本地 `vite`，移除 PM2 启动链路中的 `pnpm dev`；前端固定 IPv4 严格端口并增加启动前端口预检 | `scripts/pm2-backend.sh`、`scripts/pm2-frontend.sh`、`frontend/vite.config.ts`、`scripts/check-frontend-port.sh`、`package.json` | 后端不再由 watcher 自动重启，需执行 `pnpm restart`；5173 被外部服务占用时启动会明确失败，不自动换端口 | Shell/TypeScript 检查、PM2 启停日志、深链 HTTP 验证和端口冲突验证 | 已验证 |
+| R1 | PM2 后端直接执行本地 `tsx src/index.ts`，前端直接执行本地 `vite`，移除 PM2 启动链路中的 `pnpm dev`；前端固定 IPv4 严格端口并增加启动前端口预检 | `scripts/pm2-backend.sh`、`scripts/pm2-frontend.sh`、`frontend/vite.config.ts`、`scripts/check-frontend-port.sh`、`package.json` | 后端不再由 watcher 自动重启，需执行 `pnpm restart`；35173 被外部服务占用时启动会明确失败，不自动换端口 | Shell/TypeScript 检查、PM2 启停日志、深链 HTTP 验证和端口冲突验证 | 已验证 |
 
 ## Decision Delta
 
 | 决策 ID | 旧决策 | 新决策 | 触发证据 | 影响需求 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | D1 | PM2 通过 `pnpm dev` 启动 watcher | PM2 直接管理一次性后端进程和 Vite 开发服务器 | PM2 日志出现 `tsx Previous process hasn't exited yet. Force killing...`，前端冷启动日志同时显示 Vite 初始化耗时 | R1 | 已确认 |
-| D2 | Vite 可在端口冲突时改绑其他地址/端口 | Vite 固定绑定 `127.0.0.1:5173` 并启用 `strictPort` | 实测 IPv4 5173 被 `web-tool-site` 占用，Coding History 改在 IPv6 5173，用户访问 localhost 得到其他项目 404 | R1 | 已确认 |
+| D2 | Vite 可在端口冲突时改绑其他地址/端口 | Vite 固定绑定 `127.0.0.1:35173` 并启用 `strictPort` | 实测 IPv4 5173 被 `web-tool-site` 占用，Coding History 改在 IPv6 5173，用户访问 localhost 得到其他项目 404 | R1 | 已确认 |
 | D3 | 端口冲突由 Vite/PM2 启动后才暴露 | `pnpm start/restart` 先执行 `frontend:check-port`，识别非本项目监听进程并中止 | PM2 online 状态不能证明 5173 返回的是本项目页面 | R1 | 已确认 |
 | D4 | 5173 冲突时只能停止外部服务 | 支持 `FRONTEND_PORT` 环境变量覆盖前端端口，端口预检和 Vite 使用同一配置 | 用户可能需要同时运行多个前端项目 | R1 | 已确认 |
 | D5 | PM2 已有守护进程时不会自动刷新端口环境变量 | 在 ecosystem 配置显式写入 `FRONTEND_PORT`，并在 start/restart 使用 `--update-env` | 备用端口配置必须传递给既有 PM2 应用 | R1 | 已确认 |
+| D6 | 前端默认使用常见的 5173 端口 | 默认使用较少冲突的 35173，仍允许通过 `FRONTEND_PORT` 覆盖 | 5173 容易与其他 Node/Vite 项目冲突 | R1 | 已确认 |
 
 ## Invalidation
 
@@ -79,6 +80,7 @@ tsx watch/ Vite` 多层进程，旧进程不能及时退出，日志出现
 | 2026-09-24 | 增加 `frontend:check-port` 端口预检并接入 `start/restart` | R1 / D3 | 端口冲突时在 PM2 启动前明确失败 |
 | 2026-09-24 | Vite 端口支持 `FRONTEND_PORT` 覆盖 | R1 / D4 | 外部项目占用 5173 时可使用 5174 等备用端口 |
 | 2026-09-24 | PM2 配置加入 `FRONTEND_PORT` 并启用 `--update-env` | R1 / D5 | 备用端口配置可刷新到既有 PM2 进程 |
+| 2026-09-24 | 将前端默认端口从 5173 调整为 35173，备用端口示例调整为 35174 | R1 / D6 | 降低与常见 Node/Vite 项目的端口冲突 |
 
 ## 验证结果
 

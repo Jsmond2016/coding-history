@@ -26,7 +26,7 @@ const logService = new LogService();
 // 中间件
 app.use('*', honoLogger());
 app.use('*', cors({
-  origin: 'http://localhost:5173',
+  origin: 'http://localhost:35173',
   credentials: true
 }));
 

@@ -244,7 +244,7 @@ pnpm dev:backend
 pnpm dev:frontend
 
 # 3. 访问前端页面查看数据
-open http://localhost:5173
+open http://localhost:35173
 ```
 
 ## 技术细节

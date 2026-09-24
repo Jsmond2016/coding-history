@@ -2,7 +2,7 @@
 
 set -u
 
-PORT="${FRONTEND_PORT:-5173}"
+PORT="${FRONTEND_PORT:-35173}"
 
 if ! command -v lsof >/dev/null 2>&1; then
   exit 0
