@@ -18,6 +18,11 @@ import {
   authorsAtom,
   type FilterState,
 } from '../../../biz/atoms/gitStatistics.atom'
+import {
+  gitStatisticsAppliedFilterAtom,
+  gitStatisticsHydratedAtom,
+  gitStatisticsViewAtom,
+} from '../../../biz/atoms/analytics.atom'
 import { gitStatisticsApi } from '../../../services/gitStatisticsApi'
 import { getDataMetricsConfig } from '../../../services/configApi'
 import { tasksApi } from '../../../services/tasksApi'
@@ -25,7 +30,6 @@ import type {
   CommitType,
   CommitsByDate,
   OvertimeMode,
-  WorkStatusMetricsConfig,
 } from '../../../types/gitStatistics'
 import type { ScanTask } from '../../../types/tasks'
 import { useScan } from '../../../biz/hooks/useScan'
@@ -98,6 +102,11 @@ function toSearchParams(filter: FilterState): URLSearchParams {
   return params
 }
 
+function hasSearchParams(searchParams: URLSearchParams): boolean {
+  return ['start', 'end', 'repos', 'authors', 'overtime', 'q', 'types']
+    .some((key) => searchParams.has(key))
+}
+
 function buildStatistics(groups: CommitsByDate[]) {
   const commits = groups.flatMap((group) => group.commits)
   const byRepositoryMap = new Map<string, {
@@ -139,26 +148,31 @@ function buildStatistics(groups: CommitsByDate[]) {
 
 const GitStatisticsList: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialFilter = React.useMemo(() => parseFilter(searchParams), [])
+  const initialFilter = React.useMemo(() => parseFilter(searchParams), [searchParams])
   const [filter, setFilter] = useAtom(filterAtom)
+  const [appliedFilter, setAppliedFilter] = useAtom(gitStatisticsAppliedFilterAtom)
+  const [hydrated, setHydrated] = useAtom(gitStatisticsHydratedAtom)
+  const [view, setView] = useAtom(gitStatisticsViewAtom)
   const setStatistics = useSetAtom(statisticsAtom)
   const [repositories, setRepositories] = useAtom(repositoriesAtom)
   const setAuthors = useSetAtom(authorsAtom)
-  const [appliedFilter, setAppliedFilter] = React.useState<FilterState>(() => cloneFilter(initialFilter))
-  const [commitsByDate, setCommitsByDate] = React.useState<CommitsByDate[]>([])
-  const [workStatusGroups, setWorkStatusGroups] = React.useState<CommitsByDate[]>([])
-  const [metricsConfig, setMetricsConfig] = React.useState<WorkStatusMetricsConfig | null>(null)
   const [primaryTask, setPrimaryTask] = React.useState<ScanTask | null>(null)
   const [loading, setLoading] = React.useState(false)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [lastUpdatedAt, setLastUpdatedAt] = React.useState<number | null>(null)
   const [syncModalOpen, setSyncModalOpen] = React.useState(false)
   const [scanTimePreset, setScanTimePreset] = React.useState<ScanTimePresetKey>('three_days')
   const [allTimeRange, setAllTimeRange] = React.useState<[Dayjs, Dayjs] | null>(null)
   const requestIdRef = React.useRef(0)
   const { scanning, handleScan } = useScan()
+  const {
+    commitsByDate,
+    workStatusGroups,
+    metricsConfig,
+    loadError,
+    lastUpdatedAt,
+  } = view
 
   const isDirty = filterSignature(filter) !== filterSignature(appliedFilter)
+  const appliedDateRangeLabel = `${appliedFilter.dateRange[0].format('YYYY-MM-DD')} 至 ${appliedFilter.dateRange[1].format('YYYY-MM-DD')}`
 
   const handleSearch = React.useCallback(async (customFilter?: FilterState) => {
     const nextFilter = cloneFilter(customFilter ?? filter)
@@ -171,7 +185,7 @@ const GitStatisticsList: React.FC = () => {
     setAppliedFilter(nextFilter)
     setSearchParams(toSearchParams(nextFilter), { replace: true })
     setLoading(true)
-    setLoadError(null)
+    setView((current) => ({ ...current, loadError: null }))
 
     try {
       const visibleRequest = gitStatisticsApi.getCommitsByDate({
@@ -199,26 +213,43 @@ const GitStatisticsList: React.FC = () => {
         nextFilter.commitTypes,
       )
       const fullGroupMap = new Map((fullResult.data ?? []).map((group) => [group.date, group]))
-      setCommitsByDate(visibleGroups.map((group) => ({
-        ...group,
-        workStatus: fullGroupMap.get(group.date)?.workStatus ?? group.workStatus,
-      })))
-      setWorkStatusGroups(fullResult.data ?? [])
-      setMetricsConfig(fullResult.metricsConfig)
+      setView((current) => ({
+        ...current,
+        commitsByDate: visibleGroups.map((group) => ({
+          ...group,
+          workStatus: fullGroupMap.get(group.date)?.workStatus ?? group.workStatus,
+        })),
+        workStatusGroups: fullResult.data ?? [],
+        metricsConfig: fullResult.metricsConfig,
+        lastUpdatedAt: Date.now(),
+      }))
       setStatistics(buildStatistics(visibleGroups))
-      setLastUpdatedAt(Date.now())
     } catch (error) {
       if (requestId !== requestIdRef.current) return
       console.error('[GitStatistics] Search error:', error)
-      setLoadError('提交数据加载失败，请检查服务状态后重新查询。')
+      setView((current) => ({
+        ...current,
+        loadError: '提交数据加载失败，请检查服务状态后重新查询。',
+      }))
       message.error('提交数据加载失败')
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
     }
-  }, [filter, setSearchParams, setStatistics])
+  }, [filter, setAppliedFilter, setSearchParams, setStatistics, setView])
 
   useMount(async () => {
-    setFilter(initialFilter)
+    const shouldHydrateFromUrl = !hydrated
+    const nextFilter = shouldHydrateFromUrl && hasSearchParams(searchParams)
+      ? initialFilter
+      : shouldHydrateFromUrl ? filter : appliedFilter
+    if (shouldHydrateFromUrl) {
+      setFilter(nextFilter)
+      setAppliedFilter(nextFilter)
+      setHydrated(true)
+    } else {
+      setSearchParams(toSearchParams(appliedFilter), { replace: true })
+    }
+
     const [repos, authors, task, commitDateRange, dataMetricsConfig] = await Promise.all([
       gitStatisticsApi.getRepositories().catch(() => null),
       gitStatisticsApi.getAuthors().catch(() => null),
@@ -238,7 +269,9 @@ const GitStatisticsList: React.FC = () => {
         dayjs().endOf('day'),
       ])
     }
-    await handleSearch(initialFilter)
+    if (view.lastUpdatedAt === null) {
+      await handleSearch(nextFilter)
+    }
   })
 
   const handleSyncConfirm = React.useCallback(async (
@@ -332,7 +365,14 @@ const GitStatisticsList: React.FC = () => {
 
                 <Card
                   title="提交明细"
-                  extra={isDirty ? <Tag color="warning">结果仍对应上一次已应用筛选</Tag> : null}
+                  extra={(
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Typography.Text type="secondary" className="text-xs font-normal">
+                        时间范围：{appliedDateRangeLabel}
+                      </Typography.Text>
+                      {isDirty ? <Tag color="warning">结果仍对应上一次已应用筛选</Tag> : null}
+                    </div>
+                  )}
                   className="[&_.ant-card-body]:p-0"
                 >
                   <CommitsWorkbench data={commitsByDate} metricsConfig={metricsConfig} />

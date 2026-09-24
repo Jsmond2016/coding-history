@@ -25,7 +25,18 @@ import {
   TeamOutlined,
 } from "@ant-design/icons"
 import { useMount } from "ahooks"
+import { useAtom } from "jotai"
+import { useSearchParams } from "react-router-dom"
 import dayjs, { type Dayjs } from "dayjs"
+import {
+  dataOverviewAppliedFilterAtom,
+  dataOverviewFilterAtom,
+  dataOverviewHydratedAtom,
+  dataOverviewViewAtom,
+  defaultOverviewFilter,
+  type OverviewDrilldownKey,
+  type OverviewFilter,
+} from "../../biz/atoms/analytics.atom"
 import { gitStatisticsApi } from "../../services/gitStatisticsApi"
 import { getDataMetricsConfig } from "../../services/configApi"
 import { createCommitDateRangePresets } from "../../utils/commitDateRange"
@@ -36,7 +47,6 @@ import {
 } from "./components/OverviewPieChart"
 import type {
   Author,
-  CommitsByDate,
   DataOverviewResponse,
   OvertimeMode,
   Repository,
@@ -45,25 +55,43 @@ import type {
 
 const { RangePicker } = DatePicker
 
-type DrilldownKey =
-  | "totalCommits"
-  | "activeDays"
-  | "overtimeDays"
-  | "overtimeCommits"
-  | "topOvertimeMonth"
-  | `intensity:${WorkIntensity}`
-  | `repository:${string}`
-
-interface OverviewFilter {
-  dateRange: [Dayjs, Dayjs]
-  repositoryIds: string[]
-  authorEmails: string[]
-}
-
 const getQueryRange = (range: [Dayjs, Dayjs]) => ({
   startDate: range[0].startOf("day").valueOf(),
   endDate: range[1].endOf("day").valueOf(),
 })
+
+const cloneOverviewFilter = (filter: OverviewFilter): OverviewFilter => ({
+  dateRange: [filter.dateRange[0], filter.dateRange[1]],
+  repositoryIds: [...filter.repositoryIds],
+  authorEmails: [...filter.authorEmails],
+})
+
+const hasOverviewSearchParams = (searchParams: URLSearchParams) => (
+  ["start", "end", "repos", "authors"].some((key) => searchParams.has(key))
+)
+
+const parseOverviewFilter = (searchParams: URLSearchParams): OverviewFilter => {
+  const start = dayjs(searchParams.get("start"))
+  const end = dayjs(searchParams.get("end"))
+  if (!start.isValid() || !end.isValid() || end.isBefore(start)) {
+    return cloneOverviewFilter(defaultOverviewFilter)
+  }
+  return {
+    dateRange: [start, end],
+    repositoryIds: searchParams.get("repos")?.split(",").filter(Boolean) ?? [],
+    authorEmails: searchParams.get("authors")?.split(",").filter(Boolean) ?? [],
+  }
+}
+
+const toOverviewSearchParams = (filter: OverviewFilter) => {
+  const params = new URLSearchParams({
+    start: filter.dateRange[0].format("YYYY-MM-DD"),
+    end: filter.dateRange[1].format("YYYY-MM-DD"),
+  })
+  if (filter.repositoryIds.length) params.set("repos", filter.repositoryIds.join(","))
+  if (filter.authorEmails.length) params.set("authors", filter.authorEmails.join(","))
+  return params
+}
 
 const metricNumber = (value?: number | null) =>
   typeof value === "number" ? value.toLocaleString() : "-"
@@ -98,21 +126,18 @@ const matchesIntensity = (
 }
 
 const DataOverview: React.FC = () => {
-  const [filter, setFilter] = React.useState<OverviewFilter>({
-    dateRange: [dayjs().subtract(1, "month"), dayjs()],
-    repositoryIds: [],
-    authorEmails: [],
-  })
-  const [appliedFilter, setAppliedFilter] = React.useState<OverviewFilter>(filter)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialFilter = React.useMemo(() => parseOverviewFilter(searchParams), [searchParams])
+  const [filter, setFilter] = useAtom(dataOverviewFilterAtom)
+  const [appliedFilter, setAppliedFilter] = useAtom(dataOverviewAppliedFilterAtom)
+  const [hydrated, setHydrated] = useAtom(dataOverviewHydratedAtom)
+  const [view, setView] = useAtom(dataOverviewViewAtom)
   const [repositories, setRepositories] = React.useState<Repository[]>([])
   const [authors, setAuthors] = React.useState<Author[]>([])
   const [allTimeRange, setAllTimeRange] = React.useState<[Dayjs, Dayjs] | null>(null)
-  const [overview, setOverview] = React.useState<DataOverviewResponse | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [detailLoading, setDetailLoading] = React.useState(false)
-  const [activeCard, setActiveCard] = React.useState<DrilldownKey | null>(null)
-  const [detailGroups, setDetailGroups] = React.useState<CommitsByDate[]>([])
-  const [detailTitle, setDetailTitle] = React.useState("选择指标或仓库查看提交明细")
+  const { overview, activeCard, detailGroups, detailTitle } = view
 
   const handleDateChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
     if (!dates?.[0] || !dates?.[1]) return
@@ -120,31 +145,36 @@ const DataOverview: React.FC = () => {
     setFilter((current) => ({ ...current, dateRange }))
   }
 
-  const loadOverview = React.useCallback(async () => {
-    const { startDate, endDate } = getQueryRange(filter.dateRange)
+  const loadOverview = React.useCallback(async (customFilter?: OverviewFilter) => {
+    const nextFilter = cloneOverviewFilter(customFilter ?? filter)
+    const { startDate, endDate } = getQueryRange(nextFilter.dateRange)
     setLoading(true)
-    setActiveCard(null)
-    setDetailGroups([])
-    setDetailTitle("选择指标或仓库查看提交明细")
+    setView((current) => ({
+      ...current,
+      activeCard: null,
+      detailGroups: [],
+      detailTitle: "选择指标或仓库查看提交明细",
+    }))
 
     try {
       const result = await gitStatisticsApi.getDataOverview({
         startDate,
         endDate,
-        repositoryIds: filter.repositoryIds.length > 0 ? filter.repositoryIds : undefined,
-        authorEmails: filter.authorEmails.length > 0 ? filter.authorEmails : undefined,
+        repositoryIds: nextFilter.repositoryIds.length > 0 ? nextFilter.repositoryIds : undefined,
+        authorEmails: nextFilter.authorEmails.length > 0 ? nextFilter.authorEmails : undefined,
       })
-      setOverview(result)
-      setAppliedFilter(filter)
+      setAppliedFilter(nextFilter)
+      setView((current) => ({ ...current, overview: result }))
+      setSearchParams(toOverviewSearchParams(nextFilter), { replace: true })
     } catch (error) {
       console.error("[DataOverview] Load overview error:", error)
       message.error("加载数据总览失败")
     } finally {
       setLoading(false)
     }
-  }, [filter])
+  }, [filter, setAppliedFilter, setSearchParams, setView])
 
-  const loadDetail = React.useCallback(async (key: DrilldownKey) => {
+  const loadDetail = React.useCallback(async (key: OverviewDrilldownKey) => {
     if (!overview) return
 
     let range = appliedFilter.dateRange
@@ -185,8 +215,7 @@ const DataOverview: React.FC = () => {
       title = `工作强度：${overview.metricsConfig.labels[intensity]}`
     }
 
-    setActiveCard(key)
-    setDetailTitle(title)
+    setView((current) => ({ ...current, activeCard: key, detailTitle: title }))
     setDetailLoading(true)
 
     try {
@@ -199,23 +228,38 @@ const DataOverview: React.FC = () => {
         overtimeMode,
       })
       const groups = result.data ?? []
-      setDetailGroups(intensity
-        ? groups.filter((group) => matchesIntensity(
-            group.totalCommits,
-            intensity,
-            overview.metricsConfig.thresholds,
-          ))
-        : groups)
+      setView((current) => ({
+        ...current,
+        detailGroups: intensity
+          ? groups.filter((group) => matchesIntensity(
+              group.totalCommits,
+              intensity,
+              overview.metricsConfig.thresholds,
+            ))
+          : groups,
+      }))
     } catch (error) {
       console.error("[DataOverview] Load detail error:", error)
       message.error("加载明细失败")
     } finally {
       setDetailLoading(false)
     }
-  }, [appliedFilter, overview])
+  }, [appliedFilter, overview, setView])
 
   useMount(async () => {
     try {
+      const shouldHydrateFromUrl = !hydrated
+      const nextFilter = shouldHydrateFromUrl && hasOverviewSearchParams(searchParams)
+        ? initialFilter
+        : shouldHydrateFromUrl ? filter : appliedFilter
+      if (shouldHydrateFromUrl) {
+        setFilter(nextFilter)
+        setAppliedFilter(nextFilter)
+        setHydrated(true)
+      } else {
+        setSearchParams(toOverviewSearchParams(appliedFilter), { replace: true })
+      }
+
       const [repositoryResult, authorResult, commitDateRange, metricsConfig] = await Promise.all([
         gitStatisticsApi.getRepositories().catch(() => []),
         gitStatisticsApi.getAuthors().catch(() => []),
@@ -231,7 +275,9 @@ const DataOverview: React.FC = () => {
           dayjs().endOf("day"),
         ])
       }
-      await loadOverview()
+      if (!view.overview) {
+        await loadOverview(nextFilter)
+      }
     } catch {
       message.error("加载数据总览初始数据失败")
     }
@@ -266,6 +312,7 @@ const DataOverview: React.FC = () => {
   }, [overview])
   const hireDate = overview?.metricsConfig.hireDate ?? null
   const tenureDays = getTenureDays(hireDate)
+  const appliedDateRangeLabel = `${appliedFilter.dateRange[0].format("YYYY-MM-DD")} 至 ${appliedFilter.dateRange[1].format("YYYY-MM-DD")}`
 
   const summaryCards = [
     {
@@ -352,7 +399,7 @@ const DataOverview: React.FC = () => {
                   label: `${author.name}（${author.email}）`,
                 }))}
               />
-              <Button type="primary" icon={<SearchOutlined />} loading={loading} onClick={loadOverview}>
+              <Button type="primary" icon={<SearchOutlined />} loading={loading} onClick={() => loadOverview()}>
                 查询
               </Button>
             </div>
@@ -423,7 +470,14 @@ const DataOverview: React.FC = () => {
             <Row gutter={[16, 16]} className="mt-4" align="top">
               <Col xs={24} xl={16}>
                 <Card
-                  title="仓库活动分布"
+                  title={(
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span>仓库活动分布</span>
+                      <Typography.Text type="secondary" className="text-xs font-normal">
+                        时间范围：{appliedDateRangeLabel}
+                      </Typography.Text>
+                    </div>
+                  )}
                   extra={<Tag color="blue">{overview?.totals.repositories ?? 0} 个活跃仓库</Tag>}
                   className="h-full border-0 shadow-sm"
                 >
