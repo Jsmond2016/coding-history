@@ -215,6 +215,18 @@ pnpm restart
 pnpm delete
 ```
 
+`pnpm start` 和 `pnpm restart` 默认会尝试启动本机 `redis-server`，并用 `redis-cli ping`
+检查可用性；缺少 Redis 工具时只会输出警告，后端自动使用 Node 进程内缓存。`pnpm stop`、
+`pnpm delete` 和 `pnpm reset` 会关闭由本项目启动的 Redis，不会影响用户已有的 Redis 服务。
+前端固定使用 `127.0.0.1:5173`；如果该端口被其他项目占用，启动会提前失败并显示占用进程，
+需要先停止占用者后再执行 `pnpm start`。如果不希望停止其他项目，可以指定备用端口：
+
+```bash
+FRONTEND_PORT=5174 pnpm start
+```
+
+此时访问 `http://localhost:5174`，API 代理仍指向后端 `5188` 端口。
+
 **PM2 启动的优势：**
 - 服务在后台运行，不占用终端窗口
 - 自动重启（进程崩溃时）

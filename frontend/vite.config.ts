@@ -7,7 +7,11 @@ export default defineConfig({
     bundler: 'vite',
   }), react()],
   server: {
-    port: 5173,
+    // Keep localhost on IPv4 so a different service cannot answer the user's URL
+    // while Vite silently falls back to an IPv6 listener.
+    host: '127.0.0.1',
+    port: Number(process.env.FRONTEND_PORT || 5173),
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'http://localhost:5188',

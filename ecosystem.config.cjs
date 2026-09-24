@@ -40,7 +40,8 @@ module.exports = {
       watch: false,
       max_memory_restart: '500M',
       env: {
-        NODE_ENV: 'development'
+        NODE_ENV: 'development',
+        FRONTEND_PORT: process.env.FRONTEND_PORT || '5173'
       },
       error_file: path.resolve(__dirname, 'frontend/logs/pm2/error.log'),
       out_file: path.resolve(__dirname, 'frontend/logs/pm2/out.log'),
@@ -54,4 +55,3 @@ module.exports = {
     }
   ]
 };
-
